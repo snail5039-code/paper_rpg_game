@@ -4,6 +4,7 @@ extends Node2D
 ## 연필 모드 동안 게임은 일시정지된다. 선은 월드 좌표로 저장된다.
 
 signal submitted(strokes: Array)
+signal closed   ## 연필 모드를 닫았다
 signal erased_at(world_pos: Vector2)  ## 지우개가 지나간 자리 (문 자국 닦기 등에 쓴다)
 
 const Art := preload("res://scripts/art.gd")
@@ -18,6 +19,7 @@ var guides: Array = []          # Array[PackedVector2Array] — 설계도 안내
 var show_guides := true
 var strokes: Array = []         # Array[PackedVector2Array]
 var eraser_tool := false
+var persist := false            # true 면 닫아도 선이 남고, 평소에도 보인다 (내 마을 자유 낙서)
 
 var _current := PackedVector2Array()
 var _pen_down := false
@@ -37,10 +39,13 @@ func set_active(on: bool) -> void:
 	_erasing = false
 	_current = PackedVector2Array()
 	if not on:
-		strokes.clear()
+		if not persist:
+			strokes.clear()
 		eraser_tool = false
 	GameState.set_draw_mode(on)
 	queue_redraw()
+	if not on:
+		closed.emit()
 
 
 func clear_strokes() -> void:
@@ -147,6 +152,9 @@ func _visible_world_rect() -> Rect2:
 
 func _draw() -> void:
 	if not active:
+		if persist:
+			for s in strokes:
+				_draw_stroke(s as PackedVector2Array)
 		return
 	var view := _visible_world_rect()
 

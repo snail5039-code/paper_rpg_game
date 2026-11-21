@@ -111,7 +111,36 @@ func _play_opening() -> void:
 	opened.modulate.a = 0.0
 	var caption := _caption_label(layer)
 
-	caption.text = "오랜만에 서랍에서 어릴 적 공책을 꺼냈다.   ▼"
+	# 프롤로그: 부고 문자 → 옛날 방 → 서랍
+	var cuts := [
+		["prologue_0", ["밤늦게 문자가 한 통 왔다.", "하루가 죽었다고 했다."]],
+		["prologue_1", ["장례식에 가려고, 오랜만에 옛날 내 방에 왔다.", "잠이 오지 않았다."]],
+		["prologue_2", ["서랍 안에 그 공책이 그대로 있었다.", "하루랑 같이 그리던 공책."]],
+	]
+	var prev: TextureRect = null
+	for cut in cuts:
+		if Art.tex(str(cut[0])) == null:
+			continue
+		var img := _full_image(layer, str(cut[0]))
+		layer.move_child(img, caption.get_index())
+		img.modulate.a = 0.0
+		var ftw := create_tween()
+		ftw.tween_property(img, "modulate:a", 1.0, 0.5)
+		await ftw.finished
+		if prev:
+			prev.queue_free()
+		prev = img
+		for line in cut[1]:
+			caption.text = str(line) + "   ▼"
+			await _wait_advance()
+		caption.text = ""
+	if prev:
+		var otw := create_tween()
+		otw.tween_property(prev, "modulate:a", 0.0, 0.5)
+		await otw.finished
+		prev.queue_free()
+
+	caption.text = "표지의 스티커는 전부 떨어져 나가고 없었다.   ▼"
 	await _wait_advance()
 	caption.text = "그때 뭘 그렸더라… 한번 펼쳐 볼까.   ▼"
 	await _wait_advance()
@@ -145,9 +174,10 @@ func _play_opening() -> void:
 	GameState.set_cutscene(false)
 
 	await GameState.say("나", [
-		"여긴… 내가 그렸던 마을이잖아!",
+		"여긴… 우리가 그렸던 마을이잖아!",
+		"그런데 군데군데 하얗게 비어 있다. 누가 지운 것처럼.",
 		"손에는 연필이 들려 있다. 일단 주변을 둘러보자.",
-	], "player")
+	], "player_surprised")
 	GameState.intro_seen = true
 	GameState.save_game()
 	_busy = false
@@ -283,20 +313,23 @@ func _on_door_entered() -> void:
 	var title := _caption_label(layer, 130.0, 30)
 	title.add_theme_color_override("font_color", Color(0.3, 0.25, 0.25))
 	title.add_theme_constant_override("outline_size", 0)
-	title.text = "1페이지 끝"
+	var first_clear := GameState.quest != GameState.Quest.CLEARED
+	title.text = "1페이지 끝" if first_clear else "내 마을로"
 	var sub := _caption_label(layer, 178.0, 16)
 	sub.add_theme_color_override("font_color", Color(0.45, 0.4, 0.4))
 	sub.add_theme_constant_override("outline_size", 0)
-	sub.text = "지우개 괴물을 쫓아 2페이지로… (준비 중)"
+	sub.text = "문 너머에는… 아무것도 없는 빈 페이지가 있었다." if first_clear else "빈 페이지로 돌아간다."
 	var foot := _caption_label(layer, 300.0, 12)
 	foot.add_theme_color_override("font_color", Color(0.55, 0.5, 0.5))
 	foot.add_theme_constant_override("outline_size", 0)
-	foot.text = "클릭하면 마을로 돌아갑니다  ·  F9 처음부터 다시"
+	foot.text = "클릭하면 내 마을로 갑니다  ·  F9 처음부터 다시"
 
 	if GameState.quest != GameState.Quest.CLEARED:
 		GameState.set_quest(GameState.Quest.CLEARED)
 	await _wait(0.4)
 	await _wait_advance()
+	if GameState.goto_map("home", "from_ch1"):
+		return
 	var tw := create_tween()
 	tw.tween_property(layer, "offset:y", 0.0, 0.01)
 	for c in layer.get_children():

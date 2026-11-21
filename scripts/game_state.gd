@@ -6,9 +6,16 @@ signal changed
 signal message(text: String)
 signal dialogue_requested(speaker: String, lines: Array, portrait: String)
 signal dialogue_finished
+signal leveled_up(level: int)
 
 const SAVE_PATH := "user://save.json"
 const BRIDGE_COST := 3
+const MAX_LEVEL := 20
+## 맵 이름 → 장면. "home" 은 내 마을, "ch1" 은 1장 공책 마을.
+const MAP_SCENES := {
+	"ch1": "res://scenes/main.tscn",
+	"home": "res://scenes/home.tscn",
+}
 
 ## 1페이지(튜토리얼) 진행 순서
 enum Quest {
@@ -25,6 +32,14 @@ var quest: int = Quest.NOT_STARTED
 var pencil_lead: int = 0
 var bridge_built: bool = false
 var intro_seen: bool = false
+var level: int = 1
+var exp: int = 0
+var materials: Dictionary = {}   # 재료 번호(int) → 개수
+var current_map: String = "ch1"
+var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
+var home_cells: String = ""      # 내 마을 바닥 칸 (압축 + base64)
+var home_doodles: Array = []     # 내 마을 자유 낙서 (선마다 [x0, y0, x1, y1, ...])
+var home_intro_seen: bool = false
 var has_saved_position: bool = false
 var saved_position: Vector2 = Vector2.ZERO
 
@@ -32,6 +47,7 @@ var player_ref: Node2D = null
 var dialogue_open: bool = false
 var draw_mode: bool = false
 var cutscene: bool = false
+var menu_open: bool = false
 
 
 func _ready() -> void:
@@ -64,6 +80,80 @@ func set_quest(value: int) -> void:
 
 func add_lead(amount: int) -> void:
 	pencil_lead = max(0, pencil_lead + amount)
+	changed.emit()
+
+
+# ---------- 맵 이동 ----------
+
+func map_scene() -> String:
+	return str(MAP_SCENES.get(current_map, MAP_SCENES["ch1"]))
+
+
+## 다른 맵으로 간다. 게임 맵이 현재 장면일 때만 실제로 옮긴다 (테스트에서는 옮기지 않고 false).
+func goto_map(map: String, tag: String = "") -> bool:
+	if not MAP_SCENES.has(map):
+		return false
+	var scene := get_tree().current_scene
+	if scene == null or not scene.is_in_group("game_map"):
+		return false
+	current_map = map
+	spawn_tag = tag
+	has_saved_position = false
+	player_ref = null   # 옛 맵의 위치는 저장하지 않는다
+	dialogue_open = false
+	draw_mode = false
+	cutscene = false
+	menu_open = false
+	_update_pause()
+	save_game()
+	get_tree().change_scene_to_file.call_deferred(map_scene())
+	return true
+
+
+# ---------- 성장 ----------
+
+## 다음 레벨까지 필요한 경험치
+func exp_needed(lv: int = -1) -> int:
+	if lv < 0:
+		lv = level
+	return 8 + 6 * (lv - 1)
+
+
+func add_exp(amount: int) -> void:
+	if level >= MAX_LEVEL:
+		return
+	exp += amount
+	while level < MAX_LEVEL and exp >= exp_needed():
+		exp -= exp_needed()
+		level += 1
+		leveled_up.emit(level)
+		notify("레벨 업!  필력 %d" % level)
+	if level >= MAX_LEVEL:
+		exp = 0
+	changed.emit()
+
+
+## 레벨에 따른 최대 HP 와 공격력 (능력치 배분은 아직 없음)
+func max_hp() -> int:
+	return 5 + (level - 1) / 2
+
+
+func attack_power() -> int:
+	return 1 + (level - 1) / 3
+
+
+func add_material(id: int, amount: int = 1) -> void:
+	materials[id] = int(materials.get(id, 0)) + amount
+	changed.emit()
+
+
+func material_count(id: int) -> int:
+	return int(materials.get(id, 0))
+
+
+func set_menu_open(on: bool) -> void:
+	menu_open = on
+	_update_pause()
 	changed.emit()
 
 
@@ -105,7 +195,7 @@ func set_cutscene(on: bool) -> void:
 
 
 func _update_pause() -> void:
-	get_tree().paused = dialogue_open or draw_mode or cutscene
+	get_tree().paused = dialogue_open or draw_mode or cutscene or menu_open
 
 
 # ---------- 저장 / 불러오기 ----------
@@ -116,6 +206,13 @@ func save_game() -> bool:
 		"pencil_lead": pencil_lead,
 		"bridge_built": bridge_built,
 		"intro_seen": intro_seen,
+		"level": level,
+		"exp": exp,
+		"materials": _materials_for_save(),
+		"current_map": current_map,
+		"home_cells": home_cells,
+		"home_doodles": home_doodles,
+		"home_intro_seen": home_intro_seen,
 	}
 	if is_instance_valid(player_ref):
 		data["player_x"] = player_ref.global_position.x
@@ -141,10 +238,31 @@ func load_game() -> bool:
 	pencil_lead = int(data.get("pencil_lead", 0))
 	bridge_built = bool(data.get("bridge_built", false))
 	intro_seen = bool(data.get("intro_seen", false))
+	level = clampi(int(data.get("level", 1)), 1, MAX_LEVEL)
+	exp = maxi(0, int(data.get("exp", 0)))
+	materials = {}
+	var mats: Variant = data.get("materials", {})
+	if typeof(mats) == TYPE_DICTIONARY:
+		for k in mats:
+			materials[int(str(k))] = int(mats[k])
+	current_map = str(data.get("current_map", "ch1"))
+	if not MAP_SCENES.has(current_map):
+		current_map = "ch1"
+	home_cells = str(data.get("home_cells", ""))
+	var doodles: Variant = data.get("home_doodles", [])
+	home_doodles = doodles if typeof(doodles) == TYPE_ARRAY else []
+	home_intro_seen = bool(data.get("home_intro_seen", false))
 	has_saved_position = data.has("player_x") and data.has("player_y")
 	if has_saved_position:
 		saved_position = Vector2(float(data["player_x"]), float(data["player_y"]))
 	return true
+
+
+func _materials_for_save() -> Dictionary:
+	var out := {}
+	for k in materials:
+		out[str(k)] = materials[k]
+	return out
 
 
 func reset_game() -> void:
@@ -154,9 +272,23 @@ func reset_game() -> void:
 	pencil_lead = 0
 	bridge_built = false
 	intro_seen = false
+	level = 1
+	exp = 0
+	materials = {}
+	menu_open = false
 	has_saved_position = false
 	dialogue_open = false
 	draw_mode = false
 	cutscene = false
+	home_cells = ""
+	home_doodles = []
+	home_intro_seen = false
+	spawn_tag = ""
 	_update_pause()
-	get_tree().reload_current_scene()
+	var scene := get_tree().current_scene
+	if scene != null and scene.is_in_group("game_map") and current_map != "ch1":
+		current_map = "ch1"
+		get_tree().change_scene_to_file.call_deferred(map_scene())
+	else:
+		current_map = "ch1"
+		get_tree().reload_current_scene()

@@ -1,0 +1,64 @@
+extends Node2D
+## 포탈(책갈피 문): F 로 들어가면 다른 맵으로 간다. 그림이 없어서 임시 도형으로 그린다.
+
+const Art := preload("res://scripts/art.gd")
+const TALK_RANGE := 36.0
+
+var target_map := ""
+var title := ""
+var spawn_tag := ""
+var locked := false
+
+var _near := false
+var _label: Label
+
+
+func _ready() -> void:
+	add_to_group("interactable")
+	_label = Label.new()
+	_label.text = title
+	_label.position = Vector2(-60, -64)
+	_label.size = Vector2(120, 16)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label.add_theme_font_size_override("font_size", 10)
+	_label.add_theme_color_override("font_color", Color(0.35, 0.28, 0.25) if not locked else Color(0.6, 0.58, 0.56))
+	add_child(_label)
+
+
+func _process(_delta: float) -> void:
+	var p := GameState.player_ref
+	var near := is_instance_valid(p) and p.global_position.distance_to(global_position) < TALK_RANGE
+	if near != _near:
+		_near = near
+		queue_redraw()
+
+
+func interact() -> void:
+	if locked or target_map == "":
+		GameState.notify("아직 열리지 않은 페이지다.")
+		return
+	if not GameState.goto_map(target_map, spawn_tag):
+		GameState.notify("%s (으)로 가는 문" % title)
+
+
+func _draw() -> void:
+	# 그림자
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
+	draw_circle(Vector2(0, 5.0 / 0.4), 14, Color(0, 0, 0, 0.15))
+	draw_set_transform(Vector2.ZERO)
+	# 책갈피 모양 문
+	var body := Color(0.86, 0.36, 0.34) if not locked else Color(0.8, 0.79, 0.77)
+	var edge := Color(0.3, 0.22, 0.22) if not locked else Color(0.62, 0.6, 0.58)
+	var pts := PackedVector2Array([Vector2(-13, 4), Vector2(-13, -38), Vector2(0, -46), Vector2(13, -38), Vector2(13, 4)])
+	draw_colored_polygon(pts, body)
+	pts.append(pts[0])
+	draw_polyline(pts, edge, 1.5, true)
+	draw_circle(Vector2(7, -16), 1.8, edge)
+	if locked:
+		draw_line(Vector2(-8, -30), Vector2(8, -8), edge, 1.5)
+		draw_line(Vector2(8, -30), Vector2(-8, -8), edge, 1.5)
+	elif _near:
+		var key := Art.tex("key_f")
+		if key:
+			var size := Vector2(key.get_width(), key.get_height()) / 3.0
+			draw_texture_rect(key, Rect2(Vector2(-size.x * 0.5, -78), size), false)

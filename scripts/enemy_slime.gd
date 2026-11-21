@@ -1,5 +1,6 @@
 extends CharacterBody2D
-## 몬스터 1종: 낙서 슬라임.
+## 몬스터 공통 스크립트. kind 로 종류를 고른다 (표: scripts/game_data.gd 의 MONSTERS).
+## 기본 움직임은 낙서 슬라임과 같다.
 ## 평소에는 제자리 근처를 어슬렁거린다. 플레이어가 aggro_range 안으로 들어오면 쫓아오고,
 ## attack_range 까지 붙으면 움츠렸다가(예고) 몸통 박치기를 한다. 박치기 중에만 피해를 준다.
 ## 박치기 뒤에는 잠깐 쉬고, 플레이어가 멀어지거나 자기 자리에서 너무 벗어나면 포기한다.
@@ -8,6 +9,14 @@ signal died(home: Vector2)
 
 const PickupScript := preload("res://scripts/pickup.gd")
 const Fx := preload("res://scripts/fx_frames.gd")
+const Data := preload("res://scripts/game_data.gd")
+
+## 종류. add_child 하기 전에 정한다.
+var kind := "slime"
+var exp_reward := 3
+var grid_move := false
+var _drops: Array = []
+var _strip := false
 
 @export var use_placeholder_art := true
 @export var max_hp := 3
@@ -49,14 +58,34 @@ var _frames := {}
 
 
 func _ready() -> void:
-	for f in ["idle", "squash", "jump", "hurt"]:
-		var t := Art.tex("slime_" + f)
-		if t:
-			_frames[f] = t
-	if _frames.size() == 4:
-		use_placeholder_art = false
-		_sprite = Art.make_sprite(self, _frames["idle"], FOOT)
-		_sprite.show_behind_parent = true
+	var cfg: Dictionary = Data.MONSTERS.get(kind, Data.MONSTERS["slime"])
+	max_hp = int(cfg["hp"])
+	speed = float(cfg["speed"])
+	damage = int(cfg["damage"])
+	radius = float(cfg["radius"])
+	exp_reward = int(cfg["exp"])
+	_drops = cfg["drops"]
+	grid_move = bool(cfg.get("grid", false))
+	aggro_range = float(cfg.get("aggro", aggro_range))
+	windup_time = float(cfg.get("windup", windup_time))
+	lunge_time = float(cfg.get("lunge_time", lunge_time))
+	lunge_speed = float(cfg.get("lunge_speed", lunge_speed))
+	if str(cfg["art"]) == "strip":
+		var sheet := Art.tex("mon_" + str(cfg["sprite"]))
+		if sheet:
+			_strip = true
+			use_placeholder_art = false
+			_sprite = Art.make_sprite(self, sheet, FOOT, 6, 1)
+			_sprite.show_behind_parent = true
+	else:
+		for f in ["idle", "squash", "jump", "hurt"]:
+			var t := Art.tex(str(cfg["sprite"]) + "_" + f)
+			if t:
+				_frames[f] = t
+		if _frames.size() == 4:
+			use_placeholder_art = false
+			_sprite = Art.make_sprite(self, _frames["idle"], FOOT)
+			_sprite.show_behind_parent = true
 	hp = max_hp
 	home = global_position
 	add_to_group("enemies")
@@ -124,11 +153,32 @@ func _physics_process(delta: float) -> void:
 			if _state_t >= rest_time:
 				_set_state(State.CHASE)
 
+	if grid_move and state != State.LUNGE and move != Vector2.ZERO:
+		# 모눈 선을 따라: 더 먼 축으로만 움직인다
+		var spd := move.length()
+		move = Vector2(signf(move.x) * spd, 0) if absf(move.x) > absf(move.y) else Vector2(0, signf(move.y) * spd)
 	velocity = move + _knock
 	_knock = _knock.move_toward(Vector2.ZERO, 500.0 * delta)
 	move_and_slide()
 
-	if _sprite:
+	if _sprite and _strip:
+		# 6칸 시트: 기본, 움직임1, 움직임2, 예고, 공격, 맞음
+		var col := 0
+		if _flash > 0.0:
+			col = 5
+		elif state == State.WINDUP:
+			col = 3
+		elif state == State.LUNGE:
+			col = 4
+		elif move.length() > 1.0:
+			col = 1 + int(_t * 6.0) % 2
+		_sprite.frame = col
+		if absf(move.x) > 1.0 or state == State.WINDUP:
+			var dx := _lunge_dir.x if state == State.WINDUP else move.x
+			_sprite.flip_h = dx < 0.0   # 원본은 오른쪽을 본다
+		var shake2 := Vector2(sin(_t * 70.0) * 1.2, 0) if state == State.WINDUP else Vector2.ZERO
+		_sprite.position = FOOT + shake2
+	elif _sprite:
 		var frame := "idle"
 		if _flash > 0.0:
 			frame = "hurt"
@@ -162,6 +212,14 @@ func _die() -> void:
 	var drop: Node2D = PickupScript.new()
 	drop.global_position = global_position
 	get_parent().add_child(drop)
+	# 재료: 흔한 것과 드문 것을 따로 굴린다
+	for i in range(0, _drops.size(), 2):
+		if randf() < float(_drops[i + 1]):
+			var mat: Node2D = PickupScript.new()
+			mat.set("mat_id", int(_drops[i]))
+			mat.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
+			get_parent().add_child(mat)
+	GameState.add_exp(exp_reward)
 	var vanish := Art.tex("slime_vanish")
 	if vanish:
 		Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)

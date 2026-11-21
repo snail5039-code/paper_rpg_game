@@ -53,7 +53,9 @@ func _ready() -> void:
 		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
 		_attack_sprite.show_behind_parent = true
 		_attack_sprite.visible = false
+	max_hp = GameState.max_hp()
 	hp = max_hp
+	GameState.leveled_up.connect(_on_level_up)
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1
@@ -132,7 +134,14 @@ func attack(aim_override := Vector2.ZERO) -> void:
 		var to := enemy.global_position - global_position
 		var reach := attack_range + float(enemy.get("radius"))
 		if to.length() <= reach and absf(rad_to_deg(_swing_dir.angle_to(to))) <= attack_arc_deg * 0.5:
-			enemy.call("take_damage", attack_damage, _swing_dir)
+			enemy.call("take_damage", attack_damage + GameState.attack_power() - 1, _swing_dir)
+
+
+## 레벨이 오르면 최대 HP 가 늘고 전부 회복한다
+func _on_level_up(_level: int) -> void:
+	max_hp = GameState.max_hp()
+	hp = max_hp
+	hp_changed.emit(hp, max_hp)
 
 
 func try_interact() -> bool:

@@ -160,7 +160,7 @@ func _run() -> void:
 		await frames(1)
 		if round == 0:
 			check(not is_instance_valid(slime) or int(slime.get("hp")) < hp_before, "공격하면 슬라임 HP 감소")
-		for hit in 6:
+		for hit in 14:
 			if not is_instance_valid(slime):
 				break
 			player.global_position = slime.global_position + Vector2(-20, 0)
@@ -178,6 +178,38 @@ func _run() -> void:
 				await frames(5)
 	check(kills == 3, "슬라임 3마리 처치 (%d)" % kills)
 	check(GameState.pencil_lead >= 3, "연필심 3개 이상 획득 (%d)" % GameState.pencil_lead)
+
+	print("[성장: 경험치·레벨·재료·가방]")
+	check(GameState.exp > 0 or GameState.level > 1, "몬스터를 잡으면 경험치를 얻음 (필력 %d, %d)" % [GameState.level, GameState.exp])
+	var lv_before := GameState.level
+	GameState.add_exp(GameState.exp_needed() - GameState.exp)
+	check(GameState.level == lv_before + 1 and GameState.exp == 0, "경험치가 차면 레벨 업")
+	GameState.add_exp(1000)
+	check(GameState.level > 5 and GameState.level <= GameState.MAX_LEVEL, "한 번에 여러 레벨이 오름 (필력 %d)" % GameState.level)
+	check(int(player.get("max_hp")) == GameState.max_hp() and int(player.get("hp")) == GameState.max_hp(),
+		"레벨 업하면 최대 HP 가 늘고 전부 회복 (%d)" % GameState.max_hp())
+	check(GameState.attack_power() > 1, "레벨이 오르면 공격력이 오름 (%d)" % GameState.attack_power())
+	GameState.level = 1
+	GameState.exp = 0
+	player.set("max_hp", GameState.max_hp())
+	player.set("hp", GameState.max_hp())
+	var mat_drop: Node2D = preload("res://scripts/pickup.gd").new()
+	mat_drop.set("mat_id", 2)
+	world.get("actors").add_child(mat_drop)
+	mat_drop.global_position = player.global_position
+	await frames(30)
+	check(GameState.material_count(2) == 1, "재료를 주우면 가방에 들어감")
+	var hud0: Node = world.get("hud")
+	hud0.call("toggle_bag")
+	await frames(2)
+	check(bool(hud0.call("is_bag_open")) and get_tree().paused, "가방을 열면 게임이 멈춤")
+	hud0.call("toggle_bag")
+	await frames(2)
+	check(not bool(hud0.call("is_bag_open")) and not get_tree().paused, "가방을 닫으면 다시 움직임")
+	var kinds := {}
+	for e in get_tree().get_nodes_in_group("enemies"):
+		kinds[str(e.get("kind"))] = true
+	check(kinds.size() >= 8, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
 	player.set("hp", player.get("max_hp"))
 
 	print("[슬라임 AI: 일정 거리 안에서만 공격]")

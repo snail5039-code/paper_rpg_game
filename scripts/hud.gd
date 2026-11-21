@@ -2,8 +2,18 @@ extends CanvasLayer
 ## HUD: HP, 연필심, 퀘스트, 조작 안내(키 아이콘), 알림 메시지, 대화창(초상화).
 
 const Art := preload("res://scripts/art.gd")
+const Data := preload("res://scripts/game_data.gd")
+const HP_FILL_W := 106.0
+const EXP_FILL_W := 110.0
 
+var quest_text_override := ""   # 비어 있지 않으면 "할 일" 대신 이 글을 보여 준다 (내 마을)
 var _hp_label: Label
+var _hp_clip: Control
+var _exp_clip: Control
+var _level_label: Label
+var _bag: Control
+var _bag_slots: Array = []
+var _bag_info: Label
 var _lead_label: Label
 var _quest_label: Label
 var _hint_box: HBoxContainer
@@ -28,9 +38,8 @@ func _ready() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	_hp_label = _label(root, Vector2(10, 8), 16)
-	_lead_label = _label(root, Vector2(10, 30), 14)
-	_quest_label = _label(root, Vector2(10, 50), 13)
+	_build_bars(root)
+	_quest_label = _label(root, Vector2(10, 62), 13)
 	_quest_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 
 	_hint_box = HBoxContainer.new()
@@ -44,6 +53,7 @@ func _ready() -> void:
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
 
+	_build_bag(root)
 	_build_dialogue(root)
 
 	GameState.changed.connect(_refresh)
@@ -67,6 +77,142 @@ func _style_label(l: Label, font_size: int) -> void:
 	l.add_theme_color_override("font_color", Color(1, 1, 1))
 	l.add_theme_color_override("font_outline_color", Color(0.15, 0.15, 0.2))
 	l.add_theme_constant_override("outline_size", 5)
+
+
+func _tex_rect(parent: Control, tex_name: String, pos: Vector2, size: Vector2) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.texture = Art.tex(tex_name)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE   # 크기를 정하기 전에 먼저
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.position = pos
+	tr.size = size
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(tr)
+	return tr
+
+
+## 왼쪽 위: HP 막대, 경험치 눈금, 레벨, 연필과 연필심 수
+func _build_bars(root: Control) -> void:
+	# HP: 틀 안쪽에 채움 그림을 잘라서 보여 준다
+	_tex_rect(root, "hud_hp_frame", Vector2(6, 4), Vector2(141, 24))
+	_hp_clip = Control.new()
+	_hp_clip.position = Vector2(24, 12)
+	_hp_clip.size = Vector2(HP_FILL_W, 9)
+	_hp_clip.clip_contents = true
+	_hp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_hp_clip)
+	_tex_rect(_hp_clip, "hud_hp_fill", Vector2.ZERO, Vector2(HP_FILL_W, 9))
+	_hp_label = _label(root, Vector2(150, 7), 12)
+
+	# 경험치: 자 눈금 위에 노란 줄
+	_tex_rect(root, "hud_exp_frame", Vector2(10, 31), Vector2(120, 12))
+	_exp_clip = Control.new()
+	_exp_clip.position = Vector2(15, 34)
+	_exp_clip.size = Vector2(0, 4)
+	_exp_clip.clip_contents = true
+	_exp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_exp_clip)
+	_tex_rect(_exp_clip, "hud_exp_fill", Vector2.ZERO, Vector2(EXP_FILL_W, 4))
+	_level_label = _label(root, Vector2(134, 28), 12)
+
+	# 연필 + 연필심
+	_tex_rect(root, "hud_pencil_0", Vector2(10, 47), Vector2(100, 8.4))
+	_lead_label = _label(root, Vector2(114, 42), 12)
+
+
+## 가방 화면 (I 키): 재료 12칸과 내 상태
+func _build_bag(root: Control) -> void:
+	_bag = Control.new()
+	_bag.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_bag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bag.visible = false
+	root.add_child(_bag)
+	var dim := ColorRect.new()
+	dim.color = Color(0.1, 0.08, 0.08, 0.45)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bag.add_child(dim)
+
+	# 창은 늘리지 않고 원래 비율 그대로 쓴다 (왼쪽 고리 장식이 늘어나지 않게)
+	var win := _tex_rect(_bag, "ui_window", Vector2(110, 46), Vector2(420, 268))
+
+	var title := Label.new()
+	title.text = "가방"
+	title.position = Vector2(0, 14)
+	title.size = Vector2(420, 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
+	win.add_child(title)
+
+	_bag_info = Label.new()
+	_bag_info.position = Vector2(72, 44)
+	_bag_info.size = Vector2(280, 40)
+	_bag_info.add_theme_font_size_override("font_size", 12)
+	_bag_info.add_theme_color_override("font_color", Color(0.3, 0.25, 0.22))
+	win.add_child(_bag_info)
+
+	# 재료 칸 6×2
+	for i in Data.MATERIALS.size():
+		var cell := Control.new()
+		cell.position = Vector2(60 + (i % 6) * 51, 92 + (i / 6) * 68)
+		cell.size = Vector2(46, 62)
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		win.add_child(cell)
+		_tex_rect(cell, "ui_slot", Vector2(3, 0), Vector2(40, 40))
+		var icon := _tex_rect(cell, "mat_%d" % i, Vector2(9, 6), Vector2(28, 28))
+		var count := Label.new()
+		count.position = Vector2(20, 24)
+		count.size = Vector2(24, 16)
+		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		count.add_theme_font_size_override("font_size", 11)
+		count.add_theme_color_override("font_color", Color(0.25, 0.2, 0.2))
+		count.add_theme_color_override("font_outline_color", Color(1, 0.97, 0.9))
+		count.add_theme_constant_override("outline_size", 4)
+		cell.add_child(count)
+		var name_l := Label.new()
+		name_l.position = Vector2(-6, 41)
+		name_l.size = Vector2(58, 14)
+		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_l.add_theme_font_size_override("font_size", 9)
+		name_l.add_theme_color_override("font_color", Color(0.35, 0.3, 0.28))
+		cell.add_child(name_l)
+		_bag_slots.append([icon, count, name_l])
+
+	var foot := Label.new()
+	foot.text = "I  닫기"
+	foot.position = Vector2(0, 240)
+	foot.size = Vector2(420, 16)
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_theme_font_size_override("font_size", 11)
+	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+	win.add_child(foot)
+
+
+func toggle_bag() -> void:
+	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode):
+		return
+	_bag.visible = not _bag.visible
+	GameState.set_menu_open(_bag.visible)
+	_refresh()
+
+
+func is_bag_open() -> bool:
+	return _bag.visible
+
+
+func _refresh_bag() -> void:
+	var need := GameState.exp_needed()
+	_bag_info.text = "필력 %d   경험치 %d / %d   공격력 %d   최대 HP %d\n연필심 %d개" % [
+		GameState.level, GameState.exp, need, GameState.attack_power(), GameState.max_hp(), GameState.pencil_lead]
+	for i in _bag_slots.size():
+		var n := GameState.material_count(i)
+		var slot: Array = _bag_slots[i]
+		# 아직 얻지 못한 재료는 흐리게, 이름은 물음표
+		(slot[0] as TextureRect).modulate = Color(1, 1, 1, 1) if n > 0 else Color(0.2, 0.2, 0.2, 0.25)
+		(slot[1] as Label).text = str(n) if n > 0 else ""
+		(slot[2] as Label).text = str(Data.MATERIALS[i]) if n > 0 else "?"
 
 
 func _build_dialogue(root: Control) -> void:
@@ -118,16 +264,24 @@ func _process(_delta: float) -> void:
 	if is_instance_valid(p):
 		var hp: int = p.get("hp")
 		var mx: int = p.get("max_hp")
-		_hp_label.text = "HP  " + "■".repeat(maxi(hp, 0)) + "□".repeat(maxi(mx - hp, 0))
+		_hp_label.text = "%d / %d" % [maxi(hp, 0), mx]
+		_hp_clip.size.x = HP_FILL_W * clampf(float(hp) / float(maxi(mx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
 
 
 func _refresh() -> void:
 	var Q := GameState.Quest
 	var need := GameState.BRIDGE_COST
-	_lead_label.text = "연필심  %d" % GameState.pencil_lead
+	_lead_label.text = "× %d" % GameState.pencil_lead
+	_level_label.text = "필력 %d" % GameState.level
+	var full := GameState.level >= GameState.MAX_LEVEL
+	_exp_clip.size.x = EXP_FILL_W * (1.0 if full else clampf(float(GameState.exp) / float(GameState.exp_needed()), 0.0, 1.0))
+	if _bag.visible:
+		_refresh_bag()
 	var q := GameState.quest
-	if q == Q.NOT_STARTED:
+	if quest_text_override != "":
+		_quest_label.text = quest_text_override
+	elif q == Q.NOT_STARTED:
 		_quest_label.text = "할 일: 마을 사람과 이야기하기"
 	elif q == Q.FIND_LEAD:
 		if GameState.pencil_lead < need:
@@ -141,7 +295,7 @@ func _refresh() -> void:
 	elif q == Q.DOOR_OPEN:
 		_quest_label.text = "할 일: 열린 문으로 들어가기"
 	else:
-		_quest_label.text = "1페이지 끝! 2페이지는 준비 중"
+		_quest_label.text = "빨간 문으로 들어가면 내 마을로 갈 수 있다"
 
 
 ## 조작 안내 줄. items = [[아이콘 이름 또는 "", 설명], ...]  예: [["key_wasd", "이동"]]
@@ -199,6 +353,11 @@ func _show_line() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo \
+			and (event.physical_keycode == KEY_I or (_bag.visible and event.physical_keycode == KEY_ESCAPE)):
+		toggle_bag()
+		get_viewport().set_input_as_handled()
+		return
 	if not _dlg.visible:
 		return
 	var advance: bool = event.is_action_pressed("interact") or event.is_action_pressed("dodge") \

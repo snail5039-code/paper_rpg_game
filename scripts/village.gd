@@ -15,6 +15,7 @@ const TutorialScript := preload("res://scripts/tutorial.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
 const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
+const VillagerScript := preload("res://scripts/villager.gd")
 
 const BG_SIZE := Vector2(1672, 941)
 const WORLD_PER_BG := 640.0 / 1672.0
@@ -27,7 +28,27 @@ const GUIDE_TOLERANCE := 8.0
 const PLAYER_SPAWN := Vector2(290, 515)
 const NPC_POS := Vector2(880, 438)
 const GOAL_POS := Vector2(1502, 486)
-const SLIME_SPAWNS := [Vector2(300, 735), Vector2(520, 730), Vector2(700, 660), Vector2(810, 745)]
+const RETURN_SPAWN := Vector2(1380, 540)
+const SLIME_SPAWNS := [Vector2(300, 735), Vector2(520, 740), Vector2(760, 760)]
+## 몬스터 배치: [종류, 위치]. 강 왼쪽은 조금 지워진 것, 다리 건너는 많이 지워진 것.
+const MONSTER_SPAWNS := [
+	["slime_faded", Vector2(300, 735)], ["slime_faded", Vector2(520, 740)], ["slime_erased", Vector2(760, 760)],
+	["squiggle_faded", Vector2(860, 620)], ["dots_faded", Vector2(170, 720)], ["grass_faded", Vector2(360, 620)],
+	["spider_faded", Vector2(700, 580)], ["bug_faded", Vector2(600, 660)],
+	["squiggle_erased", Vector2(1300, 300)], ["dots_erased", Vector2(1400, 640)], ["grass_erased", Vector2(1280, 720)],
+	["spider_erased", Vector2(1430, 240)], ["bug_erased", Vector2(1300, 600)],
+]
+## 흰 자국(완전히 지워진 것의 자리): [그림, 발 위치]
+const WHITE_MARKS := [
+	["mark_house_small", Vector2(450, 700)], ["mark_tree", Vector2(150, 500)], ["mark_person", Vector2(640, 520)],
+	["mark_person", Vector2(1380, 420)],
+]
+## 주민: [그림, 위치, 대사]. 이름이 먼저 지워져서 이름표가 비어 있다.
+const VILLAGERS := [
+	["villager_0", Vector2(400, 440), ["어서 와. 빵 사러 왔니?", "…어머, 내 이름? 그게… 뭐였더라.", "이름표에 적어 뒀는데, 자꾸 비어 있네."]],
+	["villager_1", Vector2(620, 440), ["저기 흰 자국 보이지? 저기 누가 서 있었는데.", "누구였는지는… 아무도 몰라.", "완전히 지워지면 돌아오지 않는단다."]],
+	["villager_2", Vector2(800, 520), ["풍선 받았어! 누가 줬는지는 기억 안 나.", "하루 누나가 그러는데, 그린이가 오면 다 고쳐 준대!"]],
+]
 const BRIDGE_RECT := Rect2(962, 470, 246, 86)
 
 var actors: Node2D
@@ -45,6 +66,8 @@ static func bg(p: Vector2) -> Vector2:
 
 
 func _ready() -> void:
+	if get_tree().current_scene == self:
+		add_to_group("game_map")
 	# 배경
 	var bg_tex := Art.tex("bg")
 	if bg_tex:
@@ -102,14 +125,33 @@ func _ready() -> void:
 	goal.position = bg(GOAL_POS)
 	actors.add_child(goal)
 
-	# 슬라임
-	for sp in SLIME_SPAWNS:
-		_spawn_slime(bg(sp))
+	# 흰 자국 (바닥 그림)
+	for m in WHITE_MARKS:
+		var mt := Art.tex(str(m[0]))
+		if mt:
+			var ms := Art.make_sprite(self, mt, bg(m[1]))
+			ms.z_index = -6
+			ms.modulate.a = 0.85
+
+	# 주민
+	for v in VILLAGERS:
+		var vn: Node2D = VillagerScript.new()
+		vn.set("sprite_name", v[0])
+		vn.set("lines", v[2])
+		vn.position = bg(v[1])
+		actors.add_child(vn)
+
+	# 몬스터
+	for sp in MONSTER_SPAWNS:
+		_spawn_monster(str(sp[0]), bg(sp[1]))
 
 	# 플레이어 + 카메라
 	player = PlayerScene.instantiate()
 	player.set("spawn_point", bg(PLAYER_SPAWN))
 	player.position = GameState.saved_position if GameState.has_saved_position else bg(PLAYER_SPAWN)
+	if GameState.spawn_tag == "from_home":
+		player.position = bg(RETURN_SPAWN)   # 내 마을에서 돌아오면 빨간 문 앞
+	GameState.spawn_tag = ""
 	actors.add_child(player)
 
 	var cam := Camera2D.new()
@@ -176,17 +218,18 @@ func _build_collision() -> void:
 			body.add_child(cp)
 
 
-func _spawn_slime(pos: Vector2) -> void:
+func _spawn_monster(kind: String, pos: Vector2) -> void:
 	var s: Node2D = SlimeScene.instantiate()
+	s.set("kind", kind)
 	s.position = pos
-	s.connect("died", _on_slime_died)
+	s.connect("died", _on_monster_died.bind(kind))
 	actors.add_child(s)
 
 
-func _on_slime_died(home: Vector2) -> void:
+func _on_monster_died(home: Vector2, kind: String) -> void:
 	await get_tree().create_timer(SLIME_RESPAWN_SEC, false).timeout
 	if is_inside_tree():
-		_spawn_slime(home)
+		_spawn_monster(kind, home)
 
 
 # ---------- 다리 설계도 ----------
