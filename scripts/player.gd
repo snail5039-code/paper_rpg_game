@@ -14,7 +14,7 @@ signal hp_changed(hp: int, max_hp: int)
 @export var invuln_time := 0.8
 @export var attack_range := 34.0
 @export var attack_arc_deg := 120.0
-@export var attack_cooldown := 0.3
+@export var attack_cooldown := 0.34
 @export var attack_damage := 1
 @export var interact_range := 40.0
 
@@ -36,8 +36,10 @@ const Art := preload("res://scripts/art.gd")
 const FOOT := Vector2(0, 6)
 const WALK_FPS := 8.0
 const IDLE_FRAME := 1
+const SWING_TIME := 0.24
 
 var _sprite: Sprite2D
+var _attack_sprite: Sprite2D
 
 
 func _ready() -> void:
@@ -46,6 +48,11 @@ func _ready() -> void:
 		use_placeholder_art = false
 		_sprite = Art.make_sprite(self, sheet, FOOT, 4, 4)
 		_sprite.show_behind_parent = true
+	var attack_sheet := Art.tex("player_attack")
+	if attack_sheet:
+		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
+		_attack_sprite.show_behind_parent = true
+		_attack_sprite.visible = false
 	hp = max_hp
 	add_to_group("player")
 	collision_layer = 2
@@ -89,8 +96,16 @@ func _update_sprite(moving: bool) -> void:
 		return
 	var col := (int(_anim_t * WALK_FPS) % 4) if moving else IDLE_FRAME
 	_sprite.frame_coords = Vector2i(col, Art.dir_row(facing))
-	_sprite.visible = not (_invuln > 0.0 and int(_invuln * 20.0) % 2 == 0)
+	var blink := _invuln > 0.0 and int(_invuln * 20.0) % 2 == 0
+	var swinging := _attack_sprite != null and _swing_timer > 0.0
+	_sprite.visible = not blink and not swinging
 	_sprite.modulate.a = 0.5 if is_dodging() else 1.0
+	if _attack_sprite:
+		_attack_sprite.visible = swinging and not blink
+		if swinging:
+			# 들기 → 휘두르기 → 마무리 3프레임
+			var f := clampi(int((SWING_TIME - _swing_timer) / SWING_TIME * 3.0), 0, 2)
+			_attack_sprite.frame_coords = Vector2i(f, Art.dir_row(_swing_dir))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -107,7 +122,7 @@ func attack(aim_override := Vector2.ZERO) -> void:
 	if _attack_cd > 0.0:
 		return
 	_attack_cd = attack_cooldown
-	_swing_timer = 0.12
+	_swing_timer = SWING_TIME
 	var aim := aim_override if aim_override != Vector2.ZERO else get_global_mouse_position() - global_position
 	_swing_dir = aim.normalized() if aim.length() > 1.0 else facing
 	facing = _swing_dir
@@ -165,7 +180,8 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
 		draw_circle(Vector2(0, (FOOT.y - 1.0) / 0.4), 9, Color(0, 0, 0, 0.18))
 		draw_set_transform(Vector2.ZERO)
-	_draw_swing()
+	if _attack_sprite == null:
+		_draw_swing()
 	if not use_placeholder_art:
 		return
 	# 무적 시간 깜빡임

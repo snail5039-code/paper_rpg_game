@@ -4,6 +4,9 @@ extends Node2D
 ## 연필 모드 동안 게임은 일시정지된다. 선은 월드 좌표로 저장된다.
 
 signal submitted(strokes: Array)
+signal erased_at(world_pos: Vector2)  ## 지우개가 지나간 자리 (문 자국 닦기 등에 쓴다)
+
+const Art := preload("res://scripts/art.gd")
 
 const POINT_SPACING := 3.0
 const ERASER_RADIUS := 7.0
@@ -53,7 +56,7 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_draw"):
-		if not GameState.dialogue_open:
+		if not GameState.dialogue_open and not GameState.cutscene:
 			set_active(not active)
 		get_viewport().set_input_as_handled()
 		return
@@ -118,6 +121,7 @@ func _finish_stroke() -> void:
 
 
 func _erase_at(p: Vector2) -> void:
+	erased_at.emit(p)
 	var out: Array = []
 	for s in strokes:
 		var seg := PackedVector2Array()
@@ -168,11 +172,18 @@ func _draw() -> void:
 		_draw_stroke(s as PackedVector2Array)
 	_draw_stroke(_current)
 
-	# 커서
+	# 커서: 지금 쥔 도구
 	var m := get_global_mouse_position()
-	if eraser_tool or _erasing:
-		draw_arc(m, ERASER_RADIUS, 0, TAU, 20, Color(0.9, 0.5, 0.6), 1.0)
-	else:
+	var erasing := eraser_tool or _erasing
+	var icon := Art.tex("tool_eraser" if erasing else "tool_pencil")
+	if erasing:
+		draw_arc(m, ERASER_RADIUS, 0, TAU, 20, Color(0.9, 0.5, 0.6, 0.8), 1.0)
+	if icon:
+		var size := Vector2(icon.get_width(), icon.get_height()) * (16.0 / icon.get_height())
+		# 연필은 심 끝(왼쪽 아래)이, 지우개는 가운데가 마우스 위치에 오게
+		var pos := m + Vector2(-size.x * 0.5, -size.y * 0.5) if erasing else m + Vector2(0, -size.y)
+		draw_texture_rect(icon, Rect2(pos, size), false)
+	elif not erasing:
 		draw_circle(m, 1.5, PENCIL_COLOR)
 
 

@@ -1,27 +1,37 @@
 extends Node
 ## 전역 게임 상태 (Autoload: GameState)
-## 퀘스트 진행도, 재료, 저장/불러오기, 일시정지(대화·연필 모드)를 관리한다.
+## 퀘스트 진행도, 재료, 저장/불러오기, 일시정지(대화·연필 모드·컷신)를 관리한다.
 
 signal changed
 signal message(text: String)
-signal dialogue_requested(speaker: String, lines: Array)
+signal dialogue_requested(speaker: String, lines: Array, portrait: String)
 signal dialogue_finished
 
 const SAVE_PATH := "user://save.json"
 const BRIDGE_COST := 3
 
-enum Quest { NOT_STARTED, FIND_LEAD, BRIDGE_BUILT, CLEARED }
+## 1페이지(튜토리얼) 진행 순서
+enum Quest {
+	NOT_STARTED,   # 하루와 이야기하기
+	FIND_LEAD,     # 슬라임을 잡아 연필심 모으기 → 다리 그리기
+	BRIDGE_BUILT,  # 다리를 건너 빨간 문으로
+	CLEAN_DOOR,    # 문의 지우개 자국 닦기
+	DOOR_OPEN,     # 열린 문으로 들어가기
+	CLEARED,       # 1페이지 끝
+}
 
 var save_path: String = SAVE_PATH  # 테스트에서 별도 파일로 바꿔 쓴다
 var quest: int = Quest.NOT_STARTED
 var pencil_lead: int = 0
 var bridge_built: bool = false
+var intro_seen: bool = false
 var has_saved_position: bool = false
 var saved_position: Vector2 = Vector2.ZERO
 
 var player_ref: Node2D = null
 var dialogue_open: bool = false
 var draw_mode: bool = false
+var cutscene: bool = false
 
 
 func _ready() -> void:
@@ -61,12 +71,13 @@ func notify(text: String) -> void:
 	message.emit(text)
 
 
-# ---------- 대화 / 연필 모드 (게임 일시정지) ----------
+# ---------- 대화 / 연필 모드 / 컷신 (게임 일시정지) ----------
 
-func start_dialogue(speaker: String, lines: Array) -> void:
+## portrait: "player", "haru_smile", "haru_surprised" 또는 "" (초상화 없음)
+func start_dialogue(speaker: String, lines: Array, portrait: String = "") -> void:
 	dialogue_open = true
 	_update_pause()
-	dialogue_requested.emit(speaker, lines)
+	dialogue_requested.emit(speaker, lines, portrait)
 
 
 func end_dialogue() -> void:
@@ -75,14 +86,26 @@ func end_dialogue() -> void:
 	dialogue_finished.emit()
 
 
+## 대화를 띄우고 끝날 때까지 기다린다:  await GameState.say("하루", ["안녕!"], "haru_smile")
+func say(speaker: String, lines: Array, portrait: String = "") -> void:
+	start_dialogue(speaker, lines, portrait)
+	await dialogue_finished
+
+
 func set_draw_mode(on: bool) -> void:
 	draw_mode = on
 	_update_pause()
 	changed.emit()
 
 
+func set_cutscene(on: bool) -> void:
+	cutscene = on
+	_update_pause()
+	changed.emit()
+
+
 func _update_pause() -> void:
-	get_tree().paused = dialogue_open or draw_mode
+	get_tree().paused = dialogue_open or draw_mode or cutscene
 
 
 # ---------- 저장 / 불러오기 ----------
@@ -92,6 +115,7 @@ func save_game() -> bool:
 		"quest": quest,
 		"pencil_lead": pencil_lead,
 		"bridge_built": bridge_built,
+		"intro_seen": intro_seen,
 	}
 	if is_instance_valid(player_ref):
 		data["player_x"] = player_ref.global_position.x
@@ -113,9 +137,10 @@ func load_game() -> bool:
 	var data: Variant = JSON.parse_string(f.get_as_text())
 	if typeof(data) != TYPE_DICTIONARY:
 		return false
-	quest = int(data.get("quest", Quest.NOT_STARTED))
+	quest = clampi(int(data.get("quest", Quest.NOT_STARTED)), 0, Quest.CLEARED)
 	pencil_lead = int(data.get("pencil_lead", 0))
 	bridge_built = bool(data.get("bridge_built", false))
+	intro_seen = bool(data.get("intro_seen", false))
 	has_saved_position = data.has("player_x") and data.has("player_y")
 	if has_saved_position:
 		saved_position = Vector2(float(data["player_x"]), float(data["player_y"]))
@@ -128,9 +153,10 @@ func reset_game() -> void:
 	quest = Quest.NOT_STARTED
 	pencil_lead = 0
 	bridge_built = false
+	intro_seen = false
 	has_saved_position = false
 	dialogue_open = false
 	draw_mode = false
+	cutscene = false
 	_update_pause()
 	get_tree().reload_current_scene()
-	notify.call_deferred("저장 데이터를 지우고 처음부터 시작해요.")

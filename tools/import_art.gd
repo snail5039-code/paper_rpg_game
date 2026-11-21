@@ -1,6 +1,9 @@
 extends SceneTree
 ## 원본 시트(assets/generated_pixel_art/pixel-v4-*) → 게임용 스프라이트(assets/sprites) 변환기.
-## 실행: godot --headless --path . --script tools/import_art.gd [-- <디버그 이미지 저장 폴더>]
+## 실행: godot --headless --path . --script tools/import_art.gd [-- base|tutorial] [<디버그 이미지 저장 폴더>]
+##   base     : 배경·충돌 마스크·캐릭터·슬라임·소품만
+##   tutorial : 튜토리얼용 그림(tutorial_v4 폴더)만
+##   (생략)   : 전부
 ##       godot --headless --path . --import
 ##
 ## 좌표 규칙
@@ -54,14 +57,20 @@ var _debug_dir := ""
 
 
 func _init() -> void:
-	var args := OS.get_cmdline_user_args()
-	if args.size() > 0:
-		_debug_dir = args[0]
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a == "base" or a == "tutorial":
+			only = a
+		else:
+			_debug_dir = a
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
-	_background()
-	_characters()
-	_slime()
-	_props()
+	if only != "tutorial":
+		_background()
+		_characters()
+		_slime()
+		_props()
+	if only != "base":
+		_tutorial()
 	print("완료: ", OUT)
 	quit()
 
@@ -155,14 +164,8 @@ func _characters() -> void:
 		_clean_alpha(img)
 		var cw := img.get_width() / 4
 		var ch := img.get_height() / 4
-		# 16칸 전체에서 그림이 차지하는 공통 영역 (칸 기준 좌표) → 모든 프레임을 같은 틀로 자른다
-		var union := Rect2i()
-		for row in 4:
-			for col in 4:
-				# 옆 칸 그림이 몇 픽셀 넘어온 것을 피하려고 칸 안쪽만 본다
-				var u := _used_robust(img, Rect2i(col * cw, row * ch, cw, ch).grow(-10), 6)
-				u.position -= Vector2i(col * cw, row * ch)
-				union = u if union.size == Vector2i.ZERO else union.merge(u)
+		# 모든 프레임을 같은 틀로 자른다
+		var union := _char_union(img)
 		var s := CHAR_HEIGHT_WORLD * TEX_PER_WORLD / union.size.y
 		var fw := roundi(union.size.x * s)
 		var fh := roundi(union.size.y * s)
@@ -205,19 +208,186 @@ func _props() -> void:
 		print(key, " ", w, "x", h, "  src=", r)
 
 
+# ---------------- 튜토리얼 그림 ----------------
+
+const TUT := "res://assets/generated_pixel_art/tutorial_v4/"
+
+func _tutorial() -> void:
+	# 1) 지우개 자국 3단계 — 빨간 문을 덮는 크기
+	var img := _load(TUT + "01_eraser_smudge_3stages.png")
+	_clean_alpha(img, 0.5)
+	_row_pieces(img, ["smudge_0", "smudge_1", "smudge_2"], roundi(74.0 * TEX_PER_WORLD), 0)
+
+	# 2) 열린 빨간 문 — 번진 빛(반투명)은 버리고 문만
+	img = _load(TUT + "02_open_red_door.png")
+	_clean_alpha(img, 0.75)
+	_save_piece(img, Rect2i(Vector2i.ZERO, img.get_size()), "door_open", roundi(165.0 * WORLD_PER_BG * TEX_PER_WORLD), 0)
+
+	# 3) 플레이어 공격 4방향 × 3프레임 — 걷기 시트와 같은 배율·같은 세로 틀
+	var walk := _load(CHAR_SHEETS["player"])
+	_clean_alpha(walk)
+	var wu := _char_union(walk)
+	var s := CHAR_HEIGHT_WORLD * TEX_PER_WORLD / wu.size.y
+	img = _load(TUT + "03_player_attack_4dir_3frames_grid-ready.png")
+	_clean_alpha(img)
+	var cw := img.get_width() / 3
+	var ch := img.get_height() / 4
+	var fw := roundi((cw - 20) * s)
+	var fh := roundi(wu.size.y * s)
+	var sheet := Image.create_empty(fw * 3, fh * 4, false, Image.FORMAT_RGBA8)
+	for row in 4:
+		for col in 3:
+			var r := Rect2i(col * cw + 10, row * ch + wu.position.y, cw - 20, wu.size.y)
+			sheet.blit_rect(_box_downsample(img.get_region(r), fw, fh), Rect2i(0, 0, fw, fh), Vector2i(col * fw, row * fh))
+	sheet.save_png(OUT + "player_attack.png")
+	print("player_attack frame ", fw, "x", fh)
+
+	# 4) 대화창 초상화
+	img = _load(TUT + "04_dialogue_portraits.png")
+	_clean_alpha(img)
+	_row_pieces(img, ["portrait_player", "portrait_haru_smile", "portrait_haru_surprised"], 0, 168)
+
+	# 5) 오프닝 컷, 6) 페이지 넘김 — 그대로 복사
+	_load(TUT + "05a_opening_closed_16x9.png").save_png(OUT + "opening_closed.png")
+	_load(TUT + "05b_opening_open_16x9.png").save_png(OUT + "opening_open.png")
+	_load(TUT + "06_page_turn_4frames_grid-ready.png").save_png(OUT + "page_turn.png")
+
+	# 7) 조작 아이콘 — 칸 사이 선을 피해 안쪽만
+	img = _load(TUT + "07_control_icons.png")
+	_clean_alpha(img, 0.6)
+	var cell := img.get_width() / 4
+	var keys := [["key_wasd", "key_mouse_l", "key_mouse_r", "key_space"], ["key_f", "key_tab", "key_enter"]]
+	for row in keys.size():
+		for col in keys[row].size():
+			var r := _used_robust(img, Rect2i(col * cell, row * cell, cell, cell).grow(-14), 8)
+			_box_downsample(img.get_region(r), roundi(r.size.x * 0.3), roundi(r.size.y * 0.3)).save_png(OUT + keys[row][col] + ".png")
+
+	# 8) 연필·지우개, 9) 감정 말풍선
+	img = _load(TUT + "08_pencil_eraser_icons.png")
+	_clean_alpha(img)
+	_row_pieces(img, ["tool_pencil", "tool_eraser"], 0, 72)
+	img = _load(TUT + "09_haru_emotion_icons.png")
+	_clean_alpha(img)
+	_row_pieces(img, ["emote_alert", "emote_question", "emote_heart"], roundi(18.0 * TEX_PER_WORLD), 0)
+
+	# 10) 슬라임 사라짐 4프레임 — 흰 배경 제거, 슬라임 스프라이트와 같은 배율, 한 장의 시트로
+	img = _load(TUT + "10_slime_vanish_4frames.png")
+	_key_white(img)
+	_clean_alpha(img)
+	var qw := img.get_width() / 4
+	var first := _used_robust(img, Rect2i(0, 0, qw, img.get_height()))
+	var ss := SLIME_WIDTH_WORLD * TEX_PER_WORLD / first.size.x
+	var union := Rect2i()
+	for i in 4:
+		var u := _used_robust(img, Rect2i(i * qw, 0, qw, img.get_height()).grow_individual(-6, 0, -6, 0), 2)
+		u.position.x -= i * qw
+		union = u if union.size == Vector2i.ZERO else union.merge(u)
+	var vw := roundi(union.size.x * ss)
+	var vh := roundi(union.size.y * ss)
+	sheet = Image.create_empty(vw * 4, vh, false, Image.FORMAT_RGBA8)
+	for i in 4:
+		var r := Rect2i(Vector2i(i * qw, 0) + union.position, union.size)
+		sheet.blit_rect(_box_downsample(img.get_region(r), vw, vh), Rect2i(0, 0, vw, vh), Vector2i(i * vw, 0))
+	sheet.save_png(OUT + "slime_vanish.png")
+	print("slime_vanish frame ", vw, "x", vh)
+
+	# 11) 지우개 괴물 — 분홍 잡티 제거
+	img = _load(TUT + "11_eraser_monster_silhouette.png")
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r > 0.7 and c.b > 0.7 and c.g < 0.45:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	_clean_alpha(img, 0.5)
+	_save_piece(img, Rect2i(Vector2i.ZERO, img.get_size()), "monster", 0, roundi(64.0 * TEX_PER_WORLD))
+
+	# 12) 지우개 가루 3종 — 흰 배경 제거
+	img = _load(TUT + "12_eraser_dust_3variants.png")
+	_key_white(img)
+	_clean_alpha(img)
+	_row_pieces(img, ["dust_0", "dust_1", "dust_2"], 0, 0, 0.14)
+
+
+## 16칸 걷기 시트에서 그림이 차지하는 공통 틀 (칸 기준 좌표)
+func _char_union(img: Image) -> Rect2i:
+	var cw := img.get_width() / 4
+	var ch := img.get_height() / 4
+	var union := Rect2i()
+	for row in 4:
+		for col in 4:
+			var u := _used_robust(img, Rect2i(col * cw, row * ch, cw, ch).grow(-10), 6)
+			u.position -= Vector2i(col * cw, row * ch)
+			union = u if union.size == Vector2i.ZERO else union.merge(u)
+	return union
+
+
+## 가로로 나란히 놓인 그림들을 같은 폭의 칸으로 나눠 하나씩 저장한다.
+func _row_pieces(img: Image, names: Array, tex_w: int, tex_h: int, fixed_scale: float = 0.0) -> void:
+	var cw := img.get_width() / names.size()
+	for i in names.size():
+		_save_piece(img, Rect2i(i * cw, 0, cw, img.get_height()), names[i], tex_w, tex_h, fixed_scale)
+
+
+## area 안의 그림을 찾아 목표 크기로 줄여 저장. tex_w / tex_h 중 준 쪽에 맞추고 비율 유지.
+func _save_piece(img: Image, area: Rect2i, name: String, tex_w: int, tex_h: int, fixed_scale: float = 0.0) -> void:
+	var r := _used_robust(img, area)
+	var s := fixed_scale
+	if tex_w > 0:
+		s = float(tex_w) / r.size.x
+	elif tex_h > 0:
+		s = float(tex_h) / r.size.y
+	var w := maxi(1, roundi(r.size.x * s))
+	var h := maxi(1, roundi(r.size.y * s))
+	_box_downsample(img.get_region(r), w, h).save_png(OUT + name + ".png")
+	print(name, " ", w, "x", h)
+
+
+## 배경이 흰색으로 칠해진 시트: 가장자리에서 이어진 흰 영역만 투명하게 (그림 안쪽 흰색은 남긴다)
+func _key_white(img: Image) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	if img.get_pixel(2, 2).a < 0.5:
+		return  # 이미 투명 배경
+	var stack := PackedInt32Array()
+	for x in w:
+		stack.append(x)
+		stack.append((h - 1) * w + x)
+	for y in h:
+		stack.append(y * w)
+		stack.append(y * w + w - 1)
+	while not stack.is_empty():
+		var i := stack[stack.size() - 1]
+		stack.remove_at(stack.size() - 1)
+		var x := i % w
+		var y := i / w
+		var c := img.get_pixel(x, y)
+		if c.a < 0.5 or c.r < 0.9 or c.g < 0.9 or c.b < 0.9:
+			continue
+		img.set_pixel(x, y, Color(0, 0, 0, 0))
+		if x > 0:
+			stack.append(i - 1)
+		if x < w - 1:
+			stack.append(i + 1)
+		if y > 0:
+			stack.append(i - w)
+		if y < h - 1:
+			stack.append(i + w)
+
+
 # ---------------- 공용 ----------------
 
 func _load(file: String) -> Image:
-	var img := Image.load_from_file(ProjectSettings.globalize_path(SRC + file))
+	var path := file if file.begins_with("res://") else SRC + file
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
 	img.convert(Image.FORMAT_RGBA8)
 	return img
 
 
 ## 거의 투명한 픽셀(잡티, 번짐)을 완전히 투명하게
-func _clean_alpha(img: Image) -> void:
+func _clean_alpha(img: Image, threshold: float = 0.3) -> void:
 	for y in img.get_height():
 		for x in img.get_width():
-			if img.get_pixel(x, y).a < 0.3:
+			if img.get_pixel(x, y).a < threshold:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 
 

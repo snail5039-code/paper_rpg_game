@@ -11,6 +11,7 @@ const Validator := preload("res://scripts/blueprint_validator.gd")
 const DrawingScript := preload("res://scripts/drawing_manager.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const GoalScript := preload("res://scripts/goal.gd")
+const TutorialScript := preload("res://scripts/tutorial.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
 const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
@@ -23,16 +24,18 @@ const SLIME_RESPAWN_SEC := 8.0
 const GUIDE_TOLERANCE := 8.0
 
 # ---- 배치 (bg px) ----
-const PLAYER_SPAWN := Vector2(300, 525)
+const PLAYER_SPAWN := Vector2(290, 515)
 const NPC_POS := Vector2(880, 438)
 const GOAL_POS := Vector2(1502, 486)
-const SLIME_SPAWNS := [Vector2(330, 670), Vector2(520, 730), Vector2(700, 650), Vector2(810, 745)]
+const SLIME_SPAWNS := [Vector2(300, 735), Vector2(520, 730), Vector2(700, 660), Vector2(810, 745)]
 const BRIDGE_RECT := Rect2(962, 470, 246, 86)
 
 var actors: Node2D
 var drawing: Node2D
 var player: CharacterBody2D
 var hud: CanvasLayer
+var goal: Node2D
+var tutorial: Node
 var bridge_sprite: Sprite2D
 var bridge_blocker: StaticBody2D
 
@@ -95,7 +98,7 @@ func _ready() -> void:
 	actors.add_child(npc)
 
 	# 빨간 문 (목표)
-	var goal: Node2D = GoalScript.new()
+	goal = GoalScript.new()
 	goal.position = bg(GOAL_POS)
 	actors.add_child(goal)
 
@@ -131,6 +134,15 @@ func _ready() -> void:
 	hud = HudScript.new()
 	hud.name = "HUD"
 	add_child(hud)
+
+	# 튜토리얼 연출 (오프닝, 조작 안내, 문 열기, 페이지 넘김)
+	tutorial = TutorialScript.new()
+	tutorial.name = "Tutorial"
+	tutorial.set("village", self)
+	tutorial.set("hud", hud)
+	tutorial.set("goal", goal)
+	tutorial.set("drawing", drawing)
+	add_child(tutorial)
 
 
 # ---------- 충돌 ----------

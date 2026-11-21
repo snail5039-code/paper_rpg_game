@@ -65,6 +65,19 @@ func _fresh_state() -> void:
 	GameState.pencil_lead = 0
 	GameState.bridge_built = false
 	GameState.has_saved_position = false
+	GameState.intro_seen = true  # 오프닝 컷신은 건너뛴다
+
+
+## 열려 있는 대화를 끝까지 넘긴다 (여러 사람이 이어서 말하는 대화 포함)
+func skip_dialogue(max_presses: int = 40) -> void:
+	for i in max_presses:
+		await frames(2)
+		if not GameState.dialogue_open and not GameState.cutscene:
+			await frames(4)
+			if not GameState.dialogue_open and not GameState.cutscene:
+				return
+		if GameState.dialogue_open:
+			await press_action("interact")
 
 
 func _load_world() -> void:
@@ -118,11 +131,9 @@ func _run() -> void:
 	await press_action("interact")
 	check(GameState.dialogue_open, "F 키로 대화 시작")
 	check(get_tree().paused, "대화 중 게임 일시정지")
-	check(GameState.quest == GameState.Quest.FIND_LEAD, "퀘스트 수락됨")
-	for i in 6:
-		if GameState.dialogue_open:
-			await press_action("interact")
-	check(not GameState.dialogue_open and not get_tree().paused, "대화 끝까지 넘기면 닫히고 재개")
+	await skip_dialogue()
+	check(GameState.quest == GameState.Quest.FIND_LEAD, "대화를 끝까지 들으면 퀘스트 수락")
+	check(not GameState.dialogue_open and not get_tree().paused, "대화가 끝나면 닫히고 재개")
 
 	print("[미완성 상태로 그리기]")
 	await press_action("toggle_draw")
@@ -171,16 +182,25 @@ func _run() -> void:
 
 	print("[슬라임 AI: 일정 거리 안에서만 공격]")
 	var s2: Node2D = null
-	for e in get_tree().get_nodes_in_group("enemies"):
-		s2 = e
-		break
+	# 앞선 전투에서 전부 처치됐을 수 있으니, 다시 나타날 때까지(8초) 기다린다
+	player.global_position = bg(1400, 700)
+	for i in 700:
+		for e in get_tree().get_nodes_in_group("enemies"):
+			s2 = e
+			break
+		if s2:
+			break
+		await frames(1)
+	check(s2 != null, "처치한 슬라임이 시간이 지나면 다시 나타남")
 	if s2:
 		var SState: Dictionary = s2.get("State")
 		# 1) 멀리 있으면 쫓아오지 않는다
 		player.set("_invuln", 0.0)
 		var far := float(s2.get("aggro_range")) + 40.0
-		player.global_position = s2.global_position + Vector2(far, 0)
-		await frames(60)
+		# 앞선 전투에서 쉬는 중일 수 있으니, 계속 멀리 떨어진 채로 충분히 기다린다
+		for i in 150:
+			player.global_position = s2.global_position + Vector2(far, 0)
+			await frames(1)
 		check(int(s2.get("state")) == SState.WANDER, "멀리 있으면 쫓아오지 않음")
 		# 2) 닿아 있어도 박치기 중이 아니면 피해 없음 (예고 동작이 먼저)
 		var hp0: int = player.get("hp")
@@ -245,27 +265,56 @@ func _run() -> void:
 	check(world.get("bridge_blocker") == null, "다리 자리 통행 차단이 풀림")
 
 	print("[다리 건너기 → 빨간 문]")
+	var goal: Node2D = world.get("goal")
 	player.global_position = bg(900, 512)
 	await hold("move_right", 130)
 	check(player.global_position.x > bg(1230, 0).x, "다리를 건너감 (bg x=%.0f)" % (player.global_position.x / S))
-	player.global_position = bg(1440, 500)
+
+	print("[문의 지우개 자국 닦기]")
+	check(not goal.call("is_clean"), "처음에는 문이 지우개 자국에 덮여 있음")
+	# 다리를 건너기 전 단계에서는 닦이지 않는지: 이미 BRIDGE_BUILT 이므로 먼 곳을 문질러 본다
+	goal.call("wipe", goal.global_position + Vector2(200, 0))
+	check(float(goal.get("wipe_progress")) == 0.0, "문에서 먼 곳을 문지르면 닦이지 않음")
+	player.global_position = goal.global_position + Vector2(-40, 6)
 	await hold("move_right", 30)
-	check(GameState.quest == GameState.Quest.CLEARED, "빨간 문 도착 → MVP 클리어")
-	for i in 4:
-		if GameState.dialogue_open:
-			await press_action("interact")
+	await skip_dialogue()
+	check(GameState.quest == GameState.Quest.CLEAN_DOOR, "문 앞에 가면 자국을 발견 (퀘스트: 문 닦기)")
+	await press_action("toggle_draw")
+	check(drawing.get("active"), "연필 모드 진입")
+	var door_center: Vector2 = goal.global_position + Vector2(0, -28)
+	for i in 20:
+		drawing.call("_erase_at", door_center + Vector2(sin(i) * 10.0, cos(i) * 8.0))
+	check(float(goal.get("wipe_progress")) > 0.3 and not goal.call("is_clean"), "지우개로 문지르면 조금씩 닦임 (%.0f%%)" % (float(goal.get("wipe_progress")) * 100.0))
+	for i in 40:
+		drawing.call("_erase_at", door_center + Vector2(sin(i) * 10.0, cos(i) * 8.0))
+	check(goal.call("is_clean"), "끝까지 문지르면 자국이 사라짐")
+	check(GameState.quest == GameState.Quest.DOOR_OPEN, "문이 열림 (퀘스트: 문으로 들어가기)")
+	await skip_dialogue(80)
+	check(not drawing.get("active") and not get_tree().paused, "괴물 등장 장면이 끝나면 다시 조작 가능")
+
+	print("[페이지 넘김]")
+	player.global_position = goal.global_position + Vector2(-40, 6)
+	await hold("move_right", 30)
+	await frames(90)
+	check(GameState.quest == GameState.Quest.CLEARED, "열린 문으로 들어가면 1페이지 클리어")
+	check(GameState.cutscene, "페이지 넘김 화면이 떠 있음")
+	await press_action("interact")
+	await frames(60)
+	check(not GameState.cutscene and not get_tree().paused, "화면을 넘기면 마을로 돌아옴")
 
 	print("[저장/불러오기]")
 	check(GameState.save_game(), "저장 성공")
 	GameState.quest = 0
 	GameState.bridge_built = false
 	GameState.pencil_lead = 99
+	GameState.intro_seen = false
 	check(GameState.load_game(), "불러오기 성공")
-	check(GameState.bridge_built and GameState.quest == GameState.Quest.CLEARED, "다리·퀘스트 상태 복원")
+	check(GameState.bridge_built and GameState.quest == GameState.Quest.CLEARED and GameState.intro_seen, "다리·퀘스트 상태 복원")
 	var saved_pos := GameState.saved_position
 	await _load_world()
 	player = world.get("player")
 	check((world.get("bridge_sprite") as Sprite2D).visible and world.get("bridge_blocker") == null, "재시작 후에도 다리 유지")
+	check((world.get("goal") as Node2D).call("is_clean"), "재시작 후에도 문이 열려 있음")
 	check(player.global_position.distance_to(saved_pos) < 1.0, "재시작 후 플레이어 위치 복원")
 
 	# 정리

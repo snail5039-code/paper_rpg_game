@@ -7,6 +7,7 @@ extends CharacterBody2D
 signal died(home: Vector2)
 
 const PickupScript := preload("res://scripts/pickup.gd")
+const Fx := preload("res://scripts/fx_frames.gd")
 
 @export var use_placeholder_art := true
 @export var max_hp := 3
@@ -85,7 +86,9 @@ func _physics_process(delta: float) -> void:
 
 	match state:
 		State.WANDER:
-			if dist < aggro_range and from_home < leash_range:
+			# 하루에게 이야기를 듣기 전(튜토리얼 첫 단계)에는 먼저 덤비지 않는다
+			var hostile := GameState.quest >= GameState.Quest.FIND_LEAD
+			if hostile and dist < aggro_range and from_home < leash_range:
 				_set_state(State.CHASE)
 			else:
 				_wander_timer -= delta
@@ -159,6 +162,9 @@ func _die() -> void:
 	var drop: Node2D = PickupScript.new()
 	drop.global_position = global_position
 	get_parent().add_child(drop)
+	var vanish := Art.tex("slime_vanish")
+	if vanish:
+		Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
 	died.emit(home)
 	queue_free()
 
