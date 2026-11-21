@@ -169,17 +169,42 @@ func _run() -> void:
 	check(GameState.pencil_lead >= 3, "연필심 3개 이상 획득 (%d)" % GameState.pencil_lead)
 	player.set("hp", player.get("max_hp"))
 
-	print("[슬라임 접촉 피해]")
+	print("[슬라임 AI: 일정 거리 안에서만 공격]")
 	var s2: Node2D = null
 	for e in get_tree().get_nodes_in_group("enemies"):
 		s2 = e
 		break
 	if s2:
-		player.set("_invuln", 0.0)  # 전투 중 맞아서 생긴 무적 시간 제거
+		var SState: Dictionary = s2.get("State")
+		# 1) 멀리 있으면 쫓아오지 않는다
+		player.set("_invuln", 0.0)
+		var far := float(s2.get("aggro_range")) + 40.0
+		player.global_position = s2.global_position + Vector2(far, 0)
+		await frames(60)
+		check(int(s2.get("state")) == SState.WANDER, "멀리 있으면 쫓아오지 않음")
+		# 2) 닿아 있어도 박치기 중이 아니면 피해 없음 (예고 동작이 먼저)
 		var hp0: int = player.get("hp")
-		player.global_position = s2.global_position
-		await frames(3)
-		check(int(player.get("hp")) < hp0, "슬라임에 닿으면 HP 감소")
+		player.global_position = s2.global_position + Vector2(8, 0)
+		await frames(10)
+		check(int(player.get("hp")) == hp0, "닿자마자 바로 피해를 주지 않음")
+		check(int(s2.get("state")) == SState.WINDUP, "가까이 오면 공격 준비(예고) 동작")
+		# 3) 예고 뒤 박치기에 맞으면 피해
+		for i in 60:
+			player.global_position = s2.global_position + Vector2(8, 0)
+			await frames(1)
+			if int(player.get("hp")) < hp0:
+				break
+		check(int(player.get("hp")) == hp0 - 1, "예고 뒤 박치기에 맞으면 HP 1 감소")
+		# 4) 박치기 뒤에는 쉰다 (연속 피해 없음)
+		player.set("_invuln", 0.0)
+		for i in 30:
+			player.global_position = s2.global_position + Vector2(8, 0)
+			await frames(1)
+		check(int(player.get("hp")) == hp0 - 1, "박치기 직후에는 쉬느라 연속 피해 없음")
+		# 5) 멀리 도망가면 포기
+		player.global_position = s2.global_position + Vector2(float(s2.get("lose_range")) + 60.0, 0)
+		await frames(120)
+		check(int(s2.get("state")) == SState.WANDER, "멀리 도망가면 포기하고 돌아감")
 	player.global_position = bg(860, 512)
 	await frames(1)
 
