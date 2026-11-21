@@ -6,17 +6,17 @@ extends CharacterBody2D
 signal hp_changed(hp: int, max_hp: int)
 
 @export var use_placeholder_art := true
-@export var move_speed := 80.0
-@export var dodge_speed := 210.0
+@export var move_speed := 95.0
+@export var dodge_speed := 250.0
 @export var dodge_time := 0.18
 @export var dodge_cooldown := 0.45
 @export var max_hp := 5
 @export var invuln_time := 0.8
-@export var attack_range := 24.0
+@export var attack_range := 34.0
 @export var attack_arc_deg := 120.0
 @export var attack_cooldown := 0.3
 @export var attack_damage := 1
-@export var interact_range := 26.0
+@export var interact_range := 40.0
 
 var hp: int
 var spawn_point := Vector2.ZERO
@@ -32,7 +32,20 @@ var _knock := Vector2.ZERO
 var _anim_t := 0.0
 
 
+const Art := preload("res://scripts/art.gd")
+const FOOT := Vector2(0, 6)
+const WALK_FPS := 8.0
+const IDLE_FRAME := 1
+
+var _sprite: Sprite2D
+
+
 func _ready() -> void:
+	var sheet := Art.tex("player_walk")
+	if sheet:
+		use_placeholder_art = false
+		_sprite = Art.make_sprite(self, sheet, FOOT, 4, 4)
+		_sprite.show_behind_parent = true
 	hp = max_hp
 	add_to_group("player")
 	collision_layer = 2
@@ -67,7 +80,17 @@ func _physics_process(delta: float) -> void:
 	velocity += _knock
 	_knock = _knock.move_toward(Vector2.ZERO, 600.0 * delta)
 	move_and_slide()
+	_update_sprite(dir != Vector2.ZERO)
 	queue_redraw()
+
+
+func _update_sprite(moving: bool) -> void:
+	if _sprite == null:
+		return
+	var col := (int(_anim_t * WALK_FPS) % 4) if moving else IDLE_FRAME
+	_sprite.frame_coords = Vector2i(col, Art.dir_row(facing))
+	_sprite.visible = not (_invuln > 0.0 and int(_invuln * 20.0) % 2 == 0)
+	_sprite.modulate.a = 0.5 if is_dodging() else 1.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -137,6 +160,12 @@ func _die() -> void:
 
 
 func _draw() -> void:
+	# 그림자 (스프라이트 뒤)
+	if _sprite:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
+		draw_circle(Vector2(0, (FOOT.y - 1.0) / 0.4), 9, Color(0, 0, 0, 0.18))
+		draw_set_transform(Vector2.ZERO)
+	_draw_swing()
 	if not use_placeholder_art:
 		return
 	# 무적 시간 깜빡임
@@ -158,9 +187,12 @@ func _draw() -> void:
 	if facing.y >= -0.3:
 		draw_rect(Rect2(Vector2(-3, -6 + bob) + eye, Vector2(1, 2)), Color(0.1, 0.1, 0.15, a))
 		draw_rect(Rect2(Vector2(2, -6 + bob) + eye, Vector2(1, 2)), Color(0.1, 0.1, 0.15, a))
+
+
+func _draw_swing() -> void:
 	# 공격 궤적
 	if _swing_timer > 0.0:
 		var ang := _swing_dir.angle()
 		var half := deg_to_rad(attack_arc_deg * 0.5)
-		draw_arc(Vector2.ZERO, attack_range * 0.8, ang - half, ang + half, 12, Color(1, 1, 1, 0.9), 3.0)
-		draw_arc(Vector2.ZERO, attack_range * 0.8, ang - half, ang + half, 12, Color(0.2, 0.2, 0.25, 0.8), 1.0)
+		draw_arc(Vector2(0, -12), attack_range * 0.8, ang - half, ang + half, 12, Color(1, 1, 1, 0.9), 3.0)
+		draw_arc(Vector2(0, -12), attack_range * 0.8, ang - half, ang + half, 12, Color(0.2, 0.2, 0.25, 0.8), 1.0)

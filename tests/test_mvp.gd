@@ -4,8 +4,7 @@ extends Node
 
 const MainScene := preload("res://scenes/main.tscn")
 const Validator := preload("res://scripts/blueprint_validator.gd")
-const Tiles := preload("res://scripts/placeholder_tiles.gd")
-const TILE := 16
+const S := 640.0 / 1672.0  # bg px → 월드
 
 var passed := 0
 var failed := 0
@@ -31,8 +30,9 @@ func frames(n: int) -> void:
 		await get_tree().physics_frame
 
 
-func cell_center(x: int, y: int) -> Vector2:
-	return Vector2(x * TILE + TILE / 2.0, y * TILE + TILE / 2.0)
+## 배경 원본 픽셀 좌표 → 월드 좌표
+func bg(x: float, y: float) -> Vector2:
+	return Vector2(x, y) * S
 
 
 func hold(action: String, n: int) -> void:
@@ -81,26 +81,28 @@ func _run() -> void:
 	_fresh_state()
 	await _load_world()
 	var player: CharacterBody2D = world.get("player")
-	var ground: TileMapLayer = world.get("ground")
 	var drawing: Node2D = world.get("drawing")
 
 	print("[이동/충돌]")
-	player.global_position = cell_center(5, 12)
+	player.global_position = bg(400, 620)
 	var x0 := player.global_position.x
 	await hold("move_right", 30)
 	check(player.global_position.x > x0 + 20, "D 키로 오른쪽 이동 (%.1f → %.1f)" % [x0, player.global_position.x])
-	player.global_position = cell_center(1, 12)
-	await hold("move_left", 40)
-	check(player.global_position.x >= TILE + 3, "왼쪽 나무 벽 통과 안 함 (x=%.1f)" % player.global_position.x)
-	player.global_position = cell_center(22, 5)
-	await hold("move_right", 80)
-	check(player.global_position.x < 24 * TILE, "강물 통과 안 함 (x=%.1f)" % player.global_position.x)
-	player.global_position = cell_center(22, 10)
-	await hold("move_right", 60)
-	check(player.global_position.x < 24 * TILE, "다리 없을 땐 다리 자리도 못 지나감 (x=%.1f)" % player.global_position.x)
+	player.global_position = bg(200, 640)
+	await hold("move_left", 80)
+	check(player.global_position.x > bg(90, 0).x, "왼쪽 나무 테두리 통과 안 함 (bg x=%.0f)" % (player.global_position.x / S))
+	player.global_position = bg(490, 450)
+	await hold("move_up", 80)
+	check(player.global_position.y > bg(0, 380).y, "집·덤불 통과 안 함 (bg y=%.0f)" % (player.global_position.y / S))
+	player.global_position = bg(860, 660)
+	await hold("move_right", 120)
+	check(player.global_position.x < bg(990, 0).x, "강물 통과 안 함 (bg x=%.0f)" % (player.global_position.x / S))
+	player.global_position = bg(900, 512)
+	await hold("move_right", 120)
+	check(player.global_position.x < bg(1000, 0).x, "다리 없을 땐 다리 자리도 못 지나감 (bg x=%.0f)" % (player.global_position.x / S))
 
 	print("[회피]")
-	player.global_position = cell_center(8, 18)
+	player.global_position = bg(300, 700)
 	player.set("facing", Vector2.RIGHT)
 	x0 = player.global_position.x
 	Input.action_press("dodge")
@@ -111,7 +113,7 @@ func _run() -> void:
 	check(player.global_position.x > x0 + 20, "회피로 빠르게 이동 (%.1f px)" % (player.global_position.x - x0))
 
 	print("[NPC 대화/퀘스트]")
-	player.global_position = cell_center(21, 10)
+	player.global_position = bg(880, 490)
 	await frames(2)
 	await press_action("interact")
 	check(GameState.dialogue_open, "F 키로 대화 시작")
@@ -141,7 +143,7 @@ func _run() -> void:
 		if slime == null:
 			break
 		var hp_before: int = slime.get("hp")
-		player.global_position = slime.global_position + Vector2(-12, 0)
+		player.global_position = slime.global_position + Vector2(-20, 0)
 		await frames(1)
 		player.call("attack", slime.global_position - player.global_position)
 		await frames(1)
@@ -150,7 +152,7 @@ func _run() -> void:
 		for hit in 6:
 			if not is_instance_valid(slime):
 				break
-			player.global_position = slime.global_position + Vector2(-12, 0)
+			player.global_position = slime.global_position + Vector2(-20, 0)
 			await frames(20)
 			if is_instance_valid(slime):
 				player.call("attack", slime.global_position - player.global_position)
@@ -178,14 +180,14 @@ func _run() -> void:
 		player.global_position = s2.global_position
 		await frames(3)
 		check(int(player.get("hp")) < hp0, "슬라임에 닿으면 HP 감소")
-	player.global_position = cell_center(20, 10)
+	player.global_position = bg(860, 512)
 	await frames(1)
 
 	print("[연필 모드: 다리 그리기]")
 	await press_action("toggle_draw")
 	var guides: Array = drawing.get("guides")
 	# 1) 엉뚱한 곳에 낙서 → 실패
-	drawing.set("strokes", [PackedVector2Array([Vector2(100, 100), Vector2(200, 120), Vector2(150, 200)])])
+	drawing.set("strokes", [PackedVector2Array([Vector2(100, 150), Vector2(200, 170), Vector2(150, 250)])])
 	await press_action("draw_confirm")
 	check(not GameState.bridge_built, "엉뚱한 낙서는 실패")
 	# 2) 지우개
@@ -213,14 +215,17 @@ func _run() -> void:
 	check(GameState.quest == GameState.Quest.BRIDGE_BUILT, "퀘스트 단계: 다리 완성")
 	check(GameState.pencil_lead >= 0 and GameState.pencil_lead < 3, "연필심 3개 소모 (남은 %d)" % GameState.pencil_lead)
 	check(not drawing.get("active") and not get_tree().paused, "완성 후 연필 모드 자동 종료")
-	var bridge_cells: Array = world.get("bridge_cells")
-	check(ground.get_cell_atlas_coords(bridge_cells[0]) == Vector2i(Tiles.T.BRIDGE, 0), "다리 타일이 맵에 생김")
+	await frames(2)
+	check((world.get("bridge_sprite") as Sprite2D).visible, "다리 그림이 맵에 나타남")
+	check(world.get("bridge_blocker") == null, "다리 자리 통행 차단이 풀림")
 
-	print("[다리 건너기 → 도리이]")
-	player.global_position = cell_center(22, 10) + Vector2(0, 6)
-	await hold("move_right", 150)
-	check(player.global_position.x > 28 * TILE, "다리를 건너감 (x=%.1f)" % player.global_position.x)
-	check(GameState.quest == GameState.Quest.CLEARED, "도리이 도착 → MVP 클리어")
+	print("[다리 건너기 → 빨간 문]")
+	player.global_position = bg(900, 512)
+	await hold("move_right", 130)
+	check(player.global_position.x > bg(1230, 0).x, "다리를 건너감 (bg x=%.0f)" % (player.global_position.x / S))
+	player.global_position = bg(1440, 500)
+	await hold("move_right", 30)
+	check(GameState.quest == GameState.Quest.CLEARED, "빨간 문 도착 → MVP 클리어")
 	for i in 4:
 		if GameState.dialogue_open:
 			await press_action("interact")
@@ -235,8 +240,7 @@ func _run() -> void:
 	var saved_pos := GameState.saved_position
 	await _load_world()
 	player = world.get("player")
-	ground = world.get("ground")
-	check(ground.get_cell_atlas_coords(bridge_cells[0]) == Vector2i(Tiles.T.BRIDGE, 0), "재시작 후에도 다리 유지")
+	check((world.get("bridge_sprite") as Sprite2D).visible and world.get("bridge_blocker") == null, "재시작 후에도 다리 유지")
 	check(player.global_position.distance_to(saved_pos) < 1.0, "재시작 후 플레이어 위치 복원")
 
 	# 정리

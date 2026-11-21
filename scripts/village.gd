@@ -1,14 +1,12 @@
 extends Node2D
-## 첫 페이지: 공책 속 일본풍 마을.
-## 맵(MAP)을 읽어 타일을 깔고, 플레이어·NPC·슬라임·도리이·연필 모드·HUD를 배치한다.
+## 첫 페이지: 공책 속 마을.
+## 배경 그림 한 장(assets/sprites/bg.png)을 깔고, 충돌은 마스크 이미지에서 다각형으로 만든다.
+## 격자 타일을 쓰지 않으므로 길·강·나무가 그림 모양 그대로 막힌다.
 ##
-## 맵 기호
-##   #  나무(막힘)     .  풀        ,  흙길
-##   H  집(막힘)       D  입구(막힘)  ~  강(막힘)
-##   =  끊어진 다리 자리 (설계도로 그리면 다리가 생김)
-##   P  플레이어 시작   N  NPC       S  슬라임    G  도리이(목표)
+## 위치는 전부 "bg px"(배경 원본 1672×941 픽셀 좌표)로 적고 bg() 로 월드 좌표로 바꾼다.
+## 충돌 마스크는 tools/import_art.gd 가 만든다 (mask_solid.png / mask_walk.png).
 
-const Tiles := preload("res://scripts/placeholder_tiles.gd")
+const Art := preload("res://scripts/art.gd")
 const Validator := preload("res://scripts/blueprint_validator.gd")
 const DrawingScript := preload("res://scripts/drawing_manager.gd")
 const HudScript := preload("res://scripts/hud.gd")
@@ -17,120 +15,106 @@ const PlayerScene := preload("res://scenes/player.tscn")
 const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
 
-const TILE := 16
+const BG_SIZE := Vector2(1672, 941)
+const WORLD_PER_BG := 640.0 / 1672.0
+const MASK_BLOCK := 4
+const CAMERA_ZOOM := 1.5
 const SLIME_RESPAWN_SEC := 8.0
 const GUIDE_TOLERANCE := 8.0
 
-const MAP: Array[String] = [
-	"########################################",
-	"#.......................~~~~...........#",
-	"#..HHHH......HHHH.......~~~~...........#",
-	"#..HHHH......HHHH.......~~~~....#......#",
-	"#..HDHH......HHDH.......~~~~...........#",
-	"#...,..........,........~~~~......#....#",
-	"#...,,,,,,,,,,,,........~~~~...........#",
-	"#.........,.............~~~~..#........#",
-	"#...P.....,.............~~~~...........#",
-	"#.........,,,,,,,,,,,N..~~~~...........#",
-	"#....................,,,====,,,,,,G....#",
-	"#....................,,,====,,,,,,.....#",
-	"#.........,.............~~~~...........#",
-	"#..S......,.....S.......~~~~......#....#",
-	"#.........,.............~~~~...........#",
-	"#...........S...........~~~~...#.......#",
-	"#..##.........##........~~~~...........#",
-	"#..##.....S...##........~~~~.......#...#",
-	"#.......................~~~~...........#",
-	"#.......................~~~~...........#",
-	"#.......................~~~~...........#",
-	"########################################",
-]
+# ---- 배치 (bg px) ----
+const PLAYER_SPAWN := Vector2(300, 525)
+const NPC_POS := Vector2(880, 438)
+const GOAL_POS := Vector2(1502, 486)
+const SLIME_SPAWNS := [Vector2(330, 670), Vector2(520, 730), Vector2(700, 650), Vector2(810, 745)]
+const BRIDGE_RECT := Rect2(962, 470, 246, 86)
 
-var ground: TileMapLayer
 var actors: Node2D
 var drawing: Node2D
 var player: CharacterBody2D
 var hud: CanvasLayer
-var bridge_cells: Array[Vector2i] = []
+var bridge_sprite: Sprite2D
+var bridge_blocker: StaticBody2D
+
+
+static func bg(p: Vector2) -> Vector2:
+	return p * WORLD_PER_BG
 
 
 func _ready() -> void:
-	ground = TileMapLayer.new()
-	ground.name = "Ground"
-	ground.tile_set = Tiles.build(TILE)
-	add_child(ground)
+	# 배경
+	var bg_tex := Art.tex("bg")
+	if bg_tex:
+		var back := Sprite2D.new()
+		back.name = "Background"
+		back.texture = bg_tex
+		back.centered = false
+		back.scale = Vector2.ONE * WORLD_PER_BG
+		back.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		back.z_index = -10
+		add_child(back)
+	else:
+		push_error("assets/sprites/bg.png 가 없습니다. tools/import_art.gd 를 먼저 실행하세요.")
+
+	_build_collision()
+
+	# 다리 (완성 전에는 숨김 + 통행 차단)
+	var bridge_world := Rect2(bg(BRIDGE_RECT.position), BRIDGE_RECT.size * WORLD_PER_BG)
+	var bridge_tex := Art.tex("prop_bridge")
+	if bridge_tex:
+		bridge_sprite = Sprite2D.new()
+		bridge_sprite.texture = bridge_tex
+		bridge_sprite.scale = Art.SCALE
+		bridge_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		bridge_sprite.position = bridge_world.get_center()
+		bridge_sprite.z_index = -5
+		bridge_sprite.visible = false
+		add_child(bridge_sprite)
+
+	bridge_blocker = StaticBody2D.new()
+	bridge_blocker.name = "BridgeBlocker"
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = bridge_world.size
+	shape.shape = rect
+	bridge_blocker.position = bridge_world.get_center()
+	bridge_blocker.add_child(shape)
+	add_child(bridge_blocker)
+
+	if GameState.bridge_built:
+		_build_bridge(false)
 
 	actors = Node2D.new()
 	actors.name = "Actors"
 	actors.y_sort_enabled = true
 	add_child(actors)
 
-	var player_spawn := Vector2.ZERO
-	var npc_pos := Vector2.ZERO
-	var goal_pos := Vector2.ZERO
-	var slime_spawns: Array[Vector2] = []
-
-	for y in MAP.size():
-		var row := MAP[y]
-		for x in row.length():
-			var c := row[x]
-			var cell := Vector2i(x, y)
-			var center := Vector2(x * TILE + TILE / 2.0, y * TILE + TILE / 2.0)
-			match c:
-				"#": _set_tile(cell, Tiles.T.TREE)
-				",": _set_tile(cell, Tiles.T.PATH)
-				"H":
-					var is_top := y == 0 or MAP[y - 1][x] != "H"
-					_set_tile(cell, Tiles.T.ROOF if is_top else Tiles.T.HOUSE)
-				"D": _set_tile(cell, Tiles.T.DOOR)
-				"~": _set_tile(cell, Tiles.T.WATER)
-				"=":
-					_set_tile(cell, Tiles.T.WATER)
-					bridge_cells.append(cell)
-				"P":
-					_set_tile(cell, Tiles.T.GRASS)
-					player_spawn = center
-				"N":
-					_set_tile(cell, Tiles.T.GRASS)
-					npc_pos = center
-				"S":
-					_set_tile(cell, Tiles.T.GRASS)
-					slime_spawns.append(center)
-				"G":
-					_set_tile(cell, Tiles.T.PATH)
-					goal_pos = center
-				_:
-					_set_tile(cell, Tiles.T.GRASS)
-
-	if GameState.bridge_built:
-		_build_bridge(false)
-
 	# NPC
 	var npc: Node2D = NpcScene.instantiate()
-	npc.position = npc_pos
+	npc.position = bg(NPC_POS)
 	actors.add_child(npc)
 
-	# 도리이
+	# 빨간 문 (목표)
 	var goal: Node2D = GoalScript.new()
-	goal.position = goal_pos
+	goal.position = bg(GOAL_POS)
 	actors.add_child(goal)
 
 	# 슬라임
-	for sp in slime_spawns:
-		_spawn_slime(sp)
+	for sp in SLIME_SPAWNS:
+		_spawn_slime(bg(sp))
 
 	# 플레이어 + 카메라
 	player = PlayerScene.instantiate()
-	player.set("spawn_point", player_spawn)
-	player.position = GameState.saved_position if GameState.has_saved_position else player_spawn
+	player.set("spawn_point", bg(PLAYER_SPAWN))
+	player.position = GameState.saved_position if GameState.has_saved_position else bg(PLAYER_SPAWN)
 	actors.add_child(player)
 
 	var cam := Camera2D.new()
-	cam.zoom = Vector2(2, 2)
+	cam.zoom = Vector2.ONE * CAMERA_ZOOM
 	cam.limit_left = 0
 	cam.limit_top = 0
-	cam.limit_right = MAP[0].length() * TILE
-	cam.limit_bottom = MAP.size() * TILE
+	cam.limit_right = roundi(BG_SIZE.x * WORLD_PER_BG)
+	cam.limit_bottom = roundi(BG_SIZE.y * WORLD_PER_BG)
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 8.0
 	player.add_child(cam)
@@ -149,8 +133,35 @@ func _ready() -> void:
 	add_child(hud)
 
 
-func _set_tile(cell: Vector2i, t: int) -> void:
-	ground.set_cell(cell, 0, Vector2i(t, 0))
+# ---------- 충돌 ----------
+
+## 마스크 이미지의 윤곽선을 따라 충돌선을 만든다.
+##  - mask_walk : 걸을 수 있는 영역의 바깥 윤곽 (강가, 나무 테두리)
+##  - mask_solid: 막힌 덩어리의 윤곽 (걸을 수 있는 영역 안에 섬처럼 있는 집·덤불)
+func _build_collision() -> void:
+	var body := StaticBody2D.new()
+	body.name = "MapCollision"
+	add_child(body)
+	var to_world := MASK_BLOCK * WORLD_PER_BG
+	for mask_name in ["mask_walk", "mask_solid"]:
+		var t := Art.tex(mask_name)
+		if t == null:
+			push_error("assets/sprites/%s.png 가 없습니다." % mask_name)
+			continue
+		var img := t.get_image()
+		var bm := BitMap.new()
+		bm.create_from_image_alpha(img, 0.5)
+		var polys := bm.opaque_to_polygons(Rect2i(Vector2i.ZERO, bm.get_size()), 1.0)
+		for poly in polys:
+			var pts := PackedVector2Array()
+			for p in (poly as PackedVector2Array):
+				pts.append(p * to_world)
+			if pts.size() < 3:
+				continue
+			var cp := CollisionPolygon2D.new()
+			cp.build_mode = CollisionPolygon2D.BUILD_SEGMENTS
+			cp.polygon = pts
+			body.add_child(cp)
 
 
 func _spawn_slime(pos: Vector2) -> void:
@@ -168,20 +179,11 @@ func _on_slime_died(home: Vector2) -> void:
 
 # ---------- 다리 설계도 ----------
 
-func _bridge_rect() -> Rect2:
-	var min_c := bridge_cells[0]
-	var max_c := bridge_cells[0]
-	for c in bridge_cells:
-		min_c = Vector2i(mini(min_c.x, c.x), mini(min_c.y, c.y))
-		max_c = Vector2i(maxi(max_c.x, c.x), maxi(max_c.y, c.y))
-	return Rect2(Vector2(min_c * TILE), Vector2((max_c - min_c + Vector2i.ONE) * TILE))
-
-
-## 다리 설계도 안내선: 위·아래 난간 2줄 + 가운데 기둥 2개
+## 다리 설계도 안내선: 위·아래 난간 2줄 + 가운데 기둥 2개 (월드 좌표)
 func _bridge_guides() -> Array:
-	var r := _bridge_rect()
-	var left := r.position.x - 6.0
-	var right := r.end.x + 6.0
+	var r := Rect2(bg(BRIDGE_RECT.position), BRIDGE_RECT.size * WORLD_PER_BG)
+	var left := r.position.x + 3.0
+	var right := r.end.x - 3.0
 	var top := r.position.y + 2.0
 	var bottom := r.end.y - 2.0
 	var mid1 := r.position.x + r.size.x / 3.0
@@ -221,18 +223,18 @@ func _on_blueprint_submitted(strokes: Array) -> void:
 
 
 func _build_bridge(animate: bool) -> void:
-	for c in bridge_cells:
-		_set_tile(c, Tiles.T.BRIDGE)
 	GameState.bridge_built = true
+	if is_instance_valid(bridge_blocker):
+		bridge_blocker.queue_free()
+	bridge_blocker = null
+	if bridge_sprite == null:
+		return
+	bridge_sprite.visible = true
 	if animate:
-		var r := _bridge_rect()
-		var flash := ColorRect.new()
-		flash.color = Color(1, 1, 1, 0.9)
-		flash.position = r.position
-		flash.size = r.size
-		flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		flash.z_index = 50
-		add_child(flash)
-		var tw := flash.create_tween()
-		tw.tween_property(flash, "color:a", 0.0, 0.6)
-		tw.tween_callback(flash.queue_free)
+		# 종이 위에 톡 하고 나타나는 연출
+		bridge_sprite.modulate.a = 0.0
+		bridge_sprite.scale = Art.SCALE * 1.25
+		var tw := bridge_sprite.create_tween().set_parallel(true)
+		tw.tween_property(bridge_sprite, "modulate:a", 1.0, 0.35)
+		tw.tween_property(bridge_sprite, "scale", Art.SCALE, 0.45) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

@@ -1,8 +1,17 @@
 extends Node2D
 ## 드롭 아이템: 연필심. 플레이어가 가까이 가면 빨려 들어와 획득된다.
 
+const Art := preload("res://scripts/art.gd")
+
 @export var amount := 1
 var _t := 0.0
+var _sprite: Sprite2D
+
+
+func _ready() -> void:
+	var t := Art.tex("prop_lead")
+	if t:
+		_sprite = Art.make_sprite(self, t)
 
 
 func _physics_process(delta: float) -> void:
@@ -10,17 +19,22 @@ func _physics_process(delta: float) -> void:
 	var p := GameState.player_ref
 	if is_instance_valid(p) and _t > 0.3:
 		var to := p.global_position - global_position
-		if to.length() < 10.0:
+		if to.length() < 12.0:
 			GameState.add_lead(amount)
 			GameState.notify("연필심 +%d  (%d개 보유)" % [amount, GameState.pencil_lead])
 			queue_free()
 			return
-		if to.length() < 34.0:
-			global_position += to.normalized() * 120.0 * delta
-	queue_redraw()
+		if to.length() < 44.0:
+			global_position += to.normalized() * 150.0 * delta
+	if _sprite:
+		_sprite.position.y = -absf(sin(_t * 4.0)) * 4.0
+	else:
+		queue_redraw()
 
 
 func _draw() -> void:
+	if _sprite:
+		return
 	var y := -3.0 - absf(sin(_t * 4.0)) * 3.0
 	draw_set_transform(Vector2(0, y), -0.6)
 	draw_rect(Rect2(-1.5, -5, 3, 10), Color(0.3, 0.3, 0.35))

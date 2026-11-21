@@ -4,17 +4,31 @@ extends StaticBody2D
 @export var npc_name := "하루"
 @export var use_placeholder_art := true
 
+const Art := preload("res://scripts/art.gd")
+
 var _near := false
+var _sprite: Sprite2D
+const IDLE_FRAME := 1
 
 
 func _ready() -> void:
 	add_to_group("interactable")
 	collision_layer = 1
+	var t := Art.tex("npc_walk")
+	if t:
+		use_placeholder_art = false
+		_sprite = Art.make_sprite(self, t, Vector2(0, 6), 4, 4)
+		_sprite.frame_coords = Vector2i(IDLE_FRAME, 0)
+		_sprite.show_behind_parent = true
 
 
 func _process(_delta: float) -> void:
 	var p := GameState.player_ref
-	var near := is_instance_valid(p) and p.global_position.distance_to(global_position) < 26.0
+	var near := is_instance_valid(p) and p.global_position.distance_to(global_position) < 40.0
+	if _sprite:
+		# 플레이어가 가까이 오면 그쪽을 바라보고, 멀어지면 정면
+		var row := Art.dir_row(p.global_position - global_position) if near else 0
+		_sprite.frame_coords = Vector2i(IDLE_FRAME, row)
 	if near != _near:
 		_near = near
 		queue_redraw()
@@ -40,7 +54,7 @@ func interact() -> void:
 		else:
 			lines = ["연필심을 다 모았구나! 강가에서 [Tab]을 누르고 점선을 따라 다리를 그려 봐."]
 	elif q == Q.BRIDGE_BUILT:
-		lines = ["다리가 생겼어! 강 건너편 빨간 도리이로 가 봐."]
+		lines = ["다리가 생겼어! 강 건너편 빨간 문으로 가 봐."]
 	else:
 		lines = ["다음 페이지도 기대할게!"]
 	GameState.start_dialogue(npc_name, lines)
@@ -59,7 +73,11 @@ func _draw() -> void:
 		draw_circle(Vector2(0, -13), 2.5, Color(0.3, 0.2, 0.15))   # 올림머리
 		draw_rect(Rect2(-3, -6, 1, 2), Color(0.1, 0.1, 0.15))
 		draw_rect(Rect2(2, -6, 1, 2), Color(0.1, 0.1, 0.15))
+	if _sprite:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
+		draw_circle(Vector2(0, 5.0 / 0.4), 9, Color(0, 0, 0, 0.18))
+		draw_set_transform(Vector2.ZERO)
 	if _near:
-		draw_rect(Rect2(-5, -27, 10, 9), Color(1, 1, 1))
-		draw_rect(Rect2(-5, -27, 10, 9), Color(0.2, 0.2, 0.25), false, 1.0)
-		draw_string(ThemeDB.fallback_font, Vector2(-3, -19.5), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.2, 0.2, 0.25))
+		draw_rect(Rect2(-6, -50, 12, 11), Color(1, 1, 1))
+		draw_rect(Rect2(-6, -50, 12, 11), Color(0.2, 0.2, 0.25), false, 1.0)
+		draw_string(ThemeDB.fallback_font, Vector2(-3, -41.5), "F", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.2, 0.2, 0.25))

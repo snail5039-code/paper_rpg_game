@@ -8,12 +8,12 @@ const PickupScript := preload("res://scripts/pickup.gd")
 
 @export var use_placeholder_art := true
 @export var max_hp := 3
-@export var speed := 34.0
-@export var chase_range := 90.0
-@export var contact_range := 11.0
+@export var speed := 40.0
+@export var chase_range := 115.0
+@export var contact_range := 15.0
 @export var damage := 1
 
-var radius := 6.0
+var radius := 10.0
 var hp: int
 var home := Vector2.ZERO
 
@@ -24,7 +24,22 @@ var _wander := Vector2.ZERO
 var _wander_timer := 0.0
 
 
+const Art := preload("res://scripts/art.gd")
+const FOOT := Vector2(0, 7)
+
+var _sprite: Sprite2D
+var _frames := {}
+
+
 func _ready() -> void:
+	for f in ["idle", "squash", "jump", "hurt"]:
+		var t := Art.tex("slime_" + f)
+		if t:
+			_frames[f] = t
+	if _frames.size() == 4:
+		use_placeholder_art = false
+		_sprite = Art.make_sprite(self, _frames["idle"], FOOT)
+		_sprite.show_behind_parent = true
 	hp = max_hp
 	home = global_position
 	add_to_group("enemies")
@@ -59,12 +74,22 @@ func _physics_process(delta: float) -> void:
 	velocity = dir * speed * (0.4 + hop) + _knock
 	_knock = _knock.move_toward(Vector2.ZERO, 500.0 * delta)
 	move_and_slide()
+	if _sprite:
+		var frame := "idle"
+		if _flash > 0.0:
+			frame = "hurt"
+		elif hop > 0.55:
+			frame = "jump"
+		elif hop <= 0.0:
+			frame = "squash"
+		Art.set_texture(_sprite, _frames[frame])
+		_sprite.position = FOOT + Vector2(0, -hop * 5.0)
 	queue_redraw()
 
 
 func take_damage(amount: int, dir: Vector2) -> void:
 	hp -= amount
-	_flash = 0.12
+	_flash = 0.25
 	_knock = dir.normalized() * 190.0
 	if hp <= 0:
 		_die()
@@ -79,7 +104,11 @@ func _die() -> void:
 
 
 func _draw() -> void:
-	if not use_placeholder_art:
+	if _sprite:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
+		draw_circle(Vector2(0, (FOOT.y - 1.0) / 0.4), 10, Color(0, 0, 0, 0.18))
+		draw_set_transform(Vector2.ZERO)
+		_draw_hp()
 		return
 	var hop := maxf(0.0, sin(_t * 8.0))
 	var squash := Vector2(1.0 + (1.0 - hop) * 0.15, 0.85 + hop * 0.2)
@@ -92,8 +121,12 @@ func _draw() -> void:
 	draw_rect(Rect2(-3, -2, 1, 2), Color(0.15, 0.15, 0.25))
 	draw_rect(Rect2(2, -2, 1, 2), Color(0.15, 0.15, 0.25))
 	draw_set_transform(Vector2.ZERO)
+	_draw_hp()
+
+
+func _draw_hp() -> void:
 	# 체력 표시 (맞았을 때만)
 	if hp < max_hp:
 		for i in max_hp:
 			var c := Color(0.9, 0.3, 0.35) if i < hp else Color(0.4, 0.4, 0.45)
-			draw_rect(Rect2(-max_hp * 2.0 + i * 4.0, -15, 3, 2), c)
+			draw_rect(Rect2(-max_hp * 2.5 + i * 5.0, -24, 4, 3), c)

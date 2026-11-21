@@ -110,7 +110,7 @@ func _refresh() -> void:
 		else:
 			_quest_label.text = "퀘스트: 강가에서 [Tab] → 점선을 따라 다리 그리기"
 	elif q == Q.BRIDGE_BUILT:
-		_quest_label.text = "퀘스트: 다리를 건너 도리이로 가기"
+		_quest_label.text = "퀘스트: 다리를 건너 빨간 문으로 가기"
 	else:
 		_quest_label.text = "MVP 클리어! 다음 페이지는 개발 중"
 

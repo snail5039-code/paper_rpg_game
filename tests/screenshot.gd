@@ -21,8 +21,19 @@ func _run() -> void:
 	var world: Node2D = preload("res://scenes/main.tscn").instantiate()
 	add_child(world)
 	var player: Node2D = world.get("player")
-	player.global_position = Vector2(20 * 16 + 4, 10 * 16 + 8)
+	player.global_position = Vector2(840, 500) * (640.0 / 1672.0)
 	for i in 40: await get_tree().process_frame
+	var cam: Camera2D = null
+	for c in player.get_children():
+		if c is Camera2D:
+			cam = c
+	cam.zoom = Vector2.ONE
+	cam.reset_smoothing()
+	for i in 5: await get_tree().process_frame
+	await _shot(dir, "0_overview.png")
+	cam.zoom = Vector2(1.5, 1.5)
+	cam.reset_smoothing()
+	for i in 5: await get_tree().process_frame
 	await _shot(dir, "1_village.png")
 	player.call("try_interact")
 	for i in 5: await get_tree().process_frame

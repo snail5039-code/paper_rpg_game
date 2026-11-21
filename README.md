@@ -28,7 +28,7 @@ Godot 4.7로 이 폴더를 열고 F5를 누른다. 시작 씬은 `scenes/main.ts
 
 ## MVP 플레이 흐름
 
-하루(NPC)와 대화 → 슬라임을 잡아 연필심 3개 모으기 → 강가에서 Tab → 빨간 점선을 따라 다리 그리기 → Enter → 다리를 건너 도리이 도착
+하루(NPC)와 대화 → 슬라임을 잡아 연필심 3개 모으기 → 강가에서 Tab → 빨간 점선을 따라 다리 그리기 → Enter → 다리를 건너 빨간 문 도착
 
 ## 테스트
 
@@ -42,21 +42,38 @@ godot --headless --path . res://tests/test_mvp.tscn
 | 파일 | 역할 |
 |---|---|
 | `scripts/game_state.gd` | Autoload. 퀘스트·재료·저장·일시정지 |
-| `scripts/village.gd` | 첫 페이지 맵(MAP 문자열), 배치, 다리 설계도 처리 |
+| `scripts/village.gd` | 첫 페이지: 배경 그림, 마스크 충돌, 배치, 다리 설계도 처리 |
 | `scripts/player.gd` | 이동·회피·공격·피격 |
 | `scripts/enemy_slime.gd` | 몬스터 1종 |
 | `scripts/npc.gd` | NPC 대화·퀘스트 |
 | `scripts/drawing_manager.gd` | 연필 모드 (선·지우개·안내선) |
 | `scripts/blueprint_validator.gd` | 설계도 판정 (따라 그리기 80% + 정확도 60%) |
 | `scripts/hud.gd` | HP·퀘스트·알림·대화창 |
-| `scripts/placeholder_tiles.gd` | 임시 타일 생성기 |
+| `scripts/art.gd` | 스프라이트 로더 |
+| `tools/import_art.gd` | 원본 시트 → 게임용 스프라이트·충돌 마스크 변환 |
 
-## 도트 교체 방법
+## 그래픽 (v4: 도트 + 크레용 질감)
 
-지금 그래픽은 모두 **코드로 그린 임시 그림**이다.
+원본 시트는 `assets/generated_pixel_art/pixel-v4-*`, 게임이 실제로 쓰는 파일은 `assets/sprites/`에 있다.
 
-- **타일:** 16×16 타일을 가로로 `풀, 흙길, 나무, 집벽, 입구, 강, 다리, 지붕` 순서로 이어 붙인 PNG를 만든다. 그다음 `village.gd`의 `Tiles.build(TILE)`가 그 PNG로 만든 TileSet을 쓰도록 바꾸면 된다.
-- **캐릭터·몬스터·NPC:** 각 씬(`player.tscn` 등)에 `AnimatedSprite2D`를 추가하고, 인스펙터에서 `use_placeholder_art`를 끄면 된다.
+| 파일 | 내용 |
+|---|---|
+| `bg.png` | 마을 배경 한 장 (타일 없음) |
+| `mask_walk.png`, `mask_solid.png` | 충돌 마스크. 흰 칸이 각각 "걸을 수 있는 곳", "막힌 곳" |
+| `player_walk.png`, `npc_walk.png` | 4방향 × 걷기 4프레임 (행: 정면, 왼쪽, 오른쪽, 뒷면) |
+| `slime_*.png` | 기본, 납작, 점프, 맞음 |
+| `prop_bridge.png`, `prop_lead.png`, `prop_door.png` | 다리, 연필심, 빨간 문 |
+
+원본 시트나 충돌 영역을 바꿨으면 아래 두 줄로 다시 만든다.
+
+```
+godot --headless --path . --script tools/import_art.gd
+godot --headless --path . --import
+```
+
+- **충돌:** 강은 배경의 파란색을 읽어 자동으로 막는다. 나무 테두리와 집·덤불은 `tools/import_art.gd`의 `PLAY_RECT`, `SOLID_RECTS`에 배경 픽셀 좌표로 적는다.
+- **배치:** 시작 위치, 하루, 슬라임, 문, 다리 자리는 `scripts/village.gd` 위쪽 상수에 배경 픽셀 좌표로 적는다.
+- 스프라이트 파일이 없으면 캐릭터는 코드로 그린 임시 도형으로 나온다.
 
 ## 문서
 
