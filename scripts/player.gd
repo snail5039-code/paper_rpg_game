@@ -39,23 +39,31 @@ var _dash_timer := 0.0
 var _dash_dir := Vector2.ZERO
 var _fx: Dictionary = {}        # 방금 쓴 스킬의 효과 그림
 var _fx_tex: Dictionary = {}    # 효과 그림 (계속 쥐고 있어야 한다)
-var _hat: Sprite2D              # 쓴 모자
-var _tool: Sprite2D             # 든 도구
-var _cloth_mat: ShaderMaterial  # 입은 옷의 색 (후드티의 파란색을 바꿔 칠한다)
+var _hat: Sprite2D              # 쓴 모자 (머리 모양에 맞춰 그린 앞·옆·뒤 그림)
+var _hat_tex: Array = [null, null, null]   # 지금 모자의 앞, 옆(왼쪽을 봄), 뒤 그림
+var _hat_shape := -1
+var _look_mat: ShaderMaterial   # 옷과 도구의 색 (그림의 파란 옷, 노란 연필을 바꿔 칠한다)
 var _look := ""
 
-## 옷 모양마다 색 (색상환 0~1, -1 은 원래 파란 후드티), [색, 진하기, 밝기(1보다 크면 밝게 끌어올리고 작으면 어둡게)]
+const Anchors := preload("res://scripts/player_anchors.gd")
+## 옷 모양마다 색 [색상환 0~1 (-1 은 원래 파란 후드티), 진하기 배율, 밝기(1보다 크면 밝게 끌어올리고 작으면 어둡게)]
 const CLOTH_LOOK := [[-1.0, 1.0, 1.0], [0.33, 0.8, 1.2], [0.14, 0.9, 2.0], [0.95, 0.6, 1.8], [0.6, 1.2, 0.8],
 	[0.76, 0.75, 1.2], [0.62, 1.1, 0.65], [0.0, 1.0, 1.3], [0.08, 1.0, 1.6], [0.47, 0.8, 1.2]]
-## 모자 모양마다 색 (장비 그림이 회색이라 색을 입혀 얹는다)
-const HAT_COLORS := [Color(1.0, 0.98, 0.9), Color(0.92, 0.9, 0.82), Color(0.55, 0.75, 1.0), Color(1.0, 0.6, 0.6), Color(1.0, 0.88, 0.55),
-	Color(1.0, 0.85, 0.35), Color(1.0, 0.7, 0.85), Color(0.75, 0.65, 1.0), Color(1.0, 0.8, 0.3), Color(0.7, 0.45, 0.4)]
-const TOOL_COLOR := Color(1.0, 0.86, 0.5)
-const CLOTH_SHADER := """
+## 도구 모양마다 색 [색상환 (-1 은 원래 노란 연필), 진하기 배율, 밝기 배율]. 캐릭터가 든 연필 자체의 색을 바꾼다.
+##  연필, 몽당연필, 샤프, 깃펜, 붓, 넓은 붓, 분필, 사인펜, 형광펜, 크레용
+const TOOL_LOOK := [[-1.0, 1.0, 1.0], [0.07, 1.0, 0.9], [0.58, 0.45, 1.0], [0.1, 0.12, 1.1], [0.06, 0.8, 0.6],
+	[0.02, 0.8, 0.5], [0.45, 0.22, 1.08], [0.0, 1.0, 0.92], [0.27, 1.0, 1.05], [0.88, 0.8, 1.0]]
+## 모자마다 [크기 배율, 머리 꼭대기에서 모자 아랫단까지 내려오는 길이(텍셀)]
+const HAT_FIT := [[0.72, 24.0], [0.72, 24.0], [0.72, 27.0], [0.72, 29.0], [0.72, 27.0],
+	[0.72, 23.0], [0.74, 28.0], [0.72, 22.0], [0.72, 29.0], [0.72, 26.0]]
+const LOOK_SHADER := """
 shader_type canvas_item;
 uniform float hue = -1.0;
 uniform float sat = 1.0;
 uniform float val = 1.0;
+uniform float tool_hue = -1.0;
+uniform float tool_sat = 1.0;
+uniform float tool_val = 1.0;
 vec3 rgb2hsv(vec3 c) {
 	vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
 	vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
@@ -69,13 +77,13 @@ vec3 hsv2rgb(vec3 c) {
 	return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 void fragment() {
-	// COLOR 에는 이미 그림 색이 들어 있다. 파란 옷 부분만 새 색으로 바꿔 넣는다.
-	if (hue >= 0.0) {
-		vec4 c = texture(TEXTURE, UV);
-		vec3 h = rgb2hsv(c.rgb);
-		if (h.x > 0.5 && h.x < 0.75 && h.y > 0.1 && h.z > 0.15) {
-			COLOR.rgb = hsv2rgb(vec3(hue, clamp(max(h.y * sat, 0.42), 0.0, 1.0), val >= 1.0 ? 1.0 - (1.0 - h.z) / val : h.z * val));
-		}
+	// COLOR 에는 이미 그림 색이 들어 있다. 파란 옷과 노란 연필 부분만 새 색으로 바꿔 넣는다.
+	vec4 c = texture(TEXTURE, UV);
+	vec3 h = rgb2hsv(c.rgb);
+	if (hue >= 0.0 && h.x > 0.5 && h.x < 0.75 && h.y > 0.1 && h.z > 0.15) {
+		COLOR.rgb = hsv2rgb(vec3(hue, clamp(max(h.y * sat, 0.42), 0.0, 1.0), val >= 1.0 ? 1.0 - (1.0 - h.z) / val : h.z * val));
+	} else if (tool_hue >= 0.0 && h.x > 0.09 && h.x < 0.19 && h.y > 0.55 && h.z > 0.55) {
+		COLOR.rgb = hsv2rgb(vec3(tool_hue, clamp(h.y * tool_sat, 0.0, 1.0), clamp(h.z * tool_val, 0.0, 1.0)));
 	}
 }
 """
@@ -113,20 +121,18 @@ func _ready() -> void:
 		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
 		_attack_sprite.show_behind_parent = true
 		_attack_sprite.visible = false
-	# 장비 겉모습: 옷은 색으로, 모자와 도구는 그림을 얹어서 보여 준다
+	# 장비 겉모습: 옷과 도구는 캐릭터 그림의 색을 바꾸고, 모자는 머리에 맞춰 그린 그림을 프레임마다 머리 위에 놓는다
 	var sh := Shader.new()
-	sh.code = CLOTH_SHADER
-	_cloth_mat = ShaderMaterial.new()
-	_cloth_mat.shader = sh
+	sh.code = LOOK_SHADER
+	_look_mat = ShaderMaterial.new()
+	_look_mat.shader = sh
 	for sp in [_sprite, _attack_sprite]:
 		if sp:
-			(sp as Sprite2D).material = _cloth_mat
+			(sp as Sprite2D).material = _look_mat
 	_hat = Sprite2D.new()
 	_hat.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_hat.visible = false
 	add_child(_hat)
-	_tool = Sprite2D.new()
-	_tool.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	add_child(_tool)
 	_refresh_look()
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	for n in ["slash", "circle", "dot", "hatch", "press", "erase", "hit", "star"]:
@@ -269,53 +275,48 @@ func _refresh_look() -> void:
 	var eq: Dictionary = GameState.equipped
 	var key := ""
 	for sl in ["hat", "tool", "cloth"]:
-		key += Items.icon(eq[sl]) + str(eq[sl].get("shape", 0)) + "," if eq.has(sl) else "-,"
+		key += str(eq[sl].get("shape", 0)) + "," if eq.has(sl) else "-,"
 	if key == _look:
 		return
 	_look = key
-	var hat_tex: Texture2D = Art.tex(Items.icon(eq["hat"])) if eq.has("hat") else null
-	_hat.texture = hat_tex
-	_hat.visible = hat_tex != null
-	if hat_tex:
-		_hat.scale = Vector2.ONE * (15.0 / hat_tex.get_width())
-		_hat.modulate = HAT_COLORS[int(eq["hat"]["shape"]) % HAT_COLORS.size()] if str(eq["hat"].get("art", "")) == "" else Color.WHITE
-	# 기본 연필(모양 0)은 캐릭터 그림에 이미 들려 있으므로 따로 그리지 않는다
-	var show_tool := eq.has("tool") and (int(eq["tool"]["shape"]) != 0 or str(eq["tool"].get("art", "")) != "")
-	var tool_tex: Texture2D = Art.tex(Items.icon(eq["tool"])) if show_tool else null
-	_tool.texture = tool_tex
-	_tool.visible = tool_tex != null
-	if tool_tex:
-		_tool.scale = Vector2.ONE * (15.0 / tool_tex.get_width())
-		_tool.modulate = TOOL_COLOR.lerp(Items.tier_color(eq["tool"]), 0.4) if str(eq["tool"].get("art", "")) == "" else Color.WHITE
-	var look: Array = CLOTH_LOOK[int(eq["cloth"]["shape"]) % CLOTH_LOOK.size()] if eq.has("cloth") else CLOTH_LOOK[0]
-	_cloth_mat.set_shader_parameter("hue", float(look[0]))
-	_cloth_mat.set_shader_parameter("sat", float(look[1]))
-	_cloth_mat.set_shader_parameter("val", float(look[2]))
+	_hat_shape = int(eq["hat"]["shape"]) if eq.has("hat") else -1
+	for v in 3:
+		_hat_tex[v] = Art.tex("hat_%d_%d" % [_hat_shape, v]) if _hat_shape >= 0 else null
+	var cloth: Array = CLOTH_LOOK[int(eq["cloth"]["shape"]) % CLOTH_LOOK.size()] if eq.has("cloth") else CLOTH_LOOK[0]
+	_look_mat.set_shader_parameter("hue", float(cloth[0]))
+	_look_mat.set_shader_parameter("sat", float(cloth[1]))
+	_look_mat.set_shader_parameter("val", float(cloth[2]))
+	var tool: Array = TOOL_LOOK[int(eq["tool"]["shape"]) % TOOL_LOOK.size()] if eq.has("tool") else TOOL_LOOK[0]
+	_look_mat.set_shader_parameter("tool_hue", float(tool[0]))
+	_look_mat.set_shader_parameter("tool_sat", float(tool[1]))
+	_look_mat.set_shader_parameter("tool_val", float(tool[2]))
 
 
-## 모자와 도구를 몸의 움직임에 맞춰 놓는다
-func _place_look(moving: bool) -> void:
-	var row := Art.dir_row(facing)
-	var side := -1.0 if row == 1 else (1.0 if row == 2 else 0.0)
-	var bob := absf(sin(_anim_t * WALK_FPS * 0.5 * PI)) * 1.0 if moving else 0.0
-	var a := 0.5 if is_dodging() else 1.0
-	var blink := _invuln > 0.0 and int(_invuln * 20.0) % 2 == 0
-	if _hat.texture:
-		_hat.position = Vector2(side * 1.5, -30.0 - bob)
-		_hat.flip_h = row == 1
-		_hat.modulate.a = a
-		_hat.visible = not blink
-	if _tool.texture:
-		if _swing_timer > 0.0:
-			# 휘두르는 동안에는 치는 쪽으로 나간다
-			_tool.position = _swing_dir * 14.0 + Vector2(0, -12)
-			_tool.rotation = _swing_dir.angle() + PI * 0.25
-		else:
-			_tool.position = Vector2(9.0 if row != 1 else -9.0, -10.0 - bob)
-			_tool.rotation = 0.5 if row != 1 else -0.5
-		_tool.z_index = -1 if row == 3 else 0     # 뒤를 볼 때는 몸 뒤에
-		_tool.modulate.a = a
-		_tool.visible = not blink
+## 모자를 지금 보이는 프레임의 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 머리 자리가 다르다)
+func _place_look(_moving: bool) -> void:
+	if _hat_shape < 0 or _sprite == null:
+		_hat.visible = false
+		return
+	var swinging := _attack_sprite != null and _attack_sprite.visible
+	var shown: Sprite2D = _attack_sprite if swinging else _sprite
+	var fc: Vector2i = shown.frame_coords
+	var table: Array = Anchors.ATTACK if swinging else Anchors.WALK
+	var frame: Vector2 = Anchors.ATTACK_FRAME if swinging else Anchors.WALK_FRAME
+	var head: Array = table[fc.y * (3 if swinging else 4) + fc.x]
+	var view := 0 if fc.y == 0 else (2 if fc.y == 3 else 1)
+	var tex: Texture2D = _hat_tex[view]
+	_hat.visible = tex != null and (shown.visible or _sprite.visible)
+	if tex == null:
+		return
+	var fit: Array = HAT_FIT[_hat_shape % HAT_FIT.size()]
+	var k := float(fit[0])
+	_hat.texture = tex
+	_hat.scale = Art.SCALE * k
+	_hat.flip_h = fc.y == 2          # 옆 그림은 왼쪽을 본다. 오른쪽을 볼 때는 뒤집는다.
+	# 프레임 왼쪽 위 기준 텍셀 → 캐릭터 기준 월드 좌표 (발이 FOOT 에 온다)
+	var bottom := Vector2(float(head[0]) - frame.x * 0.5, float(head[1]) + float(fit[1]) - frame.y)
+	_hat.position = FOOT + (bottom - Vector2(0, tex.get_height() * k * 0.5)) * Art.SCALE.x
+	_hat.modulate.a = shown.modulate.a
 
 
 func _on_state_changed() -> void:

@@ -130,19 +130,44 @@ func _run() -> void:
 	await frames(5)
 	var player: Node2D = world.get("player")
 	var hat: Sprite2D = player.get("_hat")
-	var tool: Sprite2D = player.get("_tool")
-	var mat: ShaderMaterial = player.get("_cloth_mat")
-	check(not hat.visible and not tool.visible and float(mat.get_shader_parameter("hue")) < 0.0, "기본 차림: 모자 없음, 기본 연필, 파란 후드티")
+	var mat: ShaderMaterial = player.get("_look_mat")
+	check(not hat.visible and float(mat.get_shader_parameter("hue")) < 0.0 and float(mat.get_shader_parameter("tool_hue")) < 0.0,
+		"기본 차림: 모자 없음, 노란 연필, 파란 후드티")
 	GameState.equipped["hat"] = Items.make("hat", 2, 0, 1)
 	GameState.equipped["cloth"] = Items.make("cloth", 2, 0, 1)
-	GameState.equipped["tool"] = Items.make("tool", 4, 0, 1)
+	GameState.equipped["tool"] = Items.make("tool", 7, 0, 1)
 	GameState.changed.emit()
 	await frames(3)
 	check(hat.visible and hat.texture != null, "모자를 쓰면 머리 위에 보임")
 	check(is_equal_approx(float(mat.get_shader_parameter("hue")), 0.14), "옷을 입으면 옷 색이 바뀜 (우비는 노란색)")
-	check(tool.visible and tool.texture != null, "다른 도구를 들면 손에 보임")
-	await frames(10)
-	await shot("title_4_look.png")
+	check(is_equal_approx(float(mat.get_shader_parameter("tool_hue")), 0.0), "도구를 바꾸면 손에 든 연필의 색이 바뀜 (사인펜은 빨간색)")
+	# 네 방향에서 모자가 머리 위에 붙어 있는지: 모자의 가운데가 머리 가운데에서 크게 벗어나지 않아야 한다
+	var Anchors := preload("res://scripts/player_anchors.gd")
+	var ok_all := true
+	var views := {}
+	for dir in [Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT, Vector2.UP]:
+		player.set("facing", dir)
+		await frames(3)
+		var sp: Sprite2D = player.get("_sprite")
+		var fc: Vector2i = sp.frame_coords
+		var head: Array = Anchors.WALK[fc.y * 4 + fc.x]
+		var head_x := (float(head[0]) - Anchors.WALK_FRAME.x * 0.5) / 3.0
+		if absf(hat.position.x - head_x) > 0.6 or hat.position.y > -20.0:
+			ok_all = false
+		views[hat.texture] = true
+		await shot("title_4_look_%d.png" % fc.y)
+	check(ok_all, "네 방향 모두 모자가 머리 가운데 위에 놓임")
+	check(views.size() == 3 and hat.flip_h == false, "앞·옆·뒤 그림이 따로 쓰이고, 오른쪽을 볼 때만 뒤집힘")
+	player.set("facing", Vector2.RIGHT)
+	await frames(2)
+	check(hat.flip_h, "오른쪽을 보면 옆 그림을 뒤집어 씀")
+	player.call("attack", Vector2(10, 0))
+	await frames(4)
+	await shot("title_5_attack.png")
+	check(hat.visible, "공격하는 동안에도 모자가 머리에 붙어 있음")
+	for shape in 10:
+		check(preload("res://scripts/art.gd").tex("hat_%d_0" % shape) != null and preload("res://scripts/art.gd").tex("hat_%d_1" % shape) != null
+			and preload("res://scripts/art.gd").tex("hat_%d_2" % shape) != null, "모자 %d번의 앞·옆·뒤 그림이 있음" % shape)
 	GameState.equipped.erase("hat")
 	GameState.changed.emit()
 	await frames(2)

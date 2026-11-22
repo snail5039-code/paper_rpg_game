@@ -25,6 +25,7 @@ MID = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7")
 OUT = os.path.join(ROOT, "assets", "sprites")
 
 # 시트 이름: (칸 수 가로, 세로, [(저장 이름, 긴 변 크기)] 왼쪽 위부터)
+HAT_SCALE = 0.26     # 원본(가로 약 1620) 의 모자가 주인공 머리(약 64 텍셀)에 맞는 배율
 SHEETS = {
     "23_ui_kit": (4, 3, [
         ("ui_row", 300), ("ui_btn_sq", 72), ("ui_btn_sq_on", 72), ("ui_close", 60),
@@ -39,6 +40,9 @@ SHEETS = {
     "28_dishes": (4, 3, [("dish_%d" % i, 64) for i in range(8)] + [("bld_farm", 210), ("bld_diner", 210), ("crop_sprout", 48), ("deco_balloon", 72)]),
     "29_furniture": (4, 3, [("furn_%d" % i, 120) for i in range(12)]),
     "30_bosses": (3, 1, [("boss_%d" % i, 300) for i in range(3)]),
+    # 모자: 줄 = 보는 쪽 (앞, 옆, 뒤), 칸 = 모자. 크기가 1 보다 작으면 "긴 변" 이 아니라 줄이는 배율이다.
+    "33_hats_a": (5, 3, [("hat_%d_%d" % (c, v), HAT_SCALE) for v in range(3) for c in range(5)]),
+    "34_hats_b": (5, 3, [("hat_%d_%d" % (c + 5, v), HAT_SCALE) for v in range(3) for c in range(5)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
 FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0)}
@@ -86,7 +90,7 @@ def main():
                 a[..., 0] -= spill
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
-            s = size / max(im.size)
+            s = size if size <= 1.0 else size / max(im.size)
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             im.save(os.path.join(OUT, out_name + ".png"))
             count += 1
