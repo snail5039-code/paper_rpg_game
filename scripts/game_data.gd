@@ -20,7 +20,7 @@ const MONSTERS := {
 	},
 	"slime_faded": {
 		"name": "조금 지워진 슬라임", "art": "frames", "sprite": "slimef", "hp": 12, "speed": 40.0, "damage": 4,
-		"radius": 8.0, "exp": 5, "def": 0, "drops": [0, 0.6, 1, 0.1],
+		"radius": 10.0, "exp": 5, "def": 0, "drops": [0, 0.6, 1, 0.1],
 	},
 	"slime_erased": {
 		"name": "많이 지워진 슬라임", "art": "frames", "sprite": "slimee", "hp": 19, "speed": 46.0, "damage": 5,

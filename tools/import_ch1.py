@@ -167,7 +167,7 @@ def main():
         save(scaled(p, w * TEX / p.width), nm)
 
     # 02, 03 지워진 슬라임 (4자세: 기본, 납작, 점프, 맞음)
-    for src, pre, w in [("02_slime_faded", "slimef", 15.0), ("03_slime_erased", "slimee", 24.0)]:
+    for src, pre, w in [("02_slime_faded", "slimef", 24.0), ("03_slime_erased", "slimee", 24.0)]:
         im = load(src)
         pcs = cell_pieces(im, 4, 1)
         s = w * TEX / pcs[(0, 0)][0].width
