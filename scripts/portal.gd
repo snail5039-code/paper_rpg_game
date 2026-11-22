@@ -11,13 +11,18 @@ var locked := false
 
 var _near := false
 var _label: Label
+var _sprite: Sprite2D
 
 
 func _ready() -> void:
 	add_to_group("interactable")
+	var tex := Art.tex("portal_locked" if locked else "portal_open")
+	if tex:
+		_sprite = Art.make_sprite(self, tex, Vector2(0, 6))
+		_sprite.show_behind_parent = true
 	_label = Label.new()
 	_label.text = title
-	_label.position = Vector2(-60, -64)
+	_label.position = Vector2(-60, -66)
 	_label.size = Vector2(120, 16)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override("font_size", 10)
@@ -46,7 +51,14 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
 	draw_circle(Vector2(0, 5.0 / 0.4), 14, Color(0, 0, 0, 0.15))
 	draw_set_transform(Vector2.ZERO)
-	# 책갈피 모양 문
+	if _sprite:
+		if _near and not locked:
+			var key_tex := Art.tex("key_f")
+			if key_tex:
+				var ks := Vector2(key_tex.get_width(), key_tex.get_height()) / 3.0
+				draw_texture_rect(key_tex, Rect2(Vector2(-ks.x * 0.5, -84), ks), false)
+		return
+	# 책갈피 모양 문 (그림이 없을 때)
 	var body := Color(0.86, 0.36, 0.34) if not locked else Color(0.8, 0.79, 0.77)
 	var edge := Color(0.3, 0.22, 0.22) if not locked else Color(0.62, 0.6, 0.58)
 	var pts := PackedVector2Array([Vector2(-13, 4), Vector2(-13, -38), Vector2(0, -46), Vector2(13, -38), Vector2(13, 4)])

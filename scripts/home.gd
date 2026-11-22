@@ -23,6 +23,8 @@ const GROUND_NAMES := ["지우기", "풀밭", "길", "물"]
 const GROUND_COLORS := [Color(0, 0, 0, 0), Color(0.72, 0.86, 0.55), Color(0.96, 0.84, 0.6), Color(0.45, 0.72, 0.95)]
 const PAPER := Color(0.99, 0.97, 0.9)
 const GRID_LINE := Color(0.55, 0.7, 0.9, 0.28)
+const GROUND_TEX_NAMES := ["", "ground_grass", "ground_path", "ground_water"]
+const GROUND_TEX_SCALE := 2.0   # 질감 2텍셀 = 1 월드 (512px 한 장이 256 월드를 덮는다)
 
 const SPAWN := Vector2(960, 540)
 ## 포탈: [맵 이름, 표시 이름, 위치, 열려면 필요한 퀘스트 단계(-1 = 아직 준비 안 됨)]
@@ -45,12 +47,16 @@ var _painting := 0          # 0 안 함, 1 칠하기, 2 지우기
 var _dirty_water := false
 var _water_body: StaticBody2D
 var _cursor: Node2D
+## 바닥 질감. _draw 에서 쓰는 텍스처는 여기서 잡고 있어야 한다 (지역 변수로만 두면 그리기 전에 해제되어 하얗게 나온다)
+var _ground_tex: Array = [null, null, null, null]
 
 
 func _ready() -> void:
 	if get_tree().current_scene == self:
 		add_to_group("game_map")
 	cells.resize(COLS * ROWS)
+	for i in range(1, GROUND_TEX_NAMES.size()):
+		_ground_tex[i] = Art.tex(GROUND_TEX_NAMES[i])
 	_load_cells()
 	_build_walls()
 	_water_body = StaticBody2D.new()
@@ -330,9 +336,17 @@ func _draw() -> void:
 	# 칠한 칸: 조금 겹치는 동그라미로 그려 크레용처럼 가장자리가 울퉁불퉁하게
 	for ground in [Ground.GRASS, Ground.PATH, Ground.WATER]:
 		var base: Color = GROUND_COLORS[ground]
+		var tex: Texture2D = _ground_tex[ground]
 		for y in ROWS:
 			for x in COLS:
 				if cells[y * COLS + x] != ground:
+					continue
+				if tex:
+					# 크레용 질감: 칸 위치에 맞는 부분을 잘라 그려서 칸끼리 무늬가 이어진다
+					var src := Vector2(fposmod(x * CELL * GROUND_TEX_SCALE, tex.get_width()),
+						fposmod(y * CELL * GROUND_TEX_SCALE, tex.get_height()))
+					draw_texture_rect_region(tex, Rect2(x * CELL, y * CELL, CELL + 0.5, CELL + 0.5),
+						Rect2(src, Vector2(CELL, CELL) * GROUND_TEX_SCALE))
 					continue
 				var h := float((x * 73 + y * 151) % 17) / 17.0
 				var col := base.lightened(h * 0.08)

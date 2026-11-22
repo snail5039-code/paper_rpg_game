@@ -1,0 +1,87 @@
+"""map_v6 그림(후처리가 끝난 것) → 게임용 스프라이트(assets/sprites).
+
+순서:  python3 tools/map_v6_post.py      (map_v6_raw → map_v6: 크기 맞춤, 투명화)
+       python3 tools/import_map_v6.py    (map_v6 → assets/sprites)
+       godot --headless --path . --import
+"""
+import os
+import shutil
+import sys
+
+from PIL import Image
+
+sys.path.insert(0, os.path.dirname(__file__))
+import import_ch1 as base  # noqa: E402  (cell_pieces, fit, scaled, save 를 같이 쓴다)
+
+SRC = "assets/generated_pixel_art/map_v6/"
+OUT = "assets/sprites/"
+TEX = 3.0
+
+BACKGROUNDS = {"17a_ch1_village": "bg_ch1_village", "17b_ch1_meadow": "bg_ch1_meadow",
+               "17c_ch1_crossroad": "bg_ch1_crossroad", "17d_ch1_gridwoods": "bg_ch1_gridwoods",
+               "17e_ch1_erasedroad": "bg_ch1_erasedroad"}
+GROUNDS = {"18a_ground_grass": "ground_grass", "18b_ground_path": "ground_path", "18c_ground_water": "ground_water"}
+BUILDINGS = ["house", "shop", "craft", "fishing", "villager_a", "villager_b", "storage", "board"]
+PROPS = ["tree_round", "tree_pine", "bush", "flower_red", "flower_yellow",
+         "fence_h", "fence_v", "rock", "stump", "grass",
+         "bench", "lamp", "mailbox", "well", "signpost",
+         "clothesline", "pot", "bridge", "stones", "scarecrow"]
+# 소품의 가로 크기 (월드)
+PROP_W = {"tree_round": 30, "tree_pine": 28, "bush": 24, "flower_red": 16, "flower_yellow": 16,
+          "fence_h": 26, "fence_v": 9, "rock": 20, "stump": 20, "grass": 16,
+          "bench": 28, "lamp": 12, "mailbox": 16, "well": 26, "signpost": 20,
+          "clothesline": 36, "pot": 16, "bridge": 34, "stones": 28, "scarecrow": 24}
+SKILLS = ["skill_slash", "skill_circle", "skill_dot", "skill_hatch", "skill_press", "skill_erase",
+          "skill_sharpen", "skill_warmup", "skill_ult", "icon_coins", "icon_paper", "icon_paper_thick"]
+
+
+def pieces(name, cols, rows, min_area=300):
+    base.SRC = SRC
+    im = base.load(name)
+    return base.cell_pieces(im, cols, rows, min_area=min_area)
+
+
+def by_width(img, world_w):
+    return base.scaled(img, world_w * TEX / img.width)
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    for src, dst in BACKGROUNDS.items():
+        shutil.copyfile(SRC + src + ".png", OUT + dst + ".png")
+    for src, dst in GROUNDS.items():
+        Image.open(SRC + src + ".png").convert("RGB").save(OUT + dst + ".png")
+
+    # 포탈 3칸: 열린 문, 잠긴 문, 방금 열린 문 (가로 30 월드)
+    pcs = pieces("19_portal", 3, 1)
+    s = 30 * TEX / pcs[(0, 0)][0].width
+    for i, nm in enumerate(["portal_open", "portal_locked", "portal_new"]):
+        base.save(base.scaled(pcs[(0, i)][0], s), nm)
+
+    # 건물 8개 (가로 70 월드 안팎: 1장 마을의 집과 비슷한 크기)
+    n = 0
+    for sheet in ["20a_buildings", "20b_buildings"]:
+        pcs = pieces(sheet, 4, 1)
+        for c in range(4):
+            base.save(by_width(pcs[(0, c)][0], 70), "bld_" + BUILDINGS[n])
+            n += 1
+
+    # 소품 20개
+    n = 0
+    for sheet in ["21a_props", "21b_props"]:
+        pcs = pieces(sheet, 5, 2)
+        for r in range(2):
+            for c in range(5):
+                nm = PROPS[n]
+                base.save(by_width(pcs[(r, c)][0], PROP_W[nm]), "deco_" + nm)
+                n += 1
+
+    # 스킬 아이콘과 상점 물건 (64×64)
+    pcs = pieces("22_skill_icons_pencil", 4, 3, min_area=30)   # 점선 별처럼 잘게 끊긴 그림이 있다
+    for i, nm in enumerate(SKILLS):
+        base.save(base.fit(pcs[(i // 4, i % 4)][0], 64, 64), nm)
+    print("완료:", len(BACKGROUNDS) + len(GROUNDS) + 3 + 8 + 20 + len(SKILLS), "장")
+
+
+if __name__ == "__main__":
+    main()

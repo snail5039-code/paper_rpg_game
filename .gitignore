@@ -8,3 +8,6 @@ export_presets.cfg
 # OS
 Thumbs.db
 .DS_Store
+
+# ChatGPT에서 받은 원본 (후처리 전)
+assets/generated_pixel_art/map_v6_raw/
