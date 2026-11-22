@@ -87,6 +87,9 @@ godot --headless --path . --script tools/import_art.gd -- tutorial
 
 ## 문서
 
+- [결정 사항](docs/결정사항.md) — 지금 기준이 되는 문서
+- [세부 설정](docs/세부설정.md)
+- [개발 순서](docs/개발순서.md)
 - [기획안 v2](docs/기획안_v2.md)
 - [스토리](docs/스토리.md)
 - [개발 계획](docs/개발계획.md)
