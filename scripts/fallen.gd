@@ -71,8 +71,10 @@ func interact() -> void:
 		_busy = false   # 그만뒀다: 도화지를 쓰지 않는다
 		return
 	var result := GameState.try_capture(kind, score)
-	Sound.play("capture" if result == "ok" else "fail")
-	if result == "ok":
+	Sound.play("capture" if result == "ok" or result == "practice" else "fail")
+	if result == "practice":
+		GameState.notify("%s 가 제 모습을 찾고 깡충깡충 뛰어갔어요! (따라 그리기 %d%%)" % [name, roundi(score * 100.0)])
+	elif result == "ok":
 		GameState.notify("%s 이(가) 친구가 됐어요! (따라 그리기 %d%%)" % [name, roundi(score * 100.0)])
 	else:
 		GameState.notify("선이 흩어져 버렸어요… (따라 그리기 %d%%)" % roundi(score * 100.0))

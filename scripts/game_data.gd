@@ -64,6 +64,36 @@ const MONSTERS := {
 	},
 	# --- 보스 (다시 그릴 수 없다). boss: "mid" 중간 보스, "boss" 대장, "field" 필드 보스
 	#     slam: 몇 초마다 바닥을 내리친다 (빨간 동그라미가 먼저 보인다). summon: 체력이 절반이 되면 부르는 몬스터
+	# --- 튜토리얼 장 "연습 페이지" 의 몬스터 (맵마다 하나). 그림은 assets/sprites/tm_<번호>.png 한 장.
+	"tm1": {"name": "먼지 뭉치", "art": "single", "sprite": "tm_1", "hp": 8, "speed": 16.0, "damage": 0,
+		"radius": 9.0, "exp": 1, "def": 0, "drops": [], "aggro": 0.0},
+	"tm2": {"name": "오타", "art": "single", "sprite": "tm_2", "hp": 12, "speed": 26.0, "damage": 2,
+		"radius": 10.0, "exp": 3, "def": 0, "drops": [2, 0.5]},
+	"tm3": {"name": "압정", "art": "single", "sprite": "tm_3", "hp": 14, "speed": 34.0, "damage": 3,
+		"radius": 9.0, "exp": 4, "def": 0, "drops": [4, 0.5], "aggro": 230.0, "windup": 0.6, "lunge_speed": 230.0},
+	"tm4": {"name": "떨어진 스티커", "art": "single", "sprite": "tm_4", "hp": 14, "speed": 28.0, "damage": 3,
+		"radius": 10.0, "exp": 5, "def": 0, "drops": [0, 0.6]},
+	"tm5": {"name": "연습용 허수아비", "art": "single", "sprite": "tm_5", "hp": 9999, "speed": 0.0, "damage": 0,
+		"radius": 13.0, "exp": 0, "def": 0, "drops": [], "aggro": 0.0, "dummy": true},
+	"tm6": {"name": "큰 물음표", "art": "single", "sprite": "tm_6", "hp": 30, "speed": 24.0, "damage": 3,
+		"radius": 11.0, "exp": 5, "def": 0, "drops": [5, 0.4]},
+	"tm7": {"name": "몽당연필 벌레", "art": "single", "sprite": "tm_7", "hp": 16, "speed": 30.0, "damage": 3,
+		"radius": 9.0, "exp": 5, "def": 0, "drops": [2, 0.6]},
+	"tm8": {"name": "끈적이", "art": "single", "sprite": "tm_8", "hp": 20, "speed": 20.0, "damage": 3,
+		"radius": 11.0, "exp": 5, "def": 0, "drops": [0, 0.7, 10, 0.4]},
+	"tm9": {"name": "지워진 낙서 토끼", "art": "single", "sprite": "tm_9", "hp": 14, "speed": 32.0, "damage": 3,
+		"radius": 10.0, "exp": 5, "def": 0, "drops": [6, 0.6]},
+	"tm10": {"name": "물감 방울", "art": "single", "sprite": "tm_10", "hp": 18, "speed": 26.0, "damage": 3,
+		"radius": 10.0, "exp": 5, "def": 0, "drops": [4, 0.6]},
+	"tm11": {"name": "종이 참새", "art": "single", "sprite": "tm_11", "hp": 14, "speed": 38.0, "damage": 3,
+		"radius": 9.0, "exp": 5, "def": 0, "drops": [8, 0.6]},
+	"tm12": {"name": "모눈 두더지", "art": "single", "sprite": "tm_12", "hp": 20, "speed": 24.0, "damage": 4,
+		"radius": 10.0, "exp": 6, "def": 0, "drops": [7, 0.6]},
+	"tm13": {"name": "큰 가위표", "art": "single", "sprite": "tm_13", "hp": 150, "speed": 30.0, "damage": 6,
+		"radius": 20.0, "exp": 40, "def": 1, "drops": [10, 1.0], "lunge_time": 0.5, "lunge_speed": 170.0,
+		"boss": "mid", "scale": 1.0, "slam": 7.0, "aggro": 400.0, "summon": "tmcheck"},
+	"tmcheck": {"name": "작은 체크표", "art": "single", "sprite": "tm_spare", "hp": 12, "speed": 34.0, "damage": 3,
+		"radius": 8.0, "exp": 2, "def": 0, "drops": []},
 	# 스킬 체험용 허수아비: 움직이지도 때리지도 쓰러지지도 않는다
 	"dummy": {
 		"name": "연습용 허수아비", "art": "single", "sprite": "deco_scarecrow", "hp": 9999, "speed": 0.0, "damage": 0,
@@ -160,6 +190,7 @@ const FIELDS := {
 ##  아래 세 종은 합치기로만 나온다 (그림이 아직 없어서 색만 바꿔 쓴다).
 const FRIENDS := {
 	"slime": {"name": "낙서 슬라임", "kind": "slime_faded", "power": 1.0, "skill": "통통 박치기"},
+	"tm9": {"name": "낙서 토끼", "kind": "tm9", "power": 1.0, "skill": "깡충"},     # 연습 페이지에서 다시 그리기를 배우는 낙서 (친구가 되지는 않는다)
 	"squiggle": {"name": "삐뚤선", "kind": "squiggle_faded", "power": 1.0, "skill": "휘감기"},
 	"dots": {"name": "점박이", "kind": "dots_faded", "power": 1.0, "skill": "점 뿌리기"},
 	"grass": {"name": "풀낙서", "kind": "grass_faded", "power": 1.0, "skill": "풀베기"},

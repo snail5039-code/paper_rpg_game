@@ -50,6 +50,11 @@ SHEETS = {
     "43_life_tools": (3, 2, [("life_rod", 124), ("life_rake", 104), ("life_sickle", 64), ("life_can", 60), ("life_bobber", 48), ("life_splash", 48)]),
     # 수업을 끝낼 때 찍히는 "참 잘했어요" 도장, 축하 별가루
     "44_stamp": (2, 1, [("ui_stamp", 160), ("ui_confetti", 200)]),
+    # 튜토리얼 장 "연습 페이지": 맵마다 몬스터 한 종, 선생 한 명 (선생의 얼굴은 tools/import_tut.py 가 이 그림에서 잘라 만든다)
+    "51_tut_mon_a": (4, 2, [("tm_%d" % i, 96) for i in range(1, 9)]),
+    "51_tut_mon_b": (3, 2, [("tm_9", 96), ("tm_10", 96), ("tm_11", 96), ("tm_12", 96), ("tm_13", 180), ("tm_spare", 96)]),
+    "52_tut_npc_a": (4, 2, [("tnpc_%d" % i, 130) for i in range(1, 9)]),
+    "52_tut_npc_b": (3, 2, [("tnpc_%d" % i, 130) for i in range(9, 14)] + [("tnpc_spare", 130)]),
     # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
     "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
 }

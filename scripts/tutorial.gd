@@ -16,6 +16,12 @@ var hud: CanvasLayer
 var goal: Node2D
 var drawing: Node2D
 
+## 오프닝이 끝난 뒤의 혼잣말 (연습 페이지 첫 맵이 바꿔 넣는다)
+var opening_lines: Array = [
+	"여긴… 우리가 그렸던 마을이잖아!",
+	"그런데 군데군데 하얗게 비어 있다. 누가 지운 것처럼.",
+	"손에는 연필이 들려 있다. 일단 주변을 둘러보자.",
+]
 var _waiting_advance := false
 var _busy := false
 var _spawn_pos := Vector2.ZERO
@@ -24,13 +30,14 @@ var _moved := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	goal.connect("found_smudged", _on_found_smudged)
-	goal.connect("cleaned", _on_door_cleaned)
-	goal.connect("entered", _on_door_entered)
-	drawing.connect("erased_at", func(p: Vector2) -> void: goal.call("wipe", p))
+	if goal:
+		goal.connect("found_smudged", _on_found_smudged)
+		goal.connect("cleaned", _on_door_cleaned)
+		goal.connect("entered", _on_door_entered)
+		drawing.connect("erased_at", func(p: Vector2) -> void: goal.call("wipe", p))
 	if is_instance_valid(GameState.player_ref):
 		_spawn_pos = GameState.player_ref.global_position
-	if GameState.quest >= GameState.Quest.DOOR_OPEN:
+	if goal and GameState.quest >= GameState.Quest.DOOR_OPEN:
 		_scatter_dust()
 	if not GameState.intro_seen:
 		_play_opening.call_deferred()
@@ -60,7 +67,7 @@ func _wait(seconds: float) -> void:
 # ---------- 단계별 조작 안내 ----------
 
 func _process(_delta: float) -> void:
-	if hud == null:
+	if hud == null or goal == null:
 		return
 	var p := GameState.player_ref
 	if not _moved and is_instance_valid(p) and p.global_position.distance_to(_spawn_pos) > 24.0:
@@ -177,11 +184,7 @@ func _play_opening() -> void:
 	layer.queue_free()
 	GameState.set_cutscene(false)
 
-	await GameState.say("나", [
-		"여긴… 우리가 그렸던 마을이잖아!",
-		"그런데 군데군데 하얗게 비어 있다. 누가 지운 것처럼.",
-		"손에는 연필이 들려 있다. 일단 주변을 둘러보자.",
-	], "player_surprised")
+	await GameState.say("나", opening_lines, "player_surprised")
 	GameState.intro_seen = true
 	GameState.save_game()
 	_busy = false
@@ -331,7 +334,7 @@ func _on_door_entered() -> void:
 	if GameState.quest != GameState.Quest.CLEARED:
 		GameState.set_quest(GameState.Quest.CLEARED)
 		if GameState.lessons_on:
-			GameState.set_lesson("home")     # 수업은 내 마을에서 이어진다
+			GameState.set_lesson("")         # 수업은 여기까지
 	await _wait(0.4)
 	await _wait_advance()
 	if GameState.goto_map("home", "from_ch1"):

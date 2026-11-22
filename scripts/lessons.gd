@@ -9,8 +9,8 @@ extends Node
 const Items := preload("res://scripts/items.gd")
 const Data := preload("res://scripts/game_data.gd")
 
-const VILLAGE := ["attack", "dodge", "stat", "trial", "learn", "equip", "potion", "capture", "bridge", "door"]
-const HOME := ["sheet", "house", "sleep"]
+const VILLAGE := ["capture", "bridge", "door"]
+const HOME := []
 const TRIAL_NEED := 3        # 서로 다른 스킬을 이만큼 써 보면 체험이 끝난다
 
 ## 수업마다: 화면 왼쪽 위의 "할 일" 글, 아래쪽 키 안내

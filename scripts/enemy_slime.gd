@@ -277,7 +277,7 @@ func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	_pop_number(amount, crit)
 	_flash = 0.25
 	_knock = dir.normalized() * (190.0 if boss == "" else 40.0)
-	if kind == "dummy":
+	if kind == "dummy" or bool(Data.MONSTERS.get(kind, {}).get("dummy", false)):
 		hp = max_hp          # 허수아비는 맞기만 한다
 		_knock = Vector2.ZERO
 		return

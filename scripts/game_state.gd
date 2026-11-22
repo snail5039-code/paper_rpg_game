@@ -30,6 +30,11 @@ const MAP_SCENES := {
 	"ch1_erasedroad": "res://scenes/field.tscn",
 	"ch1_bossroom": "res://scenes/field.tscn",
 	"home_room": "res://scenes/room.tscn",
+	"tut_1": "res://scenes/tut_map.tscn", "tut_2": "res://scenes/tut_map.tscn", "tut_3": "res://scenes/tut_map.tscn",
+	"tut_4": "res://scenes/tut_map.tscn", "tut_5": "res://scenes/tut_map.tscn", "tut_6": "res://scenes/tut_map.tscn",
+	"tut_7": "res://scenes/tut_map.tscn", "tut_8": "res://scenes/tut_map.tscn", "tut_9": "res://scenes/tut_map.tscn",
+	"tut_10": "res://scenes/tut_map.tscn", "tut_11": "res://scenes/tut_map.tscn", "tut_12": "res://scenes/tut_map.tscn",
+	"tut_13": "res://scenes/tut_map.tscn",
 }
 
 ## 1페이지(튜토리얼) 진행 순서
@@ -47,6 +52,7 @@ var quest: int = Quest.NOT_STARTED
 ## 튜토리얼 수업 (scripts/lessons.gd). lesson: 지금 수업의 이름 ("" 은 없음, "home" 은 내 마을에서 이어짐)
 var lesson: String = ""
 var lessons_on: bool = false      # 새로 만든 캐릭터만 수업을 받는다
+var tut_cleared: int = 0          # 튜토리얼 장 "연습 페이지" 에서 끝낸 맵 수 (0 ~ 13)
 var trial: bool = false           # 스킬 체험 중: 모든 스킬을 MP 없이 쓸 수 있다
 var _lesson_counts: Dictionary = {}
 var _trial_slots: Array = []
@@ -215,7 +221,8 @@ func start_slot(n: int, skip: bool = false) -> void:
 	_reset_state()
 	load_game()
 	if fresh:
-		lessons_on = true        # 새 캐릭터는 하루의 수업을 받는다
+		lessons_on = true        # 새 캐릭터는 연습 페이지(튜토리얼 장)부터 시작한다
+		current_map = "tut_1"
 		if skip:
 			skip_tutorial()
 	settings["last_slot"] = n
@@ -277,6 +284,8 @@ func lesson_note(what: String) -> void:
 
 ## 써 본 스킬 (서로 다른 것만 센다)
 func lesson_skill(id: String) -> void:
+	if id == "ult":
+		lesson_note("skill_ult")
 	var used: Dictionary = _lesson_counts.get("skills", {})
 	used[id] = true
 	_lesson_counts["skills"] = used
@@ -543,6 +552,7 @@ func disassemble(index: int) -> int:
 
 ## 강화. 결과: "ok", "fail"(변화 없음), "down"(한 단계 하락), "broken"(파괴), "saved"(코팅지가 막음), 또는 못 하는 이유.
 func enhance(item: Dictionary) -> String:
+	lesson_note("enhance_try")
 	if int(item.get("plus", 0)) >= Items.MAX_PLUS:
 		return "최고 단계예요."
 	var cost: Array = Items.enhance_cost(item)
@@ -550,6 +560,7 @@ func enhance(item: Dictionary) -> String:
 		return "재료가 부족해요. (연필심 %d, 지우개 가루 %d)" % [int(cost[0]), int(cost[1])]
 	pencil_lead -= int(cost[0])
 	dust -= int(cost[1])
+	lesson_note("enhance")
 	var plus := int(item.get("plus", 0))
 	var result := "ok"
 	if randf() < Items.enhance_rate(item):
@@ -698,6 +709,7 @@ func craft(recipe: Array, quality: float = 0.0, art: String = "") -> bool:
 		if art != "":
 			item["art"] = art
 		add_item(item)
+	lesson_note("craft")
 	changed.emit()
 	return true
 
@@ -734,6 +746,10 @@ func try_capture(kind: String, score: float) -> String:
 	if consumable_count(id) <= 0:
 		return "no_paper"
 	consumables[id] = consumable_count(id) - 1
+	if kind == "tm9":
+		lesson_note("capture")
+		changed.emit()
+		return "practice"     # 연습 페이지의 낙서는 제 모습을 찾고 뛰어간다
 	var ok := randf() < capture_chance(score, kind, thick) or lesson == "capture"   # 수업의 첫 친구는 반드시 된다
 	if ok:
 		add_friend(Data.species_of(kind))
@@ -1033,7 +1049,10 @@ func catch_fish(place: String = "home") -> String:
 	var night := is_night()
 	var pool: Array = t[3 if night else 2] if randf() < 0.12 else t[1 if night else 0]
 	var id := str(pool[randi() % pool.size()])
-	return id if add_consumable(id) else ""
+	if not add_consumable(id):
+		return ""
+	lesson_note("fish")
+	return id
 
 
 # ---------- 요리 효과 ----------
@@ -1069,6 +1088,7 @@ func cook(dish: String) -> bool:
 	for id in need:
 		consumables[str(id)] = consumable_count(str(id)) - int(need[id])
 	add_consumable(dish, 2 if has_fine("bld_diner") and randf() < 0.25 else 1)
+	lesson_note("cook")
 	return true
 
 
@@ -1102,6 +1122,7 @@ func plant(key: String, i: int, seed: String) -> bool:
 	consumables[seed] = consumable_count(seed) - 1
 	plots[i] = {"seed": seed, "grown": 0, "watered": false}
 	changed.emit()
+	lesson_note("plant")
 	return true
 
 
@@ -1114,6 +1135,8 @@ func water(key: String) -> int:
 			n += 1
 	if n > 0:
 		changed.emit()
+	if n > 0:
+		lesson_note("water")
 	return n
 
 
@@ -1158,6 +1181,7 @@ func take_forage(key: String) -> String:
 		return ""
 	(foraged["taken"] as Array).append(key)
 	add_consumable(id)
+	lesson_note("forage")
 	return id
 
 
@@ -1529,6 +1553,7 @@ func save_game() -> bool:
 		"quest": quest,
 		"lesson": lesson,
 		"lessons_on": lessons_on,
+		"tut_cleared": tut_cleared,
 		"pencil_lead": pencil_lead,
 		"bridge_built": bridge_built,
 		"intro_seen": intro_seen,
@@ -1623,6 +1648,7 @@ func load_game() -> bool:
 	intro_seen = bool(data.get("intro_seen", false))
 	lesson = str(data.get("lesson", ""))
 	lessons_on = bool(data.get("lessons_on", false))
+	tut_cleared = clampi(int(data.get("tut_cleared", 0)), 0, 13)
 	level = clampi(int(data.get("level", 1)), 1, MAX_LEVEL)
 	exp = maxi(0, int(data.get("exp", 0)))
 	stat_points = maxi(0, int(data.get("stat_points", 0)))
@@ -1757,6 +1783,7 @@ func _reset_state() -> void:
 	quest = Quest.NOT_STARTED
 	lesson = ""
 	lessons_on = false
+	tut_cleared = 0
 	trial = false
 	_lesson_counts = {}
 	pencil_lead = 0
