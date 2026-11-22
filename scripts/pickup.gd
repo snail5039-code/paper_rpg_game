@@ -49,6 +49,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				GameState.add_lead(amount)
 				GameState.notify("연필심 +%d  (%d개 보유)" % [amount, GameState.pencil_lead])
+			Sound.play("pickup")
 			queue_free()
 			return
 		if to.length() < 44.0:

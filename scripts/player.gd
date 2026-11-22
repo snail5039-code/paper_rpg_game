@@ -39,6 +39,46 @@ var _dash_timer := 0.0
 var _dash_dir := Vector2.ZERO
 var _fx: Dictionary = {}        # 방금 쓴 스킬의 효과 그림
 var _fx_tex: Dictionary = {}    # 효과 그림 (계속 쥐고 있어야 한다)
+var _hat: Sprite2D              # 쓴 모자
+var _tool: Sprite2D             # 든 도구
+var _cloth_mat: ShaderMaterial  # 입은 옷의 색 (후드티의 파란색을 바꿔 칠한다)
+var _look := ""
+
+## 옷 모양마다 색 (색상환 0~1, -1 은 원래 파란 후드티), [색, 진하기, 밝기(1보다 크면 밝게 끌어올리고 작으면 어둡게)]
+const CLOTH_LOOK := [[-1.0, 1.0, 1.0], [0.33, 0.8, 1.2], [0.14, 0.9, 2.0], [0.95, 0.6, 1.8], [0.6, 1.2, 0.8],
+	[0.76, 0.75, 1.2], [0.62, 1.1, 0.65], [0.0, 1.0, 1.3], [0.08, 1.0, 1.6], [0.47, 0.8, 1.2]]
+## 모자 모양마다 색 (장비 그림이 회색이라 색을 입혀 얹는다)
+const HAT_COLORS := [Color(1.0, 0.98, 0.9), Color(0.92, 0.9, 0.82), Color(0.55, 0.75, 1.0), Color(1.0, 0.6, 0.6), Color(1.0, 0.88, 0.55),
+	Color(1.0, 0.85, 0.35), Color(1.0, 0.7, 0.85), Color(0.75, 0.65, 1.0), Color(1.0, 0.8, 0.3), Color(0.7, 0.45, 0.4)]
+const TOOL_COLOR := Color(1.0, 0.86, 0.5)
+const CLOTH_SHADER := """
+shader_type canvas_item;
+uniform float hue = -1.0;
+uniform float sat = 1.0;
+uniform float val = 1.0;
+vec3 rgb2hsv(vec3 c) {
+	vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+	vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+	float d = q.x - min(q.w, q.y);
+	return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsv2rgb(vec3 c) {
+	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+	return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+void fragment() {
+	// COLOR 에는 이미 그림 색이 들어 있다. 파란 옷 부분만 새 색으로 바꿔 넣는다.
+	if (hue >= 0.0) {
+		vec4 c = texture(TEXTURE, UV);
+		vec3 h = rgb2hsv(c.rgb);
+		if (h.x > 0.5 && h.x < 0.75 && h.y > 0.1 && h.z > 0.15) {
+			COLOR.rgb = hsv2rgb(vec3(hue, clamp(max(h.y * sat, 0.42), 0.0, 1.0), val >= 1.0 ? 1.0 - (1.0 - h.z) / val : h.z * val));
+		}
+	}
+}
+"""
 var ult := 0.0                  # 필살기 게이지 (0 ~ 100)
 
 
@@ -73,6 +113,21 @@ func _ready() -> void:
 		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
 		_attack_sprite.show_behind_parent = true
 		_attack_sprite.visible = false
+	# 장비 겉모습: 옷은 색으로, 모자와 도구는 그림을 얹어서 보여 준다
+	var sh := Shader.new()
+	sh.code = CLOTH_SHADER
+	_cloth_mat = ShaderMaterial.new()
+	_cloth_mat.shader = sh
+	for sp in [_sprite, _attack_sprite]:
+		if sp:
+			(sp as Sprite2D).material = _cloth_mat
+	_hat = Sprite2D.new()
+	_hat.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(_hat)
+	_tool = Sprite2D.new()
+	_tool.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(_tool)
+	_refresh_look()
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	for n in ["slash", "circle", "dot", "hatch", "press", "erase", "hit", "star"]:
 		_fx_tex[n] = Art.tex("fx_" + n)
@@ -147,6 +202,7 @@ func _update_sprite(moving: bool) -> void:
 			# 들기 → 휘두르기 → 마무리 3프레임
 			var f := clampi(int((SWING_TIME - _swing_timer) / SWING_TIME * 3.0), 0, 2)
 			_attack_sprite.frame_coords = Vector2i(f, Art.dir_row(_swing_dir))
+	_place_look(moving)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -184,6 +240,7 @@ func attack(aim_override := Vector2.ZERO) -> void:
 	combo = (combo + 1) % 3
 	_combo_timer = COMBO_WINDOW
 	_swing_timer = SWING_TIME
+	Sound.play("swing")
 	var aim := aim_override if aim_override != Vector2.ZERO else get_global_mouse_position() - global_position
 	_swing_dir = aim.normalized() if aim.length() > 1.0 else facing
 	facing = _swing_dir
@@ -207,7 +264,62 @@ func _on_level_up(_level: int) -> void:
 
 
 ## 능력치를 올리면 최대 HP·MP 가 바뀐다. 늘어난 만큼 지금 값도 채워 준다.
+## 입은 장비가 바뀌면 겉모습을 맞춘다
+func _refresh_look() -> void:
+	var eq: Dictionary = GameState.equipped
+	var key := ""
+	for sl in ["hat", "tool", "cloth"]:
+		key += Items.icon(eq[sl]) + str(eq[sl].get("shape", 0)) + "," if eq.has(sl) else "-,"
+	if key == _look:
+		return
+	_look = key
+	var hat_tex: Texture2D = Art.tex(Items.icon(eq["hat"])) if eq.has("hat") else null
+	_hat.texture = hat_tex
+	_hat.visible = hat_tex != null
+	if hat_tex:
+		_hat.scale = Vector2.ONE * (15.0 / hat_tex.get_width())
+		_hat.modulate = HAT_COLORS[int(eq["hat"]["shape"]) % HAT_COLORS.size()] if str(eq["hat"].get("art", "")) == "" else Color.WHITE
+	# 기본 연필(모양 0)은 캐릭터 그림에 이미 들려 있으므로 따로 그리지 않는다
+	var show_tool := eq.has("tool") and (int(eq["tool"]["shape"]) != 0 or str(eq["tool"].get("art", "")) != "")
+	var tool_tex: Texture2D = Art.tex(Items.icon(eq["tool"])) if show_tool else null
+	_tool.texture = tool_tex
+	_tool.visible = tool_tex != null
+	if tool_tex:
+		_tool.scale = Vector2.ONE * (15.0 / tool_tex.get_width())
+		_tool.modulate = TOOL_COLOR.lerp(Items.tier_color(eq["tool"]), 0.4) if str(eq["tool"].get("art", "")) == "" else Color.WHITE
+	var look: Array = CLOTH_LOOK[int(eq["cloth"]["shape"]) % CLOTH_LOOK.size()] if eq.has("cloth") else CLOTH_LOOK[0]
+	_cloth_mat.set_shader_parameter("hue", float(look[0]))
+	_cloth_mat.set_shader_parameter("sat", float(look[1]))
+	_cloth_mat.set_shader_parameter("val", float(look[2]))
+
+
+## 모자와 도구를 몸의 움직임에 맞춰 놓는다
+func _place_look(moving: bool) -> void:
+	var row := Art.dir_row(facing)
+	var side := -1.0 if row == 1 else (1.0 if row == 2 else 0.0)
+	var bob := absf(sin(_anim_t * WALK_FPS * 0.5 * PI)) * 1.0 if moving else 0.0
+	var a := 0.5 if is_dodging() else 1.0
+	var blink := _invuln > 0.0 and int(_invuln * 20.0) % 2 == 0
+	if _hat.texture:
+		_hat.position = Vector2(side * 1.5, -30.0 - bob)
+		_hat.flip_h = row == 1
+		_hat.modulate.a = a
+		_hat.visible = not blink
+	if _tool.texture:
+		if _swing_timer > 0.0:
+			# 휘두르는 동안에는 치는 쪽으로 나간다
+			_tool.position = _swing_dir * 14.0 + Vector2(0, -12)
+			_tool.rotation = _swing_dir.angle() + PI * 0.25
+		else:
+			_tool.position = Vector2(9.0 if row != 1 else -9.0, -10.0 - bob)
+			_tool.rotation = 0.5 if row != 1 else -0.5
+		_tool.z_index = -1 if row == 3 else 0     # 뒤를 볼 때는 몸 뒤에
+		_tool.modulate.a = a
+		_tool.visible = not blink
+
+
 func _on_state_changed() -> void:
+	_refresh_look()
 	var new_hp := GameState.max_hp()
 	var new_mp := GameState.max_mp()
 	if new_hp != max_hp:
@@ -396,6 +508,7 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
 	hp -= maxi(1, amount - GameState.defense())
+	Sound.play("hurt")
 	if GameState.skill_rank("ult") > 0:
 		ult = minf(ULT_MAX, ult + ULT_PER_HURT)
 	_invuln = invuln_time

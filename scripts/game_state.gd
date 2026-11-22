@@ -84,6 +84,14 @@ var board_day: int = 0            # 게시판 부탁을 뽑은 날
 var board_quests: Array = []      # {"sp", "need", "have", "claimed"}
 var gift_days: Dictionary = {}    # 주민 집(자리) → 마지막으로 선물을 받은 날
 var tips_seen: Dictionary = {}    # 한 번씩만 띄우는 설명 (id → true)
+var settings: Dictionary = {"master": 0.8, "music": 0.6, "sfx": 0.8, "fullscreen": false, "last_slot": 0}
+var slot: int = 0                 # 지금 캐릭터 칸 (1 ~ 8). 0 은 칸 없이 save_path 한 파일만 쓴다 (테스트)
+const SLOT_COUNT := 8
+var save_dir: String = "user://"   # 캐릭터 칸, 공유 자료, 설정 파일이 놓이는 곳 (테스트에서 바꿔 쓴다)
+const TITLE_SCENE := "res://scenes/title.tscn"
+## 모든 캐릭터가 같이 쓰는 것 (내 마을, 창고, 밭, 가구, 주민). 캐릭터 칸으로 할 때는 shared.json 에 따로 저장한다.
+const SHARED_KEYS := ["home_cells", "home_doodles", "home_intro_seen", "home_sheets", "home_objects", "storage",
+	"farms", "furniture", "room_items", "villagers", "gift_days", "balloons"]
 var buffs: Dictionary = {}        # 요리 효과 (종류 → 남은 초)
 var farms: Dictionary = {}        # 밭(자리) → 칸 6개 {"seed", "grown", "watered"}
 var foraged: Dictionary = {"day": 0, "taken": []}   # 오늘 채집한 자리
@@ -114,8 +122,108 @@ var menu_open: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	load_settings()
+	_migrate_old_save()
 	_starting_gear()
 	load_game()
+
+
+# ---------- 설정 ----------
+
+func load_settings() -> void:
+	if not FileAccess.file_exists(settings_path()):
+		return
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(settings_path()))
+	if typeof(d) != TYPE_DICTIONARY:
+		return
+	for k in ["master", "music", "sfx"]:
+		settings[k] = clampf(float(d.get(k, settings.get(k, 0.8))), 0.0, 1.0)
+	settings["fullscreen"] = bool(d.get("fullscreen", false))
+	settings["last_slot"] = clampi(int(d.get("last_slot", 0)), 0, SLOT_COUNT)
+
+
+func save_settings() -> void:
+	var f := FileAccess.open(settings_path(), FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(settings))
+
+
+## 설정을 바꾸고 바로 적용한다. write 를 끄면 파일에는 쓰지 않는다 (테스트).
+func set_setting(key: String, value: Variant, write: bool = true) -> void:
+	if typeof(value) == TYPE_FLOAT:
+		value = snappedf(clampf(float(value), 0.0, 1.0), 0.01)
+	settings[key] = value
+	Sound.apply_settings()
+	if write:
+		save_settings()
+	changed.emit()
+
+
+# ---------- 캐릭터 칸 ----------
+
+func slot_path(n: int) -> String:
+	return save_dir + "slot_%d.json" % n
+
+
+func shared_path() -> String:
+	return save_dir + "shared.json"
+
+
+func settings_path() -> String:
+	return save_dir + "settings.json"
+
+
+## 예전의 저장 파일 하나(save.json)를 1번 칸으로 옮긴다
+func _migrate_old_save() -> void:
+	if FileAccess.file_exists(SAVE_PATH) and not FileAccess.file_exists(slot_path(1)):
+		DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH), ProjectSettings.globalize_path(slot_path(1)))
+
+
+## 칸의 요약 (시작 화면에 보여 준다). 비어 있으면 빈 Dictionary.
+func slot_info(n: int) -> Dictionary:
+	if n < 1 or n > SLOT_COUNT or not FileAccess.file_exists(slot_path(n)):
+		return {}
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(slot_path(n)))
+	if typeof(d) != TYPE_DICTIONARY:
+		return {}
+	return {"level": int(d.get("level", 1)), "day": int(d.get("day", 1)),
+		"map": str(Data.MAP_NAMES.get(str(d.get("current_map", "ch1")), "공책 마을")), "job": str(d.get("job", "pencil"))}
+
+
+## 그 칸의 캐릭터로 게임을 시작한다. 빈 칸이면 새 캐릭터 (프롤로그부터). 마을과 창고는 이어받는다.
+func start_slot(n: int) -> void:
+	if n < 1 or n > SLOT_COUNT:
+		return
+	slot = n
+	save_path = slot_path(n)
+	_reset_state()
+	load_game()
+	settings["last_slot"] = n
+	save_settings()
+	save_game()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(map_scene())
+
+
+func delete_slot(n: int) -> void:
+	if FileAccess.file_exists(slot_path(n)):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(slot_path(n)))
+	if int(settings.get("last_slot", 0)) == n:
+		settings["last_slot"] = 0
+		save_settings()
+	changed.emit()
+
+
+## 저장하고 시작 화면으로 돌아간다
+func to_title() -> void:
+	save_game()
+	player_ref = null
+	dialogue_open = false
+	draw_mode = false
+	cutscene = false
+	menu_open = false
+	_update_pause()
+	get_tree().change_scene_to_file(TITLE_SCENE)
 
 
 func _notification(what: int) -> void:
@@ -204,6 +312,7 @@ func add_exp(amount: int) -> void:
 		stat_points += STAT_POINTS_PER_LEVEL
 		skill_points += 1
 		leveled_up.emit(level)
+		Sound.play("levelup")
 		notify("레벨 업!  필력 %d" % level)
 		tip("skillpoint", "스킬 포인트가 생겼어요. K 를 눌러 스킬을 배워 보세요.")
 	if level >= MAX_LEVEL:
@@ -1336,6 +1445,17 @@ func save_game() -> bool:
 	if is_instance_valid(player_ref):
 		data["player_x"] = player_ref.global_position.x
 		data["player_y"] = player_ref.global_position.y
+	data["job"] = "pencil"
+	if slot > 0:
+		# 같이 쓰는 것은 따로 저장한다
+		var shared := {}
+		for k in SHARED_KEYS:
+			if data.has(k):
+				shared[k] = data[k]
+				data.erase(k)
+		var sf := FileAccess.open(shared_path(), FileAccess.WRITE)
+		if sf:
+			sf.store_string(JSON.stringify(shared))
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
 		push_warning("저장 실패: %s" % FileAccess.get_open_error())
@@ -1345,13 +1465,21 @@ func save_game() -> bool:
 
 
 func load_game() -> bool:
-	if not FileAccess.file_exists(save_path):
-		return false
-	var f := FileAccess.open(save_path, FileAccess.READ)
-	if f == null:
-		return false
-	var data: Variant = JSON.parse_string(f.get_as_text())
-	if typeof(data) != TYPE_DICTIONARY:
+	var data: Variant = {}
+	var found := false
+	if FileAccess.file_exists(save_path):
+		data = JSON.parse_string(FileAccess.get_file_as_string(save_path))
+		found = typeof(data) == TYPE_DICTIONARY
+		if not found:
+			data = {}
+	if slot > 0 and FileAccess.file_exists(shared_path()):
+		# 같이 쓰는 것 (새 캐릭터도 마을과 창고는 이어받는다)
+		var shared: Variant = JSON.parse_string(FileAccess.get_file_as_string(shared_path()))
+		if typeof(shared) == TYPE_DICTIONARY:
+			for k in shared:
+				data[k] = shared[k]
+			found = true
+	if not found:
 		return false
 	quest = clampi(int(data.get("quest", Quest.NOT_STARTED)), 0, Quest.CLEARED)
 	pencil_lead = int(data.get("pencil_lead", 0))
@@ -1482,9 +1610,8 @@ func _materials_for_save() -> Dictionary:
 	return out
 
 
-func reset_game() -> void:
-	if FileAccess.file_exists(save_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+## 모든 값을 새 게임 상태로 돌린다 (파일은 건드리지 않는다)
+func _reset_state() -> void:
 	quest = Quest.NOT_STARTED
 	pencil_lead = 0
 	bridge_built = false
@@ -1538,6 +1665,12 @@ func reset_game() -> void:
 	visited = ["ch1"]
 	spawn_tag = ""
 	_update_pause()
+
+
+func reset_game() -> void:
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+	_reset_state()
 	var scene := get_tree().current_scene
 	if scene != null and scene.is_in_group("game_map") and current_map != "ch1":
 		current_map = "ch1"

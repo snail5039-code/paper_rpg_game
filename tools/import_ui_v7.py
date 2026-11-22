@@ -41,7 +41,7 @@ SHEETS = {
     "30_bosses": (3, 1, [("boss_%d" % i, 300) for i in range(3)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
-FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0)}
+FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):

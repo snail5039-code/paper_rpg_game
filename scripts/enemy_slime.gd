@@ -270,6 +270,7 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 
 func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	hp -= amount
+	Sound.play("hit")
 	_pop_number(amount, crit)
 	_flash = 0.25
 	_knock = dir.normalized() * (190.0 if boss == "" else 40.0)

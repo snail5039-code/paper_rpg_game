@@ -69,6 +69,7 @@ static func button(parent: Control, text: String, pos: Vector2, size: Vector2, o
 		b.add_theme_color_override(col, INK)
 	b.add_theme_color_override("font_disabled_color", INK if kind == "tab" else Color(INK_SOFT, 0.7))
 	b.pressed.connect(on_press)
+	b.pressed.connect(Sound.play.bind("click"))
 	parent.add_child(b)
 	return b
 

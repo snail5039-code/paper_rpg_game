@@ -216,6 +216,7 @@ func finish() -> void:
 	var art := Art.save_drawn(Pixel.upscale(img))
 	var q := minf(1.0, quality + (0.1 if GameState.has_fine("bld_craft") else 0.0))   # 정성 조합대: +10%
 	GameState.craft(recipe, q, art)
+	Sound.play("craft")
 	var msg := "%s 을(를) 만들었어요. (비슷한 정도 %d%%" % [recipe[0], roundi(q * 100.0)]
 	if typeof(recipe[1]) == TYPE_STRING:
 		msg += ", 2개 완성!)" if q >= 0.6 else ")"

@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": []}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -161,6 +161,8 @@ func refresh() -> void:
 		"resident": _refresh_resident()
 		"furnish": _refresh_furnish()
 		"portal": _refresh_portal()
+		"slots": _refresh_slots()
+		"settings": _settings_rows(_list())
 
 
 # ---------- 가방 ----------
@@ -662,6 +664,10 @@ func _refresh_pause() -> void:
 		_info.text = ""
 	else:
 		_label(_body, "게임은 맵을 옮길 때와 잠잘 때 저절로 저장돼요.", Vector2(0, 6), Vector2(300, 14), 9)
+		if tab == 3:
+			_settings_rows(_list())
+			return
+		_button(_body, "처음 화면으로 (저장하고 나가기)", Vector2(60, 98), Vector2(180, 24), GameState.to_title)
 		_button(_body, "지금 저장하기", Vector2(60, 34), Vector2(180, 24), _save_now)
 		_button(_body, "저장하고 게임 끝내기", Vector2(60, 66), Vector2(180, 24), _quit)
 		if _message == "":
@@ -859,3 +865,38 @@ func _enter(i: int) -> void:
 	if GameState.set_difficulty(i):
 		close_requested.emit()
 		GameState.goto_map(parts[0], parts[1] if parts.size() > 1 else "")
+
+
+# ---------- 캐릭터 칸 (시작 화면) ----------
+
+func _refresh_slots() -> void:
+	var box := _list()
+	for n in range(1, GameState.SLOT_COUNT + 1):
+		var info := GameState.slot_info(n)
+		if info.is_empty():
+			_row(box, "ui_slot", "%d번 칸: 비어 있음" % n, [["새로 만들기", GameState.start_slot.bind(n), true]])
+		else:
+			_row(box, "portrait_player", "%d. 그린이 (연필잡이)  필력 %d · %d일째 · %s" % [n, int(info["level"]), int(info["day"]), info["map"]],
+				[["시작", GameState.start_slot.bind(n), true], ["지우기", _delete_slot.bind(n), true]])
+	if _message == "":
+		_info.text = "지금은 연필잡이(그린이)만 고를 수 있어요. 붓잡이, 펜잡이, 지우개잡이는 준비 중이에요.\n내 마을과 창고는 모든 캐릭터가 같이 써요."
+
+
+func _delete_slot(n: int) -> void:
+	if not _sure("del%d" % n, "%d번 캐릭터를 지우면 되돌릴 수 없어요." % n):
+		return
+	GameState.delete_slot(n)
+	_message = "%d번 칸을 비웠어요." % n
+	refresh()
+
+
+# ---------- 설정 ----------
+
+func _settings_rows(box: VBoxContainer) -> void:
+	for pair in [["master", "전체 소리"], ["music", "배경음"], ["sfx", "효과음"]]:
+		var v := float(GameState.settings[str(pair[0])])
+		_row(box, "", "%s  %d%%" % [pair[1], roundi(v * 100.0)],
+			[["-", GameState.set_setting.bind(str(pair[0]), v - 0.1), v > 0.0], ["+", GameState.set_setting.bind(str(pair[0]), v + 0.1), v < 1.0]])
+	var full := bool(GameState.settings["fullscreen"])
+	_row(box, "", "전체 화면: %s" % ("켜짐" if full else "꺼짐"), [["바꾸기", GameState.set_setting.bind("fullscreen", not full), true]])
+	_info.text = "소리는 임시로 만든 것이에요."

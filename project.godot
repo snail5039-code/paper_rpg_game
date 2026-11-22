@@ -5,12 +5,13 @@ config_version=5
 [application]
 
 config/name="공책 RPG"
-run/main_scene="res://scenes/boot.tscn"
+run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
 
 GameState="*res://scripts/game_state.gd"
+Sound="*res://scripts/sound.gd"
 
 [display]
 
