@@ -180,6 +180,7 @@ func _physics_process(delta: float) -> void:
 			if _state_t >= windup_time:
 				_lunge_hit = false
 				_set_state(State.LUNGE)
+				Sound.play("mon_boss" if boss != "" else "mon_" + Data.species_of(kind))
 		State.LUNGE:
 			hop = 1.0
 			move = _lunge_dir * lunge_speed
@@ -257,6 +258,7 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 			if _slam_t <= 0.0 and p.global_position.distance_to(global_position) < 170.0:
 				_slam_t = _slam_every
 				_slam_warn = SLAM_WARN
+				Sound.play("slam")
 				_slam_pos = p.global_position
 	if _summon != "" and not _summoned and hp <= max_hp / 2:
 		_summoned = true

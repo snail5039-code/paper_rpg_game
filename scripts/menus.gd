@@ -26,6 +26,8 @@ var selected := -1            # 가방에서 고른 장비 (-1 없음). 입은 �
 var _win: Control
 var _body: Control
 var _info: Label
+var _detail: Control              # 오른쪽 클릭 상세 보기
+var farm_motion := true           # 밭일을 할 때 캐릭터 동작을 보여 줄지 (테스트에서 끌 수 있다)
 var _tab_buttons: Array = []
 var _fixed: Array = []         # 다시 그려도 남기는 단추 (닫기)
 var _message := ""
@@ -81,7 +83,81 @@ func _ready() -> void:
 			refresh())
 
 
+# ---------- 상세 보기 (아이템을 오른쪽 클릭) ----------
+
+## 칸이나 줄에 오른쪽 클릭 상세 보기를 붙인다. info: {"title", "icon", "tint", "text"}
+func _rc(ctrl: Control, info: Dictionary) -> void:
+	ctrl.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+			show_detail(info)
+			ctrl.accept_event())
+
+
+func show_detail(info: Dictionary) -> void:
+	hide_detail()
+	_detail = Control.new()
+	_detail.size = _win.size
+	_detail.set_meta("temp", true)
+	_win.add_child(_detail)
+	var dim := ColorRect.new()
+	dim.color = Color(0.2, 0.15, 0.12, 0.2)
+	dim.position = Vector2(40, 30)
+	dim.size = Vector2(340, 215)
+	_detail.add_child(dim)
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			hide_detail())
+	UI.icon(_detail, "ui_note", Vector2(90, 48), Vector2(240, 176), Color.WHITE, false).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if str(info.get("icon", "")) != "":
+		_icon(_detail, str(info["icon"]), Vector2(116, 84), 30, info.get("tint", Color.WHITE))
+	var title := _label(_detail, str(info.get("title", "")), Vector2(152, 88), Vector2(150, 28), 11)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.clip_text = false
+	var body := _label(_detail, str(info.get("text", "")), Vector2(116, 122), Vector2(190, 76), 9)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.clip_text = false
+	var foot := _label(_detail, "아무 곳이나 눌러 닫기", Vector2(90, 202), Vector2(240, 12), 8)
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_theme_color_override("font_color", INK_SOFT)
+
+
+func hide_detail() -> void:
+	if is_instance_valid(_detail):
+		_detail.queue_free()
+	_detail = null
+
+
+func detail_open() -> bool:
+	return is_instance_valid(_detail)
+
+
+func _item_detail(item: Dictionary) -> Dictionary:
+	var lines: Array = Items.describe(item).split("\n")
+	lines.remove_at(0)
+	lines.append("부위: %s   팔면 동전 %d" % [Items.SLOT_NAMES[str(item["slot"])], Items.sell_price(item)])
+	return {"title": Items.item_name(item), "icon": Items.icon(item), "tint": Items.tier_color(item), "text": "\n".join(lines)}
+
+
+func _use_detail(id: String) -> Dictionary:
+	var info: Array = Items.CONSUMABLES[id]
+	var lines: Array = [str(info[3])]
+	if Items.FOOD_FX.has(id) and Items.FOOD_FX[id].has("buff"):
+		lines.append("효과: %s" % Items.BUFF_NAMES[str(Items.FOOD_FX[id]["buff"])])
+	lines.append("가진 수: %d   값: 동전 %d" % [GameState.consumable_count(id), int(info[2])])
+	return {"title": str(info[0]), "icon": GameState.consumable_icon(id), "text": "\n".join(lines)}
+
+
+func _mat_detail(i: int) -> Dictionary:
+	var uses: Array = []
+	for recipe in Items.RECIPES:
+		if (recipe[2] as Dictionary).has(i):
+			uses.append(str(recipe[0]))
+	return {"title": str(Data.MATERIALS[i]), "icon": "mat_%d" % i,
+		"text": "몬스터가 떨어뜨리는 재료예요.\n가진 수: %d\n쓰이는 곳: %s" % [GameState.material_count(i), ", ".join(uses) if not uses.is_empty() else "아직 없음"]}
+
+
 func open() -> void:
+	hide_detail()
 	if is_instance_valid(_canvas):
 		_canvas.queue_free()
 	selected = -1
@@ -122,7 +198,7 @@ func _list() -> VBoxContainer:
 
 
 ## 목록의 한 줄: 종이 띠 위에 아이콘, 글, 오른쪽 단추들 [[글, 눌렀을 때, 누를 수 있는지], ...]
-func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, tint: Color = Color.WHITE) -> void:
+func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, tint: Color = Color.WHITE, detail: Dictionary = {}) -> void:
 	var row := Control.new()
 	row.custom_minimum_size = Vector2(286, 24)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -138,9 +214,16 @@ func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, t
 		var b := _button(row, str(spec[0]), Vector2(x, 3), Vector2(w, 18), spec[1])
 		b.disabled = not bool(spec[2])
 	_label(row, text, Vector2(27, 5), Vector2(x - 29, 16), 9)
+	if not detail.is_empty():
+		var area := Control.new()
+		area.size = Vector2(x - 2, 24)
+		area.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_child(area)
+		_rc(area, detail)
 
 
 func refresh() -> void:
+	hide_detail()
 	_clear_action_buttons()
 	for c in _body.get_children():
 		c.queue_free()
@@ -179,7 +262,8 @@ func _refresh_bag() -> void:
 				var info: Array = Items.CONSUMABLES[id]
 				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]],
 					[["쓰기", _use.bind(str(id)), true], ["1", GameState.set_quick_slot.bind(0, str(id)), str(GameState.quick_slots[0]) != str(id)],
-						["2", GameState.set_quick_slot.bind(1, str(id)), str(GameState.quick_slots[1]) != str(id)]] if str(info[4]) != "" else [])
+						["2", GameState.set_quick_slot.bind(1, str(id)), str(GameState.quick_slots[1]) != str(id)]] if str(info[4]) != "" else [],
+					Color.WHITE, _use_detail(str(id)))
 		_info.text = _message if _message != "" else "소비 %d / %d칸    1 번 키: %s    2 번 키: %s" % [
 			GameState.bag_used("use"), int(GameState.bag_sizes["use"]),
 			Items.CONSUMABLES[str(GameState.quick_slots[0])][0], Items.CONSUMABLES[str(GameState.quick_slots[1])][0]]
@@ -193,7 +277,9 @@ func _refresh_bag() -> void:
 		if GameState.equipped.has(slot):
 			var item: Dictionary = GameState.equipped[slot]
 			_icon(_body, Items.icon(item), pos + Vector2(5, 5), 26, Items.tier_color(item))
-		_hit(_body, pos, Vector2(36, 36), _select.bind(-2 - i))
+		var worn_hit := _hit(_body, pos, Vector2(36, 36), _select.bind(-2 - i))
+		if GameState.equipped.has(slot):
+			_rc(worn_hit, _item_detail(GameState.equipped[slot]))
 		var name_l := _label(_body, str(Items.SLOT_NAMES[slot]), pos + Vector2(-2, 35), Vector2(40, 10), 7)
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_l.add_theme_color_override("font_color", INK_SOFT)
@@ -210,7 +296,7 @@ func _refresh_bag() -> void:
 		if i < GameState.inventory.size():
 			var item2: Dictionary = GameState.inventory[i]
 			_icon(_body, Items.icon(item2), pos2 + Vector2(4, 4), 23, Items.tier_color(item2))
-			_hit(_body, pos2, Vector2(31, 31), _select.bind(i))
+			_rc(_hit(_body, pos2, Vector2(31, 31), _select.bind(i)), _item_detail(item2))
 	if pages > 1:
 		UI.icon_button(_win, "ui_arrow_l", Vector2(292, 38), Vector2(17, 17), _turn_page.bind(-1)).disabled = _page == 0
 		var pl := _label(_win, "%d / %d" % [_page + 1, pages], Vector2(310, 40), Vector2(34, 14), 9)
@@ -240,6 +326,8 @@ func _materials_grid() -> void:
 		var n := GameState.material_count(i)
 		_icon(_body, "ui_slot", pos + Vector2(3, 0), 38)
 		_icon(_body, "mat_%d" % i, pos + Vector2(9, 6), 26, Color(1, 1, 1, 1) if n > 0 else Color(0.2, 0.2, 0.2, 0.25))
+		if n > 0:
+			_rc(_hit(_body, pos + Vector2(3, 0), Vector2(38, 38), func() -> void: pass), _mat_detail(i))
 		var count := _label(_body, str(n) if n > 0 else "", pos + Vector2(20, 24), Vector2(22, 12), 9)
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var name_l := _label(_body, str(Data.MATERIALS[i]) if n > 0 else "?", pos + Vector2(-4, 39), Vector2(52, 12), 8)
@@ -395,23 +483,23 @@ func _refresh_shop() -> void:
 			if typeof(entry) == TYPE_STRING:
 				var info: Array = Items.CONSUMABLES[entry]
 				_row(box, GameState.consumable_icon(str(entry)), "%s  (%d개 있음)  %s" % [info[0], GameState.consumable_count(str(entry)), info[3]],
-					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]])
+					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Color.WHITE, _use_detail(str(entry)))
 			else:
 				var arr: Array = entry
 				var sample := {"slot": arr[0], "shape": arr[1], "tier": arr[2], "level": 1, "plus": 0, "opts": []}
 				_row(box, Items.icon(sample), Items.item_name(sample) + "  " + Items.stat_text(str(Items.MAIN_STAT[str(arr[0])]), Items.main_value(sample)),
-					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Items.tier_color(sample))
+					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Items.tier_color(sample), _item_detail(sample))
 	elif tab == 1:
 		for i in GameState.inventory.size():
 			var item: Dictionary = GameState.inventory[i]
 			_row(box, Items.icon(item), Items.item_name(item),
-				[["팔기 %d" % Items.sell_price(item), _sell.bind(i), true]], Items.tier_color(item))
+				[["팔기 %d" % Items.sell_price(item), _sell.bind(i), true]], Items.tier_color(item), _item_detail(item))
 		# 먹거리와 잡동사니도 판다 (값의 절반)
 		for gid in Items.CONSUMABLES:
 			var g := str(gid)
 			if GameState.consumable_count(g) > 0 and (g.begins_with("f_") or g.begins_with("j_") or g.begins_with("c_") or g.begins_with("g_") or g.begins_with("d_")):
 				_row(box, GameState.consumable_icon(g), "%s ×%d" % [Items.CONSUMABLES[g][0], GameState.consumable_count(g)],
-					[["팔기 %d" % maxi(1, int(Items.CONSUMABLES[g][2]) / 2), _sell_goods.bind(g), true]])
+					[["팔기 %d" % maxi(1, int(Items.CONSUMABLES[g][2]) / 2), _sell_goods.bind(g), true]], Color.WHITE, _use_detail(g))
 		if box.get_child_count() == 0:
 			_row(box, "", "팔 것이 없어요.", [])
 	elif tab == 2:
@@ -436,7 +524,7 @@ func _refresh_shop() -> void:
 		for sid in Items.CROPS:
 			var info2: Array = Items.CONSUMABLES[sid]
 			_row(box, str(info2[1]), "%s  (%d개 있음)  %d일" % [info2[0], GameState.consumable_count(str(sid)), int(Items.CROPS[sid][1])],
-				[["%d" % GameState.price_of(sid), _buy.bind(sid), GameState.coins >= GameState.price_of(sid)]])
+				[["%d" % GameState.price_of(sid), _buy.bind(sid), GameState.coins >= GameState.price_of(sid)]], Color.WHITE, _use_detail(str(sid)))
 		wallet += "   밭(내 마을, N)에 심어요."
 	elif tab == 5:
 		for fid in Items.FURNITURE:
@@ -588,7 +676,7 @@ func _use(id: String) -> void:
 	if is_instance_valid(p) and bool(p.call("use_consumable", id)):
 		_message = "%s 을(를) 썼어요." % Items.CONSUMABLES[id][0]
 	else:
-		_message = "지금은 쓸 필요가 없어요."
+		_message = str(p.get("use_fail")) if is_instance_valid(p) and str(p.get("use_fail")) != "" else "지금은 쓸 필요가 없어요."
 	refresh()
 
 
@@ -600,7 +688,7 @@ func _refresh_storage() -> void:
 	for i in from.size():
 		var item: Dictionary = from[i]
 		_row(box, Items.icon(item), Items.item_name(item) + "  " + Items.stat_text(str(Items.MAIN_STAT[str(item["slot"])]), Items.main_value(item)),
-			[["넣기" if tab == 0 else "꺼내기", _move.bind(i), true]], Items.tier_color(item))
+			[["넣기" if tab == 0 else "꺼내기", _move.bind(i), true]], Items.tier_color(item), _item_detail(item))
 	if from.is_empty():
 		_row(box, "", "가방에 넣을 장비가 없어요." if tab == 0 else "창고가 비어 있어요.", [])
 	if _message == "":
@@ -661,7 +749,7 @@ const HELP_GAME := [
 func _refresh_pause() -> void:
 	if tab == 0:
 		for i in HELP_KEYS.size():
-			var pos := Vector2((i % 2) * 150, (i / 2) * 16)
+			var pos := Vector2(4 + (i % 2) * 150, 8 + (i / 2) * 15)
 			var k := _label(_body, str(HELP_KEYS[i][0]), pos, Vector2(52, 14), 9)
 			k.add_theme_color_override("font_color", Color(0.75, 0.35, 0.3))
 			_label(_body, str(HELP_KEYS[i][1]), pos + Vector2(54, 0), Vector2(94, 14), 9)
@@ -750,20 +838,39 @@ func _next_seed() -> void:
 
 
 func _plant(i: int) -> void:
-	_message = "심었어요. 물을 주세요." if GameState.plant(ctx, i, _seed) else "심을 수 없어요."
-	refresh()
+	var ok := GameState.plant(ctx, i, _seed)
+	_message = "심었어요. 물을 주세요." if ok else "심을 수 없어요."
+	_farm_motion("life_rake", "dig", ok)
 
 
 func _water() -> void:
 	var n := GameState.water(ctx)
 	_message = "%d칸에 물을 줬어요." % n if n > 0 else "물을 줄 칸이 없어요."
-	refresh()
+	_farm_motion("life_can", "water", n > 0)
 
 
 func _harvest(i: int) -> void:
 	var id := GameState.harvest(ctx, i)
 	_message = "%s 을(를) 거뒀어요." % Items.CONSUMABLES[id][0] if id != "" else "아직 덜 자랐어요."
-	refresh()
+	_farm_motion("life_rake", "dig", id != "")
+
+
+## 밭일을 하면 창을 잠깐 닫고 캐릭터가 도구(갈퀴, 물뿌리개)를 휘두른 뒤 다시 연다.
+##  캐릭터가 없으면 (테스트에서 창만 띄웠을 때) 창을 그대로 고쳐 그린다.
+func _farm_motion(tool_name: String, sound: String, ok: bool) -> void:
+	var p: Node2D = GameState.player_ref
+	var hud := get_tree().get_first_node_in_group("hud")
+	if not ok or hud == null or not is_instance_valid(p) or not p.has_method("act") or not farm_motion:
+		refresh()
+		return
+	var msg := _message
+	var where := ctx
+	close_requested.emit()
+	Sound.play(sound)
+	p.call("act", tool_name, p.get("facing"), 0.5, false, func() -> void:
+		hud.call("open_menu", "farm", where)
+		_message = msg
+		refresh())
 
 
 # ---------- 식당 ----------

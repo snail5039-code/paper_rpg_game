@@ -10,6 +10,7 @@ const RANGE := 32.0
 
 var mode := "forage"
 var key := ""               # 채집 자리의 이름 ("화면:번호") 또는 풍선이 있는 화면
+var cast_to := Vector2(64, 0)   # 낚시 자리: 찌가 떨어지는 물의 자리 (이 표지판 기준)
 var _tex: Texture2D
 var _key_tex: Texture2D
 var _t := 0.0
@@ -52,9 +53,14 @@ func _process(delta: float) -> void:
 func interact() -> void:
 	match mode:
 		"forage":
-			var id := GameState.take_forage(key)
-			if id != "":
-				GameState.notify("%s 을(를) 얻었어요." % Items.CONSUMABLES[id][0])
+			# 낫을 한 번 휘두른 뒤에 얻는다
+			var p: Node2D = GameState.player_ref
+			if is_instance_valid(p) and p.has_method("act") and p.is_inside_tree():
+				if not bool(p.call("is_acting")):
+					Sound.play("cut")
+					p.call("act", "life_sickle", global_position - p.global_position, 0.4, false, _take)
+			else:
+				_take()
 		"balloon":
 			GameState.balloons.append(key)
 			GameState.changed.emit()
@@ -62,7 +68,13 @@ func interact() -> void:
 		"fish":
 			var hud := get_tree().get_first_node_in_group("hud")
 			if hud:
-				hud.call("start_fishing", false, key)
+				hud.call("start_fishing", false, key, global_position + cast_to)
+
+
+func _take() -> void:
+	var id := GameState.take_forage(key)
+	if id != "":
+		GameState.notify("%s 을(를) 얻었어요." % Items.CONSUMABLES[id][0])
 
 
 func _draw() -> void:

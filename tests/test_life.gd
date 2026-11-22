@@ -385,6 +385,9 @@ func _run() -> void:
 	await frames(3)
 	var fishing: Control = hhud.call("fishing")
 	check(bool(fishing.call("is_active")) and is_equal_approx(float(fishing.get("window")), 1.0), "낚시가 시작됨 (정성 낚시터는 입질 시간 1초)")
+	var angler: Node2D = GameState.player_ref
+	check(bool(angler.call("is_acting")) and not get_tree().paused, "낚시 창 없이 캐릭터가 낚싯대를 들고, 게임은 멈추지 않음")
+	check((angler.get("_tool") as Sprite2D).texture == preload("res://scripts/art.gd").tex("life_rod"), "손에 낚싯대가 보임")
 	check(not bool(fishing.call("pull")) and str(fishing.get("phase")) == "result", "입질 전에 채면 놓침")
 	for i in 400:
 		if str(fishing.get("phase")) == "bite":
@@ -408,7 +411,16 @@ func _run() -> void:
 			fish_id = str(fid)
 	check(fish_id != "" and (fish_id.begins_with("f_") or fish_id.begins_with("j_")), "찌를 초록 칸에 두면 낚임 (%s)" % fish_id)
 	fishing.call("stop")
-	check(not get_tree().paused, "낚시를 그만두면 다시 움직임")
+	check(not get_tree().paused and not bool(angler.call("is_acting")), "낚시를 그만두면 다시 움직임")
+	# 밭일 동작: 갈퀴를 휘두르고 끝나면 알려 준다
+	var act_done := [false]
+	angler.call("act", "life_rake", Vector2.RIGHT, 0.2, false, func() -> void: act_done[0] = true)
+	check(bool(angler.call("is_acting")), "생활 동작을 하는 동안에는 다른 동작을 못 함")
+	for ai in 60:
+		if not bool(angler.call("is_acting")):
+			break
+		await get_tree().physics_frame
+	check(act_done[0] and not bool(angler.call("is_acting")), "동작이 끝나면 다시 움직일 수 있음")
 	GameState.clock = 600.0
 	var day_fish := {}
 	for i in 60:
@@ -468,7 +480,7 @@ func _run() -> void:
 	hp.set("hp", 5)
 	check(bool(hp.call("use_consumable", "d_radish")) and int(hp.get("hp")) > 5 and GameState.has_buff("def") and GameState.defense() > def1, "무 조림: HP 회복과 방어 +10%% (%d → %d)" % [def1, GameState.defense()])
 	GameState.buffs["def"] = 0.01
-	await frames(4)
+	await frames(12)
 	check(not GameState.has_buff("def") and def0 >= 0, "시간이 지나면 효과가 끝남")
 	GameState.stats["grit"] = 0
 	GameState.consumables["f_carp"] = 1
@@ -544,6 +556,7 @@ func _run() -> void:
 	await shot("life_21_field_boss.png")
 	check((f2.get("hud").get("_boss_bar") as ColorRect).visible, "보스 체력 막대가 화면 위에 나옴")
 	GameState.bag_sizes["use"] = GameState.BAG_MAX   # 앞에서 이것저것 모았으니 소비 가방을 넉넉하게
+	p2.set("_invuln", 30.0)                          # 옆의 필드 보스에게 맞으면 채집이 끊기므로 잠깐 무적
 	var fspots := 0
 	for n in get_tree().get_nodes_in_group("interactable"):
 		if str(n.get("mode")) == "forage":
@@ -551,7 +564,13 @@ func _run() -> void:
 			if fspots == 1:
 				n.call("interact")
 	check(fspots == 4, "사냥터에 채집 자리 4곳")
+	check(bool(p2.call("is_acting")), "채집하면 캐릭터가 낫을 휘두름")
+	for fi in 60:
+		if not bool(p2.call("is_acting")):
+			break
+		await get_tree().physics_frame
 	await frames(2)
+	p2.set("_invuln", 0.0)
 	var fleft := 0
 	for n in get_tree().get_nodes_in_group("interactable"):
 		if str(n.get("mode")) == "forage":

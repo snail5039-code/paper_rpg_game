@@ -46,6 +46,8 @@ SHEETS = {
     "34_hats_b": (5, 3, [("hat_%d_%d" % (c + 5, v), HAT_SCALE) for v in range(3) for c in range(5)]),
     # 손에 드는 도구 10종 (촉이 위, 쥐는 쪽이 아래). 모두 같은 배율로 줄여야 서로의 길이가 맞는다.
     "41_tools": (5, 2, [("tool_%d" % i, TOOL_SCALE) for i in range(10)]),
+    # 생활 도구: 낚싯대, 갈퀴, 낫 (쥐는 쪽이 아래), 물뿌리개 (주둥이가 왼쪽), 찌, 물보라
+    "43_life_tools": (3, 2, [("life_rod", 124), ("life_rake", 104), ("life_sickle", 64), ("life_can", 60), ("life_bobber", 48), ("life_splash", 48)]),
     # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
     "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
 }

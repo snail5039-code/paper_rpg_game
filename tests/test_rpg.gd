@@ -388,6 +388,30 @@ func _run() -> void:
 	GameState.consumables = use_kept
 	check(GameState.BAG_MAX == 96, "가방은 96칸까지")
 
+	print("[상세 보기, 못 쓰는 까닭, 레벨 업 효과]")
+	hud.call("toggle_menu", "bag")
+	await frames(2)
+	var bag_menu: Control = hud.get("_menus")["bag"]
+	bag_menu.call("show_detail", bag_menu.call("_item_detail", GameState.inventory[0]))
+	await frames(2)
+	check(bool(bag_menu.call("detail_open")), "장비를 오른쪽 클릭하면 상세 보기가 뜸")
+	await shot("rpg_11_detail.png")
+	bag_menu.call("hide_detail")
+	var use_info: Dictionary = bag_menu.call("_use_detail", "bandage")
+	check(str(use_info["title"]) == "반창고" and str(use_info["text"]).contains("HP"), "소모품 상세 보기에 이름과 설명이 나옴")
+	check(str((bag_menu.call("_mat_detail", 0) as Dictionary)["text"]).contains("쓰이는 곳"), "재료 상세 보기에 쓰이는 곳이 나옴")
+	hud.call("toggle_menu", "bag")
+	await frames(2)
+	GameState.add_consumable("bandage", 1, true)
+	player.set("hp", int(player.get("max_hp")))
+	var band_n := GameState.consumable_count("bandage")
+	check(not bool(player.call("use_consumable", "bandage")) and str(player.get("use_fail")).contains("가득") and GameState.consumable_count("bandage") == band_n,
+		"체력이 가득하면 쓰지 않고 까닭을 알려 줌")
+	GameState.leveled_up.emit(GameState.level)
+	check(float(player.get("_levelup_t")) > 1.0, "레벨이 오르면 캐릭터에 효과가 보임")
+	await frames(20)
+	await shot("rpg_12_levelup.png")
+
 	print("[완성 등급 고유 효과와 유일 장비]")
 	var eq_kept: Dictionary = GameState.equipped.duplicate(true)
 	var done_tool := Items.make("tool", 0, 4, 1)

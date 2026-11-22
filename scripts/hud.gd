@@ -399,9 +399,10 @@ func fishing() -> Control:
 	return _fishing
 
 
-func start_fishing(fine: bool, place: String = "home") -> void:
+## at: 찌를 던질 물의 자리 (월드). 주지 않으면 캐릭터가 보는 쪽 앞.
+func start_fishing(fine: bool, place: String = "home", at: Vector2 = Vector2.INF) -> void:
 	if not _any_window_open():
-		_fishing.call("start", fine, place)
+		_fishing.call("start", fine, place, at)
 
 
 ## 창을 열면서 무엇에 대한 창인지 알려 준다 (밭의 자리, 주민의 id, 포탈의 목적지)

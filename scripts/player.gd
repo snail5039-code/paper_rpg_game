@@ -46,6 +46,13 @@ var _tool: Sprite2D             # 손에 든 도구 (프레임마다 주먹 자�
 var _tool_tex: Texture2D
 var _look := ""
 var _pad_t := 0.0               # "두꺼운 솜" 효과: 1초마다 HP 1
+var use_fail := ""              # 방금 소모품을 못 쓴 까닭 ("" 은 없음)
+## 생활 동작 (낚시, 농사, 채집): 공격 그림의 자세로 생활 도구를 든다. 그동안은 움직이거나 공격하지 못한다.
+##   {"kind": 도구 그림 이름, "tex": 그림, "t": 흐른 시간, "dur": 휘두르는 시간, "hold": 휘두른 뒤 자세를 유지, "dir": 방향, "done": 끝나면 부를 것}
+var _act: Dictionary = {}
+var _tool_tip := Vector2.ZERO   # 지금 든 도구의 끝 (캐릭터 기준)
+var _levelup_t := 0.0           # 레벨 업 효과가 남은 시간
+const LEVELUP_TIME := 1.4
 
 const Anchors := preload("res://scripts/player_anchors.gd")
 ## 모자마다 [크기 배율, 머리 꼭대기에서 모자 아랫단까지 내려오는 길이(텍셀)]
@@ -127,6 +134,7 @@ func _physics_process(delta: float) -> void:
 			_pad_t -= 1.0
 			hp += 1
 			hp_changed.emit(hp, max_hp)
+	_levelup_t = maxf(0.0, _levelup_t - delta)
 	_combo_timer = maxf(0.0, _combo_timer - delta)
 	if _combo_timer <= 0.0:
 		combo = 0
@@ -136,6 +144,21 @@ func _physics_process(delta: float) -> void:
 		_fx["t"] = float(_fx["t"]) - delta
 		if float(_fx["t"]) <= 0.0:
 			_fx = {}
+
+	if not _act.is_empty():
+		# 생활 동작 중: 제자리에서 도구를 휘두른다
+		_act["t"] = float(_act["t"]) + delta
+		facing = _act["dir"]
+		velocity = Vector2.ZERO
+		_knock = Vector2.ZERO
+		_update_sprite(false)
+		queue_redraw()
+		if float(_act["t"]) >= float(_act["dur"]) and not bool(_act["hold"]):
+			var done: Callable = _act["done"]
+			_act = {}
+			if done.is_valid():
+				done.call()
+		return
 
 	var dir := Vector2(
 		Input.get_axis("move_left", "move_right"),
@@ -171,7 +194,8 @@ func _update_sprite(moving: bool) -> void:
 	var col := (int(_anim_t * WALK_FPS) % 4) if moving else IDLE_FRAME
 	_sprite.frame_coords = Vector2i(col, Art.dir_row(facing))
 	var blink := _invuln > 0.0 and int(_invuln * 20.0) % 2 == 0
-	var swinging := _attack_sprite != null and _swing_timer > 0.0
+	var acting := not _act.is_empty()
+	var swinging := _attack_sprite != null and (_swing_timer > 0.0 or acting)
 	_sprite.visible = not blink and not swinging
 	_sprite.modulate.a = 0.5 if is_dodging() else 1.0
 	if _attack_sprite:
@@ -179,11 +203,41 @@ func _update_sprite(moving: bool) -> void:
 		if swinging:
 			# 들기 → 휘두르기 → 마무리 3프레임
 			var f := clampi(int((SWING_TIME - _swing_timer) / SWING_TIME * 3.0), 0, 2)
-			_attack_sprite.frame_coords = Vector2i(f, Art.dir_row(_swing_dir))
+			var row_dir := _swing_dir
+			if acting:
+				# 들기 → 뻗기. 자세를 유지할 때는 팔을 뻗은 채(가운데 프레임)로 있는다.
+				var k := float(_act["t"]) / maxf(0.01, float(_act["dur"]))
+				f = (1 if k >= 0.5 else 0) if bool(_act["hold"]) else clampi(int(k * 3.0), 0, 2)
+				row_dir = _act["dir"]
+			_attack_sprite.frame_coords = Vector2i(f, Art.dir_row(row_dir))
 	_place_look(moving)
 
 
+## 생활 동작을 시작한다. kind: 도구 그림 이름 ("life_rod", "life_rake", "life_sickle", "life_can").
+##  hold 가 참이면 휘두른 뒤 stop_act() 를 부를 때까지 자세를 유지한다 (낚시). done 은 다 휘두르면 부른다.
+func act(kind: String, dir: Vector2, dur: float = 0.45, hold: bool = false, done: Callable = Callable()) -> void:
+	_act = {"kind": kind, "tex": Art.tex(kind), "t": 0.0, "dur": dur, "hold": hold,
+		"dir": dir.normalized() if dir.length() > 0.01 else facing, "done": done}
+	facing = _act["dir"]
+	_swing_timer = 0.0
+
+
+func stop_act() -> void:
+	_act = {}
+
+
+func is_acting() -> bool:
+	return not _act.is_empty()
+
+
+## 지금 든 도구의 끝 (월드). 낚싯줄이 여기서 나간다.
+func act_tip() -> Vector2:
+	return global_position + _tool_tip
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if is_acting():
+		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		attack()
 		get_viewport().set_input_as_handled()
@@ -234,6 +288,7 @@ func attack(aim_override := Vector2.ZERO) -> void:
 
 ## 레벨이 오르면 최대 HP 가 늘고 전부 회복한다
 func _on_level_up(_level: int) -> void:
+	_levelup_t = LEVELUP_TIME
 	max_hp = GameState.max_hp()
 	hp = max_hp
 	max_mp = GameState.max_mp()
@@ -307,20 +362,41 @@ func _place_look(_moving: bool) -> void:
 ##  도구 그림은 촉이 위를 본다. 쥐는 쪽을 주먹 안으로 밀어 넣고, 몸 뒤에 그려서 주먹이 도구를 덮게 한다.
 ##  걸을 때는 원래 연필이 보이던 만큼만 (촉 쪽을) 보여 준다. 긴 도구가 땅에 끌리지 않게.
 func _place_tool(shown: Sprite2D, spot: Array, frame: Vector2, swinging: bool) -> void:
-	_tool.visible = _tool_tex != null and shown.visible
+	var tex: Texture2D = _tool_tex
+	var kind := ""
+	if not _act.is_empty():
+		kind = str(_act["kind"])
+		tex = _act["tex"]
+	_tool.visible = tex != null and shown.visible
 	if not _tool.visible:
 		return
 	var front := int(spot[5]) == 1
 	var dir := Vector2(float(spot[2]), float(spot[3]))
-	var full := _tool_tex.get_height() * TOOL_K
+	if kind == "life_can":
+		# 물뿌리개는 기울이지 않고 주먹 앞에 든다 (그림의 주둥이는 왼쪽을 본다)
+		var hand := Vector2(float(spot[0]) - frame.x * 0.5, float(spot[1]) - frame.y) + dir * 8.0
+		_tool.texture = tex
+		_tool.region_rect = Rect2(Vector2.ZERO, tex.get_size())
+		_tool.scale = Art.SCALE * TOOL_K
+		_tool.rotation = 0.0
+		_tool.flip_h = (_act["dir"] as Vector2).x > 0.0
+		_tool.position = FOOT + hand * Art.SCALE.x
+		_tool_tip = _tool.position
+		_tool.show_behind_parent = false
+		if _tool.get_index() != get_child_count() - 1:
+			move_child(_tool, get_child_count() - 1)
+		return
+	_tool.flip_h = false
+	var full := tex.get_height() * TOOL_K
 	var tuck := 0.0 if front else minf(TOOL_TUCK, full * 0.25)   # 몽당연필처럼 짧은 도구는 덜 밀어 넣는다
 	var length := full if swinging else minf(full, float(spot[4]) + tuck)
 	var base := Vector2(float(spot[0]) - frame.x * 0.5, float(spot[1]) - frame.y) - dir * tuck
-	_tool.texture = _tool_tex
-	_tool.region_rect = Rect2(0, 0, _tool_tex.get_width(), length / TOOL_K)
+	_tool.texture = tex
+	_tool.region_rect = Rect2(0, 0, tex.get_width(), length / TOOL_K)
 	_tool.scale = Art.SCALE * TOOL_K
 	_tool.rotation = dir.angle() + PI * 0.5
 	_tool.position = FOOT + (base + dir * length * 0.5) * Art.SCALE.x
+	_tool_tip = FOOT + (base + dir * length) * Art.SCALE.x
 	_tool.modulate.a = shown.modulate.a
 	# 몸 뒤(맨 앞 자식) 또는 몸 앞(걷기·공격 그림 다음)
 	var want := get_child_count() - 1 if front else 0
@@ -369,6 +445,7 @@ func use_skill(id: String, aim_override := Vector2.ZERO) -> bool:
 	_swing_timer = SWING_TIME
 	var mult := Items.skill_mult(id, rank)
 	_fx = {"id": id, "t": FX_TIME, "dur": FX_TIME, "dir": dir, "from": global_position}
+	Sound.play("sk_" + id)
 	match id:
 		"slash":
 			# 앞으로 미끄러지며 지나가는 길의 적을 모두 벤다
@@ -424,6 +501,13 @@ func _hit(enemy: Node2D, mult: float, dir: Vector2, ignore_defense: bool = false
 		hp_changed.emit(hp, max_hp)
 
 
+## 소모품을 쓸 수 없는 까닭을 알리고 false 를 돌려준다
+func _cannot_use(why: String) -> bool:
+	use_fail = why
+	GameState.notify(why)
+	return false
+
+
 func _ult_gain() -> float:
 	return 1.3 if GameState.has_fx("spark") else 1.0
 
@@ -451,6 +535,7 @@ func use_ultimate() -> bool:
 
 ## 따라 그린 점수(0~1)만큼 강한 한 방을 화면의 모든 적에게 넣는다
 func finish_ultimate(score: float) -> void:
+	Sound.play("sk_ult")
 	ult = 0.0
 	var mult := 3.0 + 7.0 * clampf(score, 0.0, 1.0)
 	_fx = {"id": "ult", "t": 0.6, "dur": 0.6, "dir": facing, "from": global_position}
@@ -479,21 +564,22 @@ func use_consumable(id: String) -> bool:
 	if GameState.consumable_count(id) <= 0 or not Items.CONSUMABLES.has(id):
 		return false
 	var info: Array = Items.CONSUMABLES[id]
+	use_fail = ""
 	if str(info[4]) == "hp":
 		if hp >= max_hp:
-			return false
+			return _cannot_use("체력이 가득 차 있어서 쓸 수 없어요.")
 		hp = mini(max_hp, hp + ceili(max_hp * float(info[5]) * _heal_mult()))
 		hp_changed.emit(hp, max_hp)
 	elif str(info[4]) == "mp":
 		if mp >= float(max_mp):
-			return false
+			return _cannot_use("MP 가 가득 차 있어서 쓸 수 없어요.")
 		mp = minf(float(max_mp), mp + max_mp * float(info[5]) * _heal_mult())
 	elif str(info[4]) == "food":
 		# 요리: 회복과 한동안 이어지는 효과
 		var fx: Dictionary = Items.FOOD_FX.get(id, {})
 		var need := fx.has("buff") or (fx.has("hp") and hp < max_hp) or (fx.has("mp") and mp < float(max_mp))
 		if not need:
-			return false
+			return _cannot_use("체력과 MP 가 가득 차 있어서 먹을 필요가 없어요.")
 		if fx.has("hp"):
 			hp = mini(max_hp, hp + ceili(max_hp * float(fx["hp"]) * _heal_mult()))
 			hp_changed.emit(hp, max_hp)
@@ -533,6 +619,7 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
 	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0)))
+	stop_act()          # 맞으면 하던 생활 동작이 끊긴다
 	Sound.play("hurt")
 	if GameState.skill_rank("ult") > 0:
 		ult = minf(ULT_MAX, ult + ULT_PER_HURT * _ult_gain())
@@ -564,6 +651,7 @@ func _draw() -> void:
 	if _attack_sprite == null:
 		_draw_swing()
 	_draw_skill_fx()
+	_draw_levelup()
 	if not use_placeholder_art:
 		return
 	# 무적 시간 깜빡임
@@ -600,6 +688,36 @@ func _fx_draw(name: String, center: Vector2, angle: float, width: float, alpha: 
 
 
 ## 스킬 효과 (assets/sprites/fx_*.png). 그림이 없으면 연필선으로 대신 그린다.
+## 레벨 업: 발밑에서 퍼지는 금빛 고리, 위로 솟는 빛줄기, 머리 위의 글자
+func _draw_levelup() -> void:
+	if _levelup_t <= 0.0:
+		return
+	var p := 1.0 - _levelup_t / LEVELUP_TIME          # 0 → 1
+	var fade := clampf(_levelup_t / (LEVELUP_TIME * 0.4), 0.0, 1.0)
+	var gold := Color(1.0, 0.85, 0.3, fade)
+	draw_set_transform(Vector2(0, FOOT.y), 0.0, Vector2(1.0, 0.45))
+	for ring in 2:
+		var rp := clampf(p * 1.6 - ring * 0.25, 0.0, 1.0)
+		if rp > 0.0:
+			draw_arc(Vector2.ZERO, 6.0 + rp * 34.0, 0.0, TAU, 40, Color(gold.r, gold.g, gold.b, fade * (1.0 - rp)), 2.5)
+	draw_set_transform(Vector2.ZERO)
+	for i in 7:
+		var x := -18.0 + i * 6.0
+		var h := (14.0 + 26.0 * absf(sin(i * 1.7))) * minf(1.0, p * 3.0)
+		var lift := p * 18.0
+		draw_line(Vector2(x, FOOT.y - lift), Vector2(x, FOOT.y - lift - h), Color(1.0, 0.95, 0.6, fade * 0.7), 1.5)
+	for i in 6:
+		var ang := i * TAU / 6.0 + p * 3.0
+		var pos := Vector2(cos(ang) * 16.0, -20.0 - p * 30.0 + sin(ang) * 6.0)
+		draw_circle(pos, 1.6, Color(1, 1, 0.8, fade))
+	var font := ThemeDB.fallback_font
+	var text := "LEVEL UP!"
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var at := Vector2(-w * 0.5, -46.0 - minf(1.0, p * 2.5) * 12.0)
+	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 4, Color(0.35, 0.22, 0.1, fade))
+	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, gold)
+
+
 func _draw_skill_fx() -> void:
 	if _fx.is_empty():
 		return

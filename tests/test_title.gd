@@ -99,7 +99,16 @@ func _run() -> void:
 	GameState.set_setting("sfx", 0.8)
 	for id in ["swing", "hit", "hurt", "pickup", "levelup", "click", "craft", "capture", "fail"]:
 		Sound.play(id)
-	check((Sound.get("_sfx") as Dictionary).size() == 9, "효과음 9가지가 만들어짐")
+	var sfx: Dictionary = Sound.get("_sfx")
+	check(sfx.size() >= 31, "효과음이 만들어짐 (%d가지)" % sfx.size())
+	var sfx_ok := true
+	for sid in ["sk_slash", "sk_circle", "sk_dot", "sk_hatch", "sk_press", "sk_erase", "sk_ult",
+			"mon_slime", "mon_squiggle", "mon_dots", "mon_grass", "mon_spider", "mon_bug", "mon_boss", "slam",
+			"cast", "plop", "bite", "reel", "dig", "water", "cut"]:
+		if not sfx.has(sid):
+			sfx_ok = false
+	check(sfx_ok, "스킬 7가지, 몬스터 종마다, 생활 동작마다 효과음이 있음")
+	check((sfx["levelup"] as AudioStreamWAV).data.size() > (sfx["craft"] as AudioStreamWAV).data.size() * 3, "레벨 업 소리가 길고 큼")
 
 	print("[시작 화면]")
 	GameState.settings["last_slot"] = 1

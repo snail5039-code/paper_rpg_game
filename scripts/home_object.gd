@@ -95,7 +95,7 @@ func interact() -> void:
 				hud.call("toggle_menu", "board")
 		"fishing":
 			if hud:
-				hud.call("start_fishing", fine)
+				hud.call("start_fishing", fine, "home", global_position + Vector2(0, -10))
 		"villager":
 			var who := GameState.resident_of(GameState.house_key({"x": position.x, "y": position.y}))
 			if who == "":
