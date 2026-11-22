@@ -88,10 +88,13 @@ const SKILLS := {
 		"mult": [0.8, 0.2], "desc": "잠깐 동안 어떤 공격도 맞지 않는다"},
 	"sharpen": {"name": "연필 깎기", "icon": "skill_sharpen", "level": 10, "mp": 0, "cd": 0.0, "max": 10, "kind": "passive",
 		"mult": [0.03, 0.03], "desc": "공격력이 단계마다 3% 오른다"},
+	# 필살기: V 키. 게이지(맞히거나 맞으면 참)가 가득 차면 쓸 수 있다. 배율은 따라 그린 만큼 3 ~ 10.
+	"ult": {"name": "밑그림 (필살기)", "icon": "skill_ult", "level": 5, "mp": 0, "cd": 0.0, "max": 1, "kind": "ult",
+		"mult": [3.0, 0.0], "desc": "V 키. 게이지가 차면 점선 별을 따라 그려 화면의 모든 적을 벤다"},
 	"warmup": {"name": "손풀기", "icon": "skill_warmup", "level": 14, "mp": 0, "cd": 0.0, "max": 10, "kind": "passive",
 		"mult": [0.02, 0.02], "desc": "공격 속도가 단계마다 2% 오른다"},
 }
-const SKILL_ORDER := ["slash", "circle", "dot", "hatch", "press", "erase", "sharpen", "warmup"]
+const SKILL_ORDER := ["slash", "circle", "dot", "hatch", "press", "erase", "sharpen", "warmup", "ult"]
 const SKILL_KEYS := ["Q", "E", "R"]
 
 
@@ -125,8 +128,10 @@ static func item_name(item: Dictionary) -> String:
 	return ("+%d " % plus if plus > 0 else "") + base
 
 
+## 직접 그려 만든 장비는 내 그림이 아이콘이다
 static func icon(item: Dictionary) -> String:
-	return "equip_%s_%d" % [str(item["slot"]), int(item["shape"])]
+	var own := str(item.get("art", ""))
+	return own if own != "" else "equip_%s_%d" % [str(item["slot"]), int(item["shape"])]
 
 
 static func tier_color(item: Dictionary) -> Color:
@@ -145,7 +150,7 @@ static func main_value(item: Dictionary) -> int:
 		"shoe": v = 2 + tier * 2
 		"bag": v = 6 + tier * 8 + lv * 2
 		"acc": v = 1 + tier * 2
-	return roundi(v * (1.0 + 0.08 * int(item.get("plus", 0))))
+	return roundi(v * (1.0 + 0.08 * int(item.get("plus", 0))) * (1.0 + 0.01 * int(item.get("bonus", 0))))
 
 
 static func stat_text(key: String, value: int) -> String:
@@ -156,6 +161,8 @@ static func describe(item: Dictionary) -> String:
 	var lines: Array = [item_name(item), stat_text(str(MAIN_STAT[str(item["slot"])]), main_value(item))]
 	for o in item["opts"]:
 		lines.append("  " + stat_text(str(o[0]), int(o[1])))
+	if int(item.get("bonus", 0)) > 0:
+		lines.append("직접 그림 +%d%%" % int(item["bonus"]))
 	lines.append("필요 필력 %d" % int(item["level"]))
 	return "\n".join(lines)
 

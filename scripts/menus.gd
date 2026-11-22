@@ -8,6 +8,10 @@ extends Control
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const Items := preload("res://scripts/items.gd")
+const UI := preload("res://scripts/ui_kit.gd")
+const CraftCanvas := preload("res://scripts/craft_canvas.gd")
+
+signal close_requested
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
@@ -22,16 +26,20 @@ var _win: Control
 var _body: Control
 var _info: Label
 var _tab_buttons: Array = []
+var _fixed: Array = []         # 다시 그려도 남기는 단추 (닫기)
 var _message := ""
+var _page := 0                # 가방 쪽 (한 쪽에 24칸)
+var _canvas: Control          # 직접 그려서 만들기 화면
+const PAGE := 24
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	size = Vector2(640, 360)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 	var dim := ColorRect.new()
 	dim.color = Color(0.1, 0.08, 0.08, 0.45)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.size = Vector2(640, 360)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(dim)
 	_win = TextureRect.new()
@@ -43,13 +51,15 @@ func _ready() -> void:
 	_win.size = Vector2(420, 268)
 	_win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_win)
-	var title := _label(_win, str(TITLES[kind]), Vector2(0, 12), Vector2(420, 22), 16)
+	UI.icon(_win, "ui_plaque", Vector2(150, 5), Vector2(120, 27), Color.WHITE, false)
+	var title := _label(_win, str(TITLES[kind]), Vector2(150, 9), Vector2(126, 20), 14)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_fixed.append(UI.icon_button(_win, "ui_close", Vector2(396, 0), Vector2(20, 20), func() -> void: close_requested.emit()))
 	var x := 66.0
 	for i in (TABS[kind] as Array).size():
-		var b := _button(_win, str(TABS[kind][i]), Vector2(x, 34), Vector2(50, 20), _set_tab.bind(i))
+		var b := UI.button(_win, str(TABS[kind][i]), Vector2(x, 37), Vector2(50, 19), _set_tab.bind(i), "tab")
 		_tab_buttons.append(b)
-		x += 54.0
+		x += 52.0
 	_body = Control.new()
 	_body.position = Vector2(62, 62 if not (TABS[kind] as Array).is_empty() else 44)
 	_body.size = Vector2(300, 130 if not (TABS[kind] as Array).is_empty() else 148)
@@ -66,6 +76,8 @@ func _ready() -> void:
 
 
 func open() -> void:
+	if is_instance_valid(_canvas):
+		_canvas.queue_free()
 	selected = -1
 	_message = ""
 	refresh()
@@ -78,96 +90,46 @@ func _set_tab(i: int) -> void:
 	refresh()
 
 
-# ---------- 부품 ----------
+# ---------- 부품 (그림은 scripts/ui_kit.gd) ----------
 
 func _label(parent: Control, text: String, pos: Vector2, size: Vector2, font_size: int) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.clip_text = true
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", INK)
-	parent.add_child(l)
-	return l
+	return UI.label(parent, text, pos, size, font_size)
 
 
 func _button(parent: Control, text: String, pos: Vector2, size: Vector2, on_press: Callable) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.position = pos
-	b.size = size
-	b.focus_mode = Control.FOCUS_NONE
-	b.clip_text = true
-	b.add_theme_font_size_override("font_size", 9)
-	# 공책에 어울리는 종이색 단추 (기본 어두운 단추를 쓰지 않는다)
-	for state in ["normal", "hover", "pressed", "disabled"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = {"normal": Color(0.99, 0.95, 0.84), "hover": Color(1.0, 0.9, 0.7),
-			"pressed": Color(0.95, 0.82, 0.6), "disabled": Color(0.9, 0.86, 0.78, 0.6)}[state]
-		sb.border_color = Color(0.5, 0.38, 0.3) if state != "disabled" else Color(0.65, 0.58, 0.52, 0.6)
-		sb.set_border_width_all(1)
-		sb.set_corner_radius_all(3)
-		sb.set_content_margin_all(1)
-		b.add_theme_stylebox_override(state, sb)
-	for col in ["font_color", "font_hover_color", "font_pressed_color"]:
-		b.add_theme_color_override(col, INK)
-	b.add_theme_color_override("font_disabled_color", INK_SOFT)
-	b.pressed.connect(on_press)
-	parent.add_child(b)
-	return b
+	return UI.button(parent, text, pos, size, on_press)
 
 
 func _icon(parent: Control, tex_name: String, pos: Vector2, size: float, tint: Color = Color.WHITE) -> TextureRect:
-	var tr := TextureRect.new()
-	tr.texture = Art.tex(tex_name)
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	tr.position = pos
-	tr.size = Vector2(size, size)
-	tr.modulate = tint
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(tr)
-	return tr
+	return UI.icon(parent, tex_name, pos, Vector2(size, size), tint)
 
 
-func _clear_style(b: Button) -> void:
-	for state in ["normal", "hover", "pressed", "disabled"]:
-		b.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+## 칸 위에 얹는 투명 단추
+func _hit(parent: Control, pos: Vector2, size: Vector2, on_press: Callable) -> Button:
+	return UI.button(parent, "", pos, size, on_press, "plain")
 
 
-## 세로로 긴 목록을 담는 스크롤 상자. 돌려주는 것은 줄을 넣을 상자다.
 func _list() -> VBoxContainer:
-	var sc := ScrollContainer.new()
-	sc.position = Vector2.ZERO
-	sc.size = _body.size
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_body.add_child(sc)
-	var box := VBoxContainer.new()
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", 2)
-	sc.add_child(box)
-	return box
+	return UI.scroll_list(_body, _body.size)
 
 
-## 목록의 한 줄: 아이콘, 글, 오른쪽 단추들 [[글, 눌렀을 때, 누를 수 있는지], ...]
+## 목록의 한 줄: 종이 띠 위에 아이콘, 글, 오른쪽 단추들 [[글, 눌렀을 때, 누를 수 있는지], ...]
 func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, tint: Color = Color.WHITE) -> void:
 	var row := Control.new()
-	row.custom_minimum_size = Vector2(286, 22)
+	row.custom_minimum_size = Vector2(286, 24)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(row)
+	UI.icon(row, "ui_row", Vector2(0, 0), Vector2(286, 24), Color(1, 1, 1, 0.9), false)
 	if icon_name != "":
-		_icon(row, icon_name, Vector2(0, 2), 18, tint)
-	var x := 286.0
+		_icon(row, icon_name, Vector2(5, 3), 18, tint)
+	var x := 280.0
 	for i in range(buttons.size() - 1, -1, -1):
 		var spec: Array = buttons[i]
-		var w := maxf(20.0, 8.0 + str(spec[0]).length() * 8.0)
+		var w := maxf(20.0, 10.0 + str(spec[0]).length() * 8.0)
 		x -= w + 2.0
-		var b := _button(row, str(spec[0]), Vector2(x, 0), Vector2(w, 21), spec[1])
+		var b := _button(row, str(spec[0]), Vector2(x, 3), Vector2(w, 18), spec[1])
 		b.disabled = not bool(spec[2])
-	_label(row, text, Vector2(22, 4), Vector2(x - 24, 16), 9)
+	_label(row, text, Vector2(27, 5), Vector2(x - 29, 16), 9)
 
 
 func refresh() -> void:
@@ -195,7 +157,7 @@ func _refresh_bag() -> void:
 			var n := GameState.consumable_count(str(id))
 			if n > 0:
 				var info: Array = Items.CONSUMABLES[id]
-				_row(box, str(info[1]), "%s ×%d   %s" % [info[0], n, info[3]], [])
+				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]], [])
 		_info.text = "1 번 키: 반창고    2 번 키: 우유"
 		return
 	# 입은 장비 6칸 (2 × 3)
@@ -206,22 +168,41 @@ func _refresh_bag() -> void:
 		if GameState.equipped.has(slot):
 			var item: Dictionary = GameState.equipped[slot]
 			_icon(_body, Items.icon(item), pos + Vector2(5, 5), 26, Items.tier_color(item))
-		_clear_style(_button(_body, "", pos, Vector2(36, 36), _select.bind(-2 - i)))
+		_hit(_body, pos, Vector2(36, 36), _select.bind(-2 - i))
 		var name_l := _label(_body, str(Items.SLOT_NAMES[slot]), pos + Vector2(-2, 35), Vector2(40, 10), 7)
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_l.add_theme_color_override("font_color", INK_SOFT)
-	# 가방 속 장비 (6 × 4)
-	for i in GameState.INVENTORY_SIZE:
-		var pos2 := Vector2(96 + (i % 6) * 34, (i / 6) * 33)
+	# 가방 속 장비 (한 쪽에 6 × 4). 아직 늘리지 않은 칸은 흐리게 보인다.
+	var pages := maxi(1, ceili(float(GameState.bag_size) / PAGE))
+	_page = clampi(_page, 0, pages - 1)
+	for k in PAGE:
+		var i := _page * PAGE + k
+		var pos2 := Vector2(96 + (k % 6) * 34, (k / 6) * 33)
+		if i >= GameState.bag_size:
+			_icon(_body, "ui_slot", pos2, 31, Color(1, 1, 1, 0.25))
+			continue
 		_icon(_body, "ui_slot_on" if selected == i else "ui_slot", pos2, 31)
 		if i < GameState.inventory.size():
 			var item2: Dictionary = GameState.inventory[i]
 			_icon(_body, Items.icon(item2), pos2 + Vector2(4, 4), 23, Items.tier_color(item2))
-			_clear_style(_button(_body, "", pos2, Vector2(31, 31), _select.bind(i)))
+			_hit(_body, pos2, Vector2(31, 31), _select.bind(i))
+	if pages > 1:
+		UI.icon_button(_win, "ui_arrow_l", Vector2(292, 38), Vector2(17, 17), _turn_page.bind(-1)).disabled = _page == 0
+		var pl := _label(_win, "%d / %d" % [_page + 1, pages], Vector2(310, 40), Vector2(34, 14), 9)
+		pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pl.set_meta("temp", true)
+		UI.icon_button(_win, "ui_arrow_r", Vector2(345, 38), Vector2(17, 17), _turn_page.bind(1)).disabled = _page >= pages - 1
 	# 고른 장비의 설명과 단추
 	var item3 := _selected_item()
 	if item3.is_empty():
-		_info.text = _message if _message != "" else "장비를 누르면 설명이 나와요.   동전 %d   지우개 가루 %d" % [GameState.coins, GameState.dust]
+		_info.text = _message if _message != "" else "장비 %d / %d칸   동전 %d   지우개 가루 %d" % [
+			GameState.inventory.size(), GameState.bag_size, GameState.coins, GameState.dust]
+		if GameState.bag_size < GameState.BAG_MAX:
+			var cost := GameState.bag_expand_cost()
+			var tl := _label(_win, "칸 늘리기 +%d" % GameState.BAG_STEP, Vector2(100, 215), Vector2(72, 14), 9)
+			tl.set_meta("temp", true)
+			_button(_win, "동전 %d" % int(cost[0]), Vector2(172, 211), Vector2(64, 20), _expand.bind("coins")).disabled = GameState.coins < int(cost[0])
+			_button(_win, "지우개 가루 %d" % int(cost[1]), Vector2(240, 211), Vector2(88, 20), _expand.bind("dust")).disabled = GameState.dust < int(cost[1])
 		return
 	_info.text = Items.describe(item3).replace("\n", "   ")
 	if selected >= 0:
@@ -245,6 +226,17 @@ func _materials_grid() -> void:
 		GameState.level, GameState.exp, GameState.exp_needed(), GameState.pencil_lead, GameState.coins, GameState.dust]
 
 
+func _turn_page(d: int) -> void:
+	_page += d
+	selected = -1
+	refresh()
+
+
+func _expand(with: String) -> void:
+	_message = "가방이 %d칸으로 늘었어요." % (GameState.bag_size + GameState.BAG_STEP) if GameState.expand_bag(with) else "값이 모자라요."
+	refresh()
+
+
 func _select(i: int) -> void:
 	selected = i
 	_message = ""
@@ -265,7 +257,7 @@ func _selected_item() -> Dictionary:
 ## 입기·분해·벗기 단추는 창에 직접 붙이므로 따로 지운다
 func _clear_action_buttons() -> void:
 	for c in _win.get_children():
-		if c is Button and not _tab_buttons.has(c):
+		if (c is Button and not _tab_buttons.has(c) and not _fixed.has(c)) or c.has_meta("temp"):
 			c.queue_free()
 
 
@@ -334,7 +326,7 @@ func _refresh_shop() -> void:
 		for entry in Items.SHOP:
 			if typeof(entry) == TYPE_STRING:
 				var info: Array = Items.CONSUMABLES[entry]
-				_row(box, str(info[1]), "%s  (%d개 있음)  %s" % [info[0], GameState.consumable_count(str(entry)), info[3]],
+				_row(box, GameState.consumable_icon(str(entry)), "%s  (%d개 있음)  %s" % [info[0], GameState.consumable_count(str(entry)), info[3]],
 					[["%d" % int(info[2]), _buy.bind(entry), GameState.coins >= int(info[2])]])
 			else:
 				var arr: Array = entry
@@ -364,7 +356,8 @@ func _refresh_shop() -> void:
 				var r: Array = recipe[1]
 				icon_name = "equip_%s_%d" % [r[0], int(r[1])]
 				tint = Items.TIER_COLORS[int(r[2])]
-			_row(box, icon_name, "%s  ←  %s" % [recipe[0], ", ".join(parts)], [["만들기", _craft.bind(recipe), GameState.can_craft(recipe)]], tint)
+			_row(box, icon_name, "%s  ←  %s" % [recipe[0], ", ".join(parts)], [["그리기", _craft.bind(recipe), GameState.can_craft(recipe)]], tint)
+		wallet += "   직접 그려서 만들어요."
 	else:
 		var all: Array = []
 		for slot in Items.SLOTS:
@@ -391,9 +384,20 @@ func _sell(i: int) -> void:
 	refresh()
 
 
+## 직접 그려서 만들기 화면을 연다 (scripts/craft_canvas.gd)
 func _craft(recipe: Array) -> void:
-	_message = "%s 을(를) 만들었어요." % recipe[0] if GameState.craft(recipe) else "재료가 모자라요."
-	refresh()
+	if is_instance_valid(_canvas) or not GameState.can_craft(recipe):
+		return
+	_canvas = CraftCanvas.new()
+	_canvas.call("setup", recipe)
+	add_child(_canvas)
+	_canvas.connect("done", func(msg: String) -> void:
+		_message = msg
+		refresh())
+
+
+func is_drawing() -> bool:
+	return is_instance_valid(_canvas)
 
 
 func _enhance(item: Dictionary) -> void:

@@ -38,6 +38,8 @@ var skill_cd: Dictionary = {}   # 스킬 id → 남은 재사용 시간
 var _dash_timer := 0.0
 var _dash_dir := Vector2.ZERO
 var _fx: Dictionary = {}        # 방금 쓴 스킬의 효과 그림
+var _fx_tex: Dictionary = {}    # 효과 그림 (계속 쥐고 있어야 한다)
+var ult := 0.0                  # 필살기 게이지 (0 ~ 100)
 
 
 const Art := preload("res://scripts/art.gd")
@@ -50,6 +52,11 @@ const MP_REGEN := 1.0       # 초당
 const MP_PER_HIT := 2.0    # 기본 공격이 맞을 때마다
 const COMBO_WINDOW := 0.7  # 이 안에 다시 치면 연타가 이어진다
 const COMBO_FINISH_MULT := 1.5
+const FX_TIME := 0.3
+const ULT_MAX := 100.0
+const ULT_PER_HIT := 5.0   # 적을 맞힐 때마다
+const ULT_PER_HURT := 8.0  # 맞을 때마다
+const ULT_RANGE := 300.0   # 필살기가 닿는 거리 (화면 전체쯤)
 
 var _sprite: Sprite2D
 var _attack_sprite: Sprite2D
@@ -66,6 +73,9 @@ func _ready() -> void:
 		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
 		_attack_sprite.show_behind_parent = true
 		_attack_sprite.visible = false
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	for n in ["slash", "circle", "dot", "hatch", "press", "erase", "hit", "star"]:
+		_fx_tex[n] = Art.tex("fx_" + n)
 	max_hp = GameState.max_hp()
 	hp = max_hp
 	max_mp = GameState.max_mp()
@@ -159,6 +169,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			used = use_consumable(str(Items.QUICK_SLOTS[0]))
 		elif code == KEY_2:
 			used = use_consumable(str(Items.QUICK_SLOTS[1]))
+		elif code == KEY_V:
+			used = use_ultimate()
 		if used:
 			get_viewport().set_input_as_handled()
 
@@ -233,7 +245,7 @@ func use_skill(id: String, aim_override := Vector2.ZERO) -> bool:
 	_swing_dir = dir
 	_swing_timer = SWING_TIME
 	var mult := Items.skill_mult(id, rank)
-	_fx = {"id": id, "t": 0.3, "dir": dir, "from": global_position}
+	_fx = {"id": id, "t": FX_TIME, "dur": FX_TIME, "dir": dir, "from": global_position}
 	match id:
 		"slash":
 			# 앞으로 미끄러지며 지나가는 길의 적을 모두 벤다
@@ -279,6 +291,38 @@ func _enemies() -> Array:
 func _hit(enemy: Node2D, mult: float, dir: Vector2, ignore_defense: bool = false) -> void:
 	var roll: Array = GameState.roll_damage(mult, 0 if ignore_defense else int(enemy.get("defense")))
 	enemy.call("take_damage", int(roll[0]), dir, bool(roll[1]))
+	if GameState.skill_rank("ult") > 0:
+		ult = minf(ULT_MAX, ult + ULT_PER_HIT)
+
+
+# ---------- 필살기 (V) ----------
+
+## 게이지가 가득 차 있으면 필살기 화면(scripts/ultimate.gd)을 연다
+func use_ultimate() -> bool:
+	if GameState.skill_rank("ult") <= 0:
+		return false
+	if ult < ULT_MAX:
+		GameState.notify("필살기 게이지가 아직 차지 않았어요.")
+		return false
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("start_ultimate"):
+		hud.call("start_ultimate", self)
+	else:
+		finish_ultimate(0.5)
+	return true
+
+
+## 따라 그린 점수(0~1)만큼 강한 한 방을 화면의 모든 적에게 넣는다
+func finish_ultimate(score: float) -> void:
+	ult = 0.0
+	var mult := 3.0 + 7.0 * clampf(score, 0.0, 1.0)
+	_fx = {"id": "ult", "t": 0.6, "dur": 0.6, "dir": facing, "from": global_position}
+	_invuln = maxf(_invuln, 0.6)
+	for e in _enemies():
+		if is_instance_valid(e) and e.global_position.distance_to(global_position) <= ULT_RANGE:
+			_hit(e, mult, (e.global_position - global_position).normalized())
+	ult = 0.0
+	queue_redraw()
 
 
 func _nearest_in_cone(dir: Vector2, reach: float, cone_deg: float) -> Node2D:
@@ -336,6 +380,8 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
 	hp -= maxi(1, amount - GameState.defense())
+	if GameState.skill_rank("ult") > 0:
+		ult = minf(ULT_MAX, ult + ULT_PER_HURT)
 	_invuln = invuln_time
 	_knock = from_dir.normalized() * 160.0
 	hp_changed.emit(hp, max_hp)
@@ -385,31 +431,57 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(2, -6 + bob) + eye, Vector2(1, 2)), Color(0.1, 0.1, 0.15, a))
 
 
-## 스킬 효과: 그림이 없어서 연필선으로 그린다
+## 스킬 효과 그림 한 장을 가운데 기준으로 그린다. width 는 월드 크기.
+func _fx_draw(name: String, center: Vector2, angle: float, width: float, alpha: float, flip_y: bool = false) -> bool:
+	var t: Texture2D = _fx_tex.get(name)
+	if t == null:
+		return false
+	var size := Vector2(width, width * t.get_height() / float(t.get_width()))
+	draw_set_transform(center, angle, Vector2(1, -1 if flip_y else 1))
+	draw_texture_rect(t, Rect2(-size * 0.5, size), false, Color(1, 1, 1, alpha))
+	draw_set_transform(Vector2.ZERO)
+	return true
+
+
+## 스킬 효과 (assets/sprites/fx_*.png). 그림이 없으면 연필선으로 대신 그린다.
 func _draw_skill_fx() -> void:
 	if _fx.is_empty():
 		return
-	var a := clampf(float(_fx["t"]) / 0.3, 0.0, 1.0)
+	var a := clampf(float(_fx["t"]) / float(_fx.get("dur", FX_TIME)), 0.0, 1.0)   # 1 → 0
+	var p := 1.0 - a                                                              # 0 → 1
+	var fade := minf(1.0, a * 2.5)
 	var col := Color(0.2, 0.2, 0.25, a)
 	var d: Vector2 = _fx["dir"]
+	var up := Vector2(0, -8)
 	match str(_fx["id"]):
 		"slash":
 			var from: Vector2 = (_fx["from"] as Vector2) - global_position
-			draw_line(from + Vector2(0, -8), from + d * 80.0 + Vector2(0, -8), col, 3.0)
+			if not _fx_draw("slash", from + d * 40.0 + up, d.angle(), 92.0, fade, d.x < 0.0):
+				draw_line(from + up, from + d * 80.0 + up, col, 3.0)
 		"circle":
-			draw_arc(Vector2(0, -8), 48.0, 0, TAU, 28, col, 3.0)
+			if not _fx_draw("circle", up, p * TAU * 0.7, 104.0 * (0.75 + 0.25 * p), fade):
+				draw_arc(up, 48.0, 0, TAU, 28, col, 3.0)
 		"dot":
 			var to: Vector2 = (_fx["to"] as Vector2) - global_position
-			draw_line(Vector2(0, -8), to + Vector2(0, -8), Color(col, a * 0.5), 1.5)
-			draw_circle(to + Vector2(0, -8), 3.0, col)
+			var fly := minf(1.0, p * 1.8)
+			if not _fx_draw("dot", up.lerp(to + up, fly), d.angle(), 30.0, 1.0 if fly < 1.0 else 0.0, d.x < 0.0):
+				draw_circle(to + up, 3.0, col)
+			if fly >= 1.0:
+				_fx_draw("hit", to + up, 0.0, 22.0 + 14.0 * p, fade)
 		"hatch":
-			for i in 5:
-				var o := d.orthogonal() * (i - 2) * 5.0 + d * 26.0 + Vector2(0, -8)
-				draw_line(o - d.rotated(0.6) * 9.0, o + d.rotated(0.6) * 9.0, col, 2.0)
+			if not _fx_draw("hatch", d * 28.0 + up, d.angle() - 0.2 + 0.4 * p, 46.0, fade):
+				for i in 5:
+					var o := d.orthogonal() * (i - 2) * 5.0 + d * 26.0 + up
+					draw_line(o - d.rotated(0.6) * 9.0, o + d.rotated(0.6) * 9.0, col, 2.0)
 		"press":
-			draw_circle(d * 30.0 + Vector2(0, -6), 9.0 * a + 3.0, col)
+			if not _fx_draw("press", d * 30.0 + Vector2(0, -6), 0.0, 56.0 * (0.55 + 0.6 * p), fade):
+				draw_circle(d * 30.0 + Vector2(0, -6), 9.0 * a + 3.0, col)
 		"erase":
-			draw_arc(Vector2(0, -10), 16.0, 0, TAU, 20, Color(0.95, 0.6, 0.7, a), 2.5)
+			if not _fx_draw("erase", Vector2(0, -10), p * 0.6, 52.0 * (0.7 + 0.5 * p), fade):
+				draw_arc(Vector2(0, -10), 16.0, 0, TAU, 20, Color(0.95, 0.6, 0.7, a), 2.5)
+		"ult":
+			if not _fx_draw("star", Vector2(0, -10), p * 0.5, 70.0 + 420.0 * p, a):
+				draw_arc(Vector2(0, -10), 40.0 + 200.0 * p, 0, TAU, 40, Color(1.0, 0.85, 0.3, a), 4.0)
 
 
 func _draw_swing() -> void:

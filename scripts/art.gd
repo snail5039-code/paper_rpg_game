@@ -7,11 +7,30 @@ const DIR := "res://assets/sprites/"
 const SCALE := Vector2(1.0 / 3.0, 1.0 / 3.0)
 
 
+const DRAWN_DIR := "user://drawn/"
+static var _drawn: Dictionary = {}   # 내가 그린 아이콘 (이름 → 텍스처)
+
+
+## "drawn_" 으로 시작하는 이름은 플레이어가 직접 그린 그림이다 (user://drawn/ 에 저장).
 static func tex(name: String) -> Texture2D:
+	if name.begins_with("drawn_"):
+		if not _drawn.has(name):
+			var img := Image.new()
+			_drawn[name] = ImageTexture.create_from_image(img) if img.load(DRAWN_DIR + name + ".png") == OK else null
+		return _drawn[name]
 	var path := DIR + name + ".png"
 	if ResourceLoader.exists(path):
 		return load(path) as Texture2D
 	return null
+
+
+## 내가 그린 그림을 저장하고 이름을 돌려준다
+static func save_drawn(img: Image) -> String:
+	DirAccess.make_dir_recursive_absolute(DRAWN_DIR)
+	var name := "drawn_%d_%d" % [int(Time.get_unix_time_from_system()), randi() % 100000]
+	img.save_png(DRAWN_DIR + name + ".png")
+	_drawn[name] = ImageTexture.create_from_image(img)
+	return name
 
 
 ## 발(아래쪽 가운데)이 foot 위치에 오도록 Sprite2D 를 만들어 parent 에 붙인다.

@@ -5,6 +5,7 @@ const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const MapViewScript := preload("res://scripts/map_view.gd")
 const MenusScript := preload("res://scripts/menus.gd")
+const UltimateScript := preload("res://scripts/ultimate.gd")
 const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
@@ -25,6 +26,8 @@ var _map_view: Control
 var _points_badge: Label
 var _menus: Dictionary = {}
 var _quick: Array = []
+var _ult: Control              # 필살기 화면
+var _ult_slot: Array = []      # [틀, 아이콘, 가림막, 글]
 var _coin_label: Label
 var _lead_label: Label
 var _quest_label: Label
@@ -67,6 +70,9 @@ func _ready() -> void:
 
 	_build_quickbar(root)
 	_build_menus(root)
+	_ult = UltimateScript.new()
+	root.add_child(_ult)
+	add_to_group("hud")
 	_build_stats(root)
 	_build_map(root)
 	_build_dialogue(root)
@@ -160,12 +166,25 @@ func _build_menus(root: Control) -> void:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
+		m.connect("close_requested", toggle_menu.bind(k))
 		_menus[k] = m
 	_bag = _menus["bag"]
 
 
 ## 오른쪽 아래: 소모품 2칸(1, 2)과 스킬 3칸(Q, E, R)
 func _build_quickbar(root: Control) -> void:
+	var upos := Vector2(420, 292)
+	var frame := _tex_rect(root, "hud_slot_skill", upos, Vector2(34, 34))
+	var uicon := _tex_rect(root, "skill_ult", upos + Vector2(5, 5), Vector2(24, 24))
+	var ushade := ColorRect.new()
+	ushade.color = Color(0.15, 0.12, 0.15, 0.6)
+	ushade.position = upos + Vector2(4, 4)
+	ushade.size = Vector2(26, 26)
+	ushade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(ushade)
+	var ukey := _label(root, upos + Vector2(1, -5), 9)
+	ukey.text = "V"
+	_ult_slot = [frame, uicon, ushade, ukey]
 	var keys := ["1", "2", "Q", "E", "R"]
 	for i in 5:
 		var pos := Vector2(462 + i * 34 + (8 if i >= 2 else 0), 296)
@@ -186,8 +205,28 @@ func _build_quickbar(root: Control) -> void:
 		_quick.append([icon, shade, num_l])
 
 
+## 필살기를 시작한다 (플레이어가 부른다)
+func start_ultimate(player: Node) -> void:
+	if _any_window_open() or GameState.dialogue_open or GameState.cutscene or GameState.draw_mode:
+		return
+	_ult.call("start", player)
+
+
+func ultimate() -> Control:
+	return _ult
+
+
 func _refresh_quickbar() -> void:
 	var p := GameState.player_ref
+	# 필살기 칸: 배운 뒤에만 보인다. 게이지가 차오르고, 가득 차면 반짝인다.
+	var has_ult := GameState.skill_rank("ult") > 0
+	for n in _ult_slot:
+		(n as Control).visible = has_ult
+	if has_ult and is_instance_valid(p):
+		var g := clampf(float(p.get("ult")) / 100.0, 0.0, 1.0)
+		(_ult_slot[2] as ColorRect).size.y = 26.0 * (1.0 - g)
+		var glow := 1.0 + 0.25 * sin(Time.get_ticks_msec() / 120.0) if g >= 1.0 else 1.0
+		(_ult_slot[1] as Control).modulate = Color(glow, glow, glow * 0.8, 1.0 if g >= 1.0 else 0.6)
 	for i in _quick.size():
 		var q: Array = _quick[i]
 		var icon: TextureRect = q[0]
@@ -197,7 +236,7 @@ func _refresh_quickbar() -> void:
 		if i < 2:
 			var id := str(Items.QUICK_SLOTS[i])
 			var n := GameState.consumable_count(id)
-			_set_icon(icon, str(Items.CONSUMABLES[id][1]))
+			_set_icon(icon, GameState.consumable_icon(id))
 			icon.modulate = Color(1, 1, 1, 1.0 if n > 0 else 0.3)
 			num.text = str(n) if n > 0 else ""
 		else:

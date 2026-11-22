@@ -5,6 +5,9 @@ extends Node
 
 const MainScene := preload("res://scenes/main.tscn")
 const Items := preload("res://scripts/items.gd")
+const Art := preload("res://scripts/art.gd")
+const Pixel := preload("res://scripts/doodle_pixel.gd")
+const AiPixel := preload("res://scripts/ai_pixel.gd")
 const S := 640.0 / 1672.0
 const AIM := Vector2(10, 0)   # 조준 방향 (길이가 1보다 커야 조준으로 친다)
 
@@ -53,10 +56,27 @@ func dummy(offset: Vector2, hp: int = 9999) -> Node2D:
 	return m
 
 
+## 견본이 차지한 자리를 줄마다 가로선으로 덮는 선 (견본을 잘 따라 그린 그림 흉내)
+func trace_of(ref: Array) -> Array:
+	var out: Array = []
+	for y in Pixel.N:
+		var x0 := -1
+		var x1 := -1
+		for x in Pixel.N:
+			if ref[y][x]:
+				if x0 < 0:
+					x0 = x
+				x1 = x
+		if x0 >= 0:
+			out.append(PackedVector2Array([Vector2(x0 + 0.5, y + 0.5) / Pixel.N, Vector2(x1 + 0.5, y + 0.5) / Pixel.N]))
+	return out
+
+
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	_dir = args[0] if args.size() > 0 else ""
 	seed(12345)
+	AiPixel.enabled = false   # 테스트에서는 AI 를 부르지 않는다
 	GameState.save_path = "user://test_rpg_save.json"
 	GameState.quest = GameState.Quest.FIND_LEAD
 	GameState.intro_seen = true
@@ -292,6 +312,44 @@ func _run() -> void:
 	shop.call("_set_tab", 2)
 	await frames(3)
 	await shot("rpg_5_shop_craft.png")
+
+	print("[직접 그려서 만들기]")
+	var ref := Pixel.reference_mask(Art.tex("equip_tool_0"))
+	var good := trace_of(ref)
+	var q_good := Pixel.similarity(Pixel.silhouette(good), ref)
+	var q_bad := Pixel.similarity(Pixel.silhouette([PackedVector2Array([Vector2(0.05, 0.05), Vector2(0.08, 0.05)])]), ref)
+	check(q_good > 0.8 and q_bad == 0.0, "견본을 따라 그리면 점수가 높고 딴 데 그리면 0 (%.2f, %.2f)" % [q_good, q_bad])
+	var ring: Array = [PackedVector2Array([Vector2(0.3, 0.3), Vector2(0.7, 0.3), Vector2(0.7, 0.7), Vector2(0.3, 0.7), Vector2(0.3, 0.3)])]
+	var dot_img := Pixel.pixelize(ring, Pixel.PALETTE[0])
+	check(dot_img.get_pixel(16, 16).a > 0.9 and dot_img.get_pixel(16, 16) != Pixel.OUTLINE and dot_img.get_pixel(2, 2).a == 0.0,
+		"닫힌 선 안쪽은 색이 칠해지고 바깥은 투명")
+	GameState.materials = {2: 4, 0: 2}
+	GameState.pencil_lead = 3
+	shop.call("_craft", Items.RECIPES[3])
+	await frames(3)
+	var canvas: Control = shop.get("_canvas")
+	check(is_instance_valid(canvas), "만들기에서 그리기 화면이 열림")
+	canvas.set("strokes", good)
+	canvas.call("_update")
+	await frames(3)
+	await shot("rpg_8_craft_draw.png")
+	var n_before := GameState.inventory.size()
+	canvas.call("finish")
+	await frames(3)
+	var made: Dictionary = GameState.inventory[GameState.inventory.size() - 1]
+	var art := str(made.get("art", ""))
+	check(GameState.inventory.size() == n_before + 1 and art.begins_with("drawn_"), "그린 그림으로 장비가 만들어짐")
+	check(Items.icon(made) == art and Art.tex(art) != null and FileAccess.file_exists("user://drawn/" + art + ".png"), "내 그림이 아이콘이 되고 파일로 저장됨")
+	var plain: Dictionary = made.duplicate(true)
+	plain["bonus"] = 0
+	check(int(made["bonus"]) >= 16 and Items.main_value(made) > Items.main_value(plain), "잘 그리면 기본 능력이 오름 (+%d%%)" % int(made["bonus"]))
+	check(not is_instance_valid(canvas) or canvas.is_queued_for_deletion(), "완성하면 그리기 화면이 닫힘")
+	await shot("rpg_9_craft_done.png")
+	var band := GameState.consumable_count("bandage")
+	check(GameState.craft(Items.RECIPES[0], 0.7, art) and GameState.consumable_count("bandage") == band + 2 and GameState.consumable_icon("bandage") == art,
+		"소모품은 잘 그리면 2개가 나오고 내 그림이 아이콘이 됨")
+	GameState.custom_icons = {}
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://drawn/" + art + ".png"))
 	shop.call("_set_tab", 3)
 	await frames(3)
 	await shot("rpg_6_shop_enhance.png")
@@ -299,6 +357,61 @@ func _run() -> void:
 	await frames(3)
 	check(not get_tree().paused, "창을 닫으면 다시 움직임")
 	await shot("rpg_7_hud.png")
+
+	print("[가방 칸 늘리기]")
+	GameState.coins = 1000
+	GameState.dust = 24
+	check(GameState.bag_size == 24 and GameState.bag_expand_cost() == [150, 12], "처음 24칸, 늘리는 값은 동전 150 또는 가루 12")
+	check(GameState.expand_bag("coins") and GameState.bag_size == 30 and GameState.coins == 850, "동전으로 30칸")
+	check(GameState.expand_bag("dust") and GameState.bag_size == 36 and GameState.dust == 0, "지우개 가루로 36칸 (값은 두 배씩)")
+	check(not GameState.expand_bag("dust") and GameState.bag_size == 36, "값이 모자라면 늘지 않음")
+	var kept: Array = GameState.inventory.duplicate()
+	while GameState.inventory.size() < 36:
+		GameState.add_item(Items.make("hat", 0, 0, 1))
+	check(GameState.inventory.size() == 36 and not GameState.add_item(Items.make("hat", 0, 0, 1)), "늘어난 칸만큼 담기고 넘치면 못 담음")
+	hud.call("toggle_menu", "bag")
+	(hud.get("_menus")["bag"] as Control).call("_turn_page", 1)
+	await frames(3)
+	await shot("rpg_10_bag_page2.png")
+	hud.call("toggle_menu", "bag")
+	GameState.inventory = kept
+	await frames(2)
+
+	print("[필살기]")
+	GameState.level = maxi(GameState.level, 5)
+	GameState.skill_points = 1
+	check(GameState.learn_skill("ult") and str(GameState.skill_slots.find("ult")) == "-1", "필살기를 배움 (Q·E·R 칸에는 들어가지 않음)")
+	player.set("ult", 0.0)
+	check(not bool(player.call("use_ultimate")), "게이지가 비어 있으면 쓸 수 없음")
+	var big := dummy(Vector2(60, 0))
+	await frames(2)
+	player.call("_hit", big, 1.0, AIM)
+	check(is_equal_approx(float(player.get("ult")), 5.0), "적을 맞히면 게이지가 참")
+	player.set("ult", 100.0)
+	var big_hp := int(big.get("hp"))
+	check(bool(player.call("use_ultimate")), "게이지가 가득 차면 필살기를 씀")
+	var ult: Control = hud.call("ultimate")
+	await frames(20)
+	check(bool(ult.call("is_active")) and get_tree().paused, "컷인이 나오는 동안 게임이 멈춤")
+	await shot("rpg_11_ult_cutin.png")
+	for i in 200:
+		if str(ult.get("phase")) == "trace":
+			break
+		await frames(1)
+	ult.set("strokes", [ult.get("_guide")])
+	await frames(2)
+	await shot("rpg_12_ult_trace.png")
+	check(float(ult.call("measure")) > 0.9, "별을 따라 그리면 점수가 높음 (%.2f)" % float(ult.call("measure")))
+	ult.call("finish_trace")
+	for i in 200:
+		if not bool(ult.call("is_active")):
+			break
+		await frames(1)
+	await frames(4)
+	await shot("rpg_13_ult_burst.png")
+	check(not get_tree().paused and float(player.get("ult")) < 100.0, "끝나면 다시 움직이고 게이지가 비워짐")
+	check(big_hp - int(big.get("hp")) >= GameState.attack_power() * 5, "화면의 적에게 큰 피해 (%d)" % (big_hp - int(big.get("hp"))))
+	big.queue_free()
 
 	print("[저장/불러오기]")
 	var inv_n := GameState.inventory.size()
@@ -313,6 +426,7 @@ func _run() -> void:
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.inventory.size() == inv_n and GameState.equipped.has("hat"), "장비가 그대로")
 	check(GameState.skill_rank("slash") == rank and str(GameState.skill_slots[0]) == "slash", "스킬이 그대로")
+	check(GameState.bag_size == 36, "늘린 가방 칸이 그대로")
 	check(GameState.coins == coins and GameState.attack_power() > 0, "동전이 그대로이고 수치 계산이 됨 (공격력 %d)" % GameState.attack_power())
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))

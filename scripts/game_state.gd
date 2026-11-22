@@ -57,7 +57,11 @@ var consumables: Dictionary = {}  # 소모품 id → 개수
 var skill_points: int = 0
 var skill_ranks: Dictionary = {}  # 스킬 id → 단계
 var skill_slots: Array = ["", "", ""]   # Q, E, R 칸에 넣은 스킬
-const INVENTORY_SIZE := 24
+const INVENTORY_SIZE := 24        # 처음 가방 칸 수
+const BAG_STEP := 6               # 한 번 늘릴 때마다
+const BAG_MAX := 60
+var bag_size: int = INVENTORY_SIZE
+var custom_icons: Dictionary = {} # 소모품 id → 내가 그린 아이콘 이름
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
@@ -233,7 +237,7 @@ func gear(key: String) -> int:
 
 
 func add_item(item: Dictionary) -> bool:
-	if inventory.size() >= INVENTORY_SIZE:
+	if inventory.size() >= bag_size:
 		return false
 	inventory.append(item)
 	changed.emit()
@@ -258,7 +262,7 @@ func equip(index: int) -> bool:
 
 
 func unequip(slot: String) -> bool:
-	if not equipped.has(slot) or inventory.size() >= INVENTORY_SIZE:
+	if not equipped.has(slot) or inventory.size() >= bag_size:
 		return false
 	inventory.append(equipped[slot])
 	equipped.erase(slot)
@@ -346,7 +350,7 @@ func buy(entry: Variant) -> bool:
 		add_consumable(str(entry))
 		return true
 	var arr: Array = entry
-	if coins < int(arr[3]) or inventory.size() >= INVENTORY_SIZE:
+	if coins < int(arr[3]) or inventory.size() >= bag_size:
 		return false
 	coins -= int(arr[3])
 	add_item(Items.make(str(arr[0]), int(arr[1]), int(arr[2]), 1))
@@ -360,10 +364,41 @@ func can_craft(recipe: Array) -> bool:
 			return false
 	if pencil_lead < int(recipe[3]):
 		return false
-	return typeof(recipe[1]) == TYPE_STRING or inventory.size() < INVENTORY_SIZE
+	return typeof(recipe[1]) == TYPE_STRING or inventory.size() < bag_size
 
 
-func craft(recipe: Array) -> bool:
+## 가방 칸 늘리기 값: [동전, 지우개 가루]. 둘 중 하나로 낸다. 늘릴 때마다 두 배.
+func bag_expand_cost() -> Array:
+	var n := (bag_size - INVENTORY_SIZE) / BAG_STEP
+	return [150 * int(pow(2, n)), 12 * int(pow(2, n))]
+
+
+## with: "coins" 또는 "dust"
+func expand_bag(with: String) -> bool:
+	if bag_size >= BAG_MAX:
+		return false
+	var cost := bag_expand_cost()
+	if with == "coins":
+		if coins < int(cost[0]):
+			return false
+		coins -= int(cost[0])
+	else:
+		if dust < int(cost[1]):
+			return false
+		dust -= int(cost[1])
+	bag_size += BAG_STEP
+	changed.emit()
+	return true
+
+
+func consumable_icon(id: String) -> String:
+	var own := str(custom_icons.get(id, ""))
+	return own if own != "" else str(Items.CONSUMABLES[id][1])
+
+
+## quality: 견본과 얼마나 비슷하게 그렸는지 (0~1). art: 내가 그린 아이콘 이름.
+##   장비는 기본 능력이 최대 20% 오르고, 소모품은 0.6 이상이면 2개가 나온다.
+func craft(recipe: Array, quality: float = 0.0, art: String = "") -> bool:
 	if not can_craft(recipe):
 		return false
 	var mats: Dictionary = recipe[2]
@@ -371,10 +406,16 @@ func craft(recipe: Array) -> bool:
 		materials[int(id)] = material_count(int(id)) - int(mats[id])
 	pencil_lead -= int(recipe[3])
 	if typeof(recipe[1]) == TYPE_STRING:
-		add_consumable(str(recipe[1]))
+		add_consumable(str(recipe[1]), 2 if quality >= 0.6 else 1)
+		if art != "":
+			custom_icons[str(recipe[1])] = art
 	else:
 		var r: Array = recipe[1]
-		add_item(Items.make(str(r[0]), int(r[1]), int(r[2]), maxi(1, level)))
+		var item := Items.make(str(r[0]), int(r[1]), int(r[2]), maxi(1, level))
+		item["bonus"] = roundi(clampf(quality, 0.0, 1.0) * 20.0)
+		if art != "":
+			item["art"] = art
+		add_item(item)
 	changed.emit()
 	return true
 
@@ -501,6 +542,8 @@ func save_game() -> bool:
 		"skill_points": skill_points,
 		"skill_ranks": skill_ranks,
 		"skill_slots": skill_slots,
+		"bag_size": bag_size,
+		"custom_icons": custom_icons,
 		"current_map": current_map,
 		"visited": visited,
 		"home_cells": home_cells,
@@ -548,6 +591,9 @@ func load_game() -> bool:
 		consumables = data["consumables"]
 	if typeof(data.get("skill_ranks")) == TYPE_DICTIONARY:
 		skill_ranks = data["skill_ranks"]
+	bag_size = clampi(int(data.get("bag_size", INVENTORY_SIZE)), INVENTORY_SIZE, BAG_MAX)
+	if typeof(data.get("custom_icons")) == TYPE_DICTIONARY:
+		custom_icons = data["custom_icons"]
 	var slots: Variant = data.get("skill_slots", [])
 	if typeof(slots) == TYPE_ARRAY and (slots as Array).size() == 3:
 		skill_slots = slots
@@ -599,6 +645,8 @@ func reset_game() -> void:
 	skill_points = 0
 	skill_ranks = {}
 	skill_slots = ["", "", ""]
+	bag_size = INVENTORY_SIZE
+	custom_icons = {}
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false
