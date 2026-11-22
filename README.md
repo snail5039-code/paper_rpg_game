@@ -90,7 +90,6 @@ godot --headless --path . --script tools/import_art.gd -- tutorial
 - [결정 사항](docs/결정사항.md) — 지금 기준이 되는 문서
 - [세부 설정](docs/세부설정.md)
 - [개발 순서](docs/개발순서.md)
-- [기획안 v2](docs/기획안_v2.md)
 - [스토리](docs/스토리.md)
-- [개발 계획](docs/개발계획.md)
-- [MVP 체크리스트](docs/MVP_체크리스트.md)
+- [몬스터](docs/몬스터.md)
+- [도트 요구사항](docs/도트_요구사항.md)
