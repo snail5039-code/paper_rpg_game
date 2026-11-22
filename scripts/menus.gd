@@ -52,7 +52,7 @@ func _ready() -> void:
 	_win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_win)
 	UI.icon(_win, "ui_plaque", Vector2(150, 5), Vector2(120, 27), Color.WHITE, false)
-	var title := _label(_win, str(TITLES[kind]), Vector2(150, 9), Vector2(126, 20), 14)
+	var title := _label(_win, str(TITLES[kind]), Vector2(166, 10), Vector2(100, 20), 12)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_fixed.append(UI.icon_button(_win, "ui_close", Vector2(396, 0), Vector2(20, 20), func() -> void: close_requested.emit()))
 	var x := 66.0
