@@ -105,7 +105,13 @@ func _run() -> void:
 	hud.call("toggle_map")
 	await frames(3)
 	check(bool(hud.call("is_map_open")) and get_tree().paused, "M 지도를 열면 게임이 멈춤")
+	hud.call("toggle_map")
+	await frames(2)
 	GameState.current_map = "ch1_crossroad"
+	GameState.visited = ["ch1", "ch1_crossroad", "ch1_meadow"]
+	hud.call("toggle_map")
+	await frames(3)
+	check(GameState.visited.has("ch1_meadow") and not GameState.visited.has("ch1_gridwoods"), "가 본 화면만 지도에 그림으로 나옴")
 	await shot("field_2_map.png")
 	hud.call("toggle_map")
 	await frames(3)

@@ -48,6 +48,7 @@ var materials: Dictionary = {}   # 재료 번호(int) → 개수
 var stats: Dictionary = {"pressure": 0, "grit": 0, "finger": 0, "eye": 0}
 var stat_points: int = 0
 var current_map: String = "ch1"
+var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
 var home_cells: String = ""      # 내 마을 바닥 칸 (압축 + base64)
 var home_doodles: Array = []     # 내 마을 자유 낙서 (선마다 [x0, y0, x1, y1, ...])
@@ -109,6 +110,8 @@ func goto_map(map: String, tag: String = "") -> bool:
 	if scene == null or not scene.is_in_group("game_map"):
 		return false
 	current_map = map
+	if not visited.has(map):
+		visited.append(map)
 	spawn_tag = tag
 	has_saved_position = false
 	player_ref = null   # 옛 맵의 위치는 저장하지 않는다
@@ -259,6 +262,7 @@ func save_game() -> bool:
 		"stats": stats,
 		"stat_points": stat_points,
 		"current_map": current_map,
+		"visited": visited,
 		"home_cells": home_cells,
 		"home_doodles": home_doodles,
 		"home_intro_seen": home_intro_seen,
@@ -301,6 +305,11 @@ func load_game() -> bool:
 	current_map = str(data.get("current_map", "ch1"))
 	if not MAP_SCENES.has(current_map):
 		current_map = "ch1"
+	var seen: Variant = data.get("visited", [])
+	visited = seen if typeof(seen) == TYPE_ARRAY else []
+	for m in ["ch1", current_map]:
+		if not visited.has(m):
+			visited.append(m)
 	home_cells = str(data.get("home_cells", ""))
 	var doodles: Variant = data.get("home_doodles", [])
 	home_doodles = doodles if typeof(doodles) == TYPE_ARRAY else []
@@ -339,6 +348,7 @@ func reset_game() -> void:
 	home_cells = ""
 	home_doodles = []
 	home_intro_seen = false
+	visited = ["ch1"]
 	spawn_tag = ""
 	_update_pause()
 	var scene := get_tree().current_scene

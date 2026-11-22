@@ -3,6 +3,7 @@ extends CanvasLayer
 
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
+const MapViewScript := preload("res://scripts/map_view.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
 
@@ -18,8 +19,7 @@ var _stats_derived: Label
 var _stat_rows: Array = []
 var _mp_bar: ColorRect
 var _map: Control
-var _map_boxes: Dictionary = {}
-var _map_here: Label
+var _map_view: Control
 var _points_badge: Label
 var _bag_slots: Array = []
 var _bag_info: Label
@@ -325,30 +325,11 @@ func _build_map(root: Control) -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
 
-	# 화면 사이를 잇는 선
-	var cell := Vector2(86, 48)
-	var origin := Vector2(70, 56)
-	for pair in [["ch1", "ch1_crossroad"], ["ch1_meadow", "ch1_crossroad"], ["ch1_crossroad", "ch1_gridwoods"], ["ch1_crossroad", "ch1_erasedroad"]]:
-		var a := origin + Vector2(Data.CH1_LAYOUT[pair[0]]) * (cell + Vector2(12, 12)) + cell * 0.5
-		var b := origin + Vector2(Data.CH1_LAYOUT[pair[1]]) * (cell + Vector2(12, 12)) + cell * 0.5
-		var line := ColorRect.new()
-		line.color = Color(0.55, 0.45, 0.38)
-		line.position = Vector2(minf(a.x, b.x) - 1.5, minf(a.y, b.y) - 1.5)
-		line.size = Vector2(absf(a.x - b.x) + 3, absf(a.y - b.y) + 3)
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		win.add_child(line)
-	for id in Data.CH1_LAYOUT:
-		var box := ColorRect.new()
-		box.position = origin + Vector2(Data.CH1_LAYOUT[id]) * (cell + Vector2(12, 12))
-		box.size = cell
-		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		win.add_child(box)
-		var l := _dark_label(box, Vector2(0, 15), cell - Vector2(0, 15), 11)
-		l.text = str(Data.MAP_NAMES[id])
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_map_boxes[id] = box
-	_map_here = _dark_label(win, Vector2(0, 222), Vector2(420, 16), 12)
-	_map_here.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# 손으로 그린 듯한 지도 그림 (scripts/map_view.gd)
+	_map_view = MapViewScript.new()
+	_map_view.position = Vector2(55, 44)
+	_map_view.size = Vector2(310, 190)
+	win.add_child(_map_view)
 	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
 	foot.text = "M  닫기"
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -361,10 +342,7 @@ func toggle_map() -> void:
 	_map.visible = not _map.visible
 	GameState.set_menu_open(_map.visible)
 	if _map.visible:
-		for id in _map_boxes:
-			var here: bool = id == GameState.current_map
-			(_map_boxes[id] as ColorRect).color = Color(1.0, 0.82, 0.45) if here else Color(0.93, 0.87, 0.74)
-		_map_here.text = "지금 있는 곳: %s" % Data.MAP_NAMES.get(GameState.current_map, "?")
+		_map_view.call("refresh")
 
 
 func is_map_open() -> bool:
