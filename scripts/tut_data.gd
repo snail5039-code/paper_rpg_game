@@ -1,5 +1,9 @@
 extends RefCounted
 ## 튜토리얼 장 "연습 페이지" 의 맵 13장. 맵 하나가 한 가지를 가르친다 (scripts/tut_map.gd 가 읽는다).
+##   in, out: 들어오는 문과 나가는 문이 있는 변 ("left", "right", "top", "bottom"). 길이 이리저리 꺾인다:
+##       1 → 2      4 → 5        (1 에서 오른쪽, 2 에서 아래, 3 에서 오른쪽, 5 에서 위, 6 에서 위,
+##           ↓      ↑   ↓ …       7 에서 왼쪽, 8·9 에서 왼쪽, 10 에서 아래, 11 에서 오른쪽, 12·13 에서 오른쪽)
+##           3 → → ┘
 ##   bg: 배경 그림, npc: 그 맵의 선생 [이름, 그림(tnpc_N, portrait_tnpc_N), 자리(bg px)],
 ##   monsters: [[종류, 자리], ...], lessons: 차례로 하는 할 일들 (tut_map.gd 의 LESSONS 에 설명이 있다),
 ##   intro: 처음 말을 걸었을 때, done: 다 해냈을 때 하는 말,
@@ -8,7 +12,7 @@ extends RefCounted
 
 const MAPS := [
 	{
-		"name": "표지 안쪽", "bg": "bg_tut_1", "npc": ["이름표 아저씨", "tnpc_1", Vector2(836, 380)],
+		"name": "표지 안쪽", "bg": "bg_tut_1", "in": "", "out": "right", "npc": ["이름표 아저씨", "tnpc_1", Vector2(836, 380)],
 		"monsters": [["tm1", Vector2(420, 640)], ["tm1", Vector2(1200, 660)]],
 		"lessons": ["move"],
 		"intro": ["어이쿠, 손님이네! 여기는 공책 표지 안쪽이야.",
@@ -17,8 +21,8 @@ const MAPS := [
 		"done": ["오른쪽 문으로 나가면 연습 페이지가 열두 장 더 있어.", "한 장에 하나씩만 배우면 돼. 천천히 가 봐!"],
 	},
 	{
-		"name": "줄 공책 길", "bg": "bg_tut_2", "npc": ["받아쓰기 선생", "tnpc_2", Vector2(500, 300)],
-		"monsters": [["tm2", Vector2(820, 560)], ["tm2", Vector2(1100, 360)], ["tm2", Vector2(1250, 640)], ["tm2", Vector2(650, 680)]],
+		"name": "줄 공책 길", "bg": "bg_tut_2", "in": "left", "out": "bottom", "npc": ["받아쓰기 선생", "tnpc_2", Vector2(480, 340)],
+		"monsters": [["tm2", Vector2(1150, 300)], ["tm2", Vector2(1350, 560)], ["tm2", Vector2(1100, 700)], ["tm2", Vector2(450, 700)]],
 		"lessons": ["attack"],
 		"intro": ["자, 받아쓰기 시간! …이 아니라 연필 쓰는 시간이에요.",
 			"줄 위를 돌아다니는 저 녀석들은 '오타'예요. 틀린 글씨가 뭉쳐서 생겼죠.",
@@ -27,9 +31,9 @@ const MAPS := [
 		"done": ["참 잘했어요! 세 번째 타격이 묵직했죠? 그게 연타예요."],
 	},
 	{
-		"name": "모눈 징검다리", "bg": "bg_tut_3", "npc": ["자 누나", "tnpc_3", Vector2(420, 410)],
-		"monsters": [["tm3", Vector2(900, 470)], ["tm3", Vector2(1250, 430)]],
-		"solids": [Rect2(96, 96, 1480, 250), Rect2(96, 596, 1480, 249)],
+		"name": "모눈 징검다리", "bg": "bg_tut_3", "in": "top", "out": "right", "npc": ["자 누나", "tnpc_3", Vector2(790, 300)],
+		"monsters": [["tm3", Vector2(1100, 480)], ["tm3", Vector2(1400, 480)]],
+		"solids": [Rect2(96, 96, 630, 749), Rect2(950, 96, 626, 290), Rect2(726, 570, 850, 275)],
 		"lessons": ["dodge"],
 		"intro": ["거기 서! 물에 빠지면 번져서 큰일 나.",
 			"저 '압정'들은 몸을 납작하게 움츠렸다가 쏜살같이 튀어 와. 맞으면 따끔해.",
@@ -38,7 +42,7 @@ const MAPS := [
 		"done": ["그거야! 눈으로 보고 피하는 게 제일 중요해. 급할 땐 일단 굴러."],
 	},
 	{
-		"name": "스티커 언덕", "bg": "bg_tut_4", "npc": ["스티커 할머니", "tnpc_4", Vector2(520, 320)],
+		"name": "스티커 언덕", "bg": "bg_tut_4", "in": "left", "out": "right", "npc": ["스티커 할머니", "tnpc_4", Vector2(520, 320)],
 		"monsters": [["tm4", Vector2(900, 600)], ["tm4", Vector2(1200, 380)], ["tm4", Vector2(760, 420)]],
 		"lessons": ["stat"],
 		"intro": ["아이고, 잘 왔다. 잘한 아이한테는 스티커를 붙여 줘야지.",
@@ -48,8 +52,8 @@ const MAPS := [
 		"done": ["옳지! 남은 점수는 아껴 둬도 되고 다 써도 돼. 나중에 떨어진 스티커들도 혼내 주렴."],
 	},
 	{
-		"name": "허수아비 마당", "bg": "bg_tut_5", "npc": ["허수 아저씨", "tnpc_5", Vector2(420, 330)],
-		"monsters": [["tm5", Vector2(850, 400)], ["tm5", Vector2(1100, 560)], ["tm5", Vector2(1250, 330)]],
+		"name": "허수아비 마당", "bg": "bg_tut_5", "in": "left", "out": "top", "npc": ["허수 아저씨", "tnpc_5", Vector2(560, 600)],
+		"monsters": [["tm5", Vector2(1100, 310)], ["tm5", Vector2(1360, 390)], ["tm5", Vector2(1150, 620)]],
 		"lessons": ["trial", "learn"],
 		"intro": ["어서 와! 여긴 마음껏 두들겨도 되는 마당이야. 저 허수아비들은 안 아파해.",
 			"지금부터 잠깐, 연필로 할 수 있는 기술을 전부 열어 줄게. MP 도 안 줄어!",
@@ -61,8 +65,8 @@ const MAPS := [
 		"done": ["좋아! 스킬은 MP 를 써. MP 는 가만있어도 차고, 때리면 더 빨리 차."],
 	},
 	{
-		"name": "별표 광장", "bg": "bg_tut_6", "npc": ["별이", "tnpc_6", Vector2(836, 300)],
-		"monsters": [["tm6", Vector2(600, 600)], ["tm6", Vector2(1050, 620)], ["tm6", Vector2(1250, 400)], ["tm6", Vector2(450, 420)]],
+		"name": "별표 광장", "bg": "bg_tut_6", "in": "bottom", "out": "top", "npc": ["별이", "tnpc_6", Vector2(430, 470)],
+		"monsters": [["tm6", Vector2(1150, 300)], ["tm6", Vector2(1250, 620)], ["tm6", Vector2(1380, 450)], ["tm6", Vector2(420, 700)]],
 		"lessons": ["ult"],
 		"intro": ["반짝! 여기는 중요한 데 치는 별표 광장이야.",
 			"적을 때리거나 맞으면 노란 게이지가 차. 다 차면 V! 필살기 '밑그림'이야.",
@@ -71,9 +75,9 @@ const MAPS := [
 		"done": ["우와, 멋지다! 진짜 필살기는 필력 5 가 되면 스킬 창에서 배울 수 있어."],
 	},
 	{
-		"name": "필통 가게", "bg": "bg_tut_7", "npc": ["필통 아줌마", "tnpc_7", Vector2(836, 330)],
-		"monsters": [["tm7", Vector2(450, 680)], ["tm7", Vector2(1250, 680)]],
-		"solids": [Rect2(520, 96, 640, 180)],
+		"name": "필통 가게", "bg": "bg_tut_7", "in": "bottom", "out": "left", "npc": ["필통 아줌마", "tnpc_7", Vector2(836, 430)],
+		"monsters": [["tm7", Vector2(1300, 660)], ["tm7", Vector2(320, 700)]],
+		"solids": [Rect2(490, 96, 720, 265)],
 		"lessons": ["equip", "potion"],
 		"intro": ["어머, 맨머리로 다니네! 그러다 다쳐요.",
 			"이 야구 모자 써 봐요. I 를 누르면 가방이 열려요. 모자를 두 번 누르면 써져요.",
@@ -83,7 +87,7 @@ const MAPS := [
 		"done": ["다치면 참지 말고 붙여요. 가방에서 물건을 오른쪽 클릭하면 설명이 나와요."],
 	},
 	{
-		"name": "풀칠 작업대", "bg": "bg_tut_8", "npc": ["풀 아저씨", "tnpc_8", Vector2(836, 340)],
+		"name": "풀칠 작업대", "bg": "bg_tut_8", "in": "right", "out": "left", "npc": ["풀 아저씨", "tnpc_8", Vector2(836, 340)],
 		"monsters": [["tm8", Vector2(480, 680)], ["tm8", Vector2(1200, 680)]],
 		"solids": [Rect2(380, 96, 900, 190)],
 		"lessons": ["craft", "enhance"],
@@ -96,7 +100,7 @@ const MAPS := [
 		"done": ["좋아, 손이 야무지네. 안 쓰는 장비를 분해하면 지우개 가루가 나와."],
 	},
 	{
-		"name": "낙서 풀밭", "bg": "bg_tut_9", "npc": ["잎새", "tnpc_9", Vector2(450, 330)],
+		"name": "낙서 풀밭", "bg": "bg_tut_9", "in": "right", "out": "left", "npc": ["잎새", "tnpc_9", Vector2(450, 330)],
 		"monsters": [["tm9", Vector2(900, 560)], ["tm9", Vector2(1200, 380)], ["tm9", Vector2(700, 640)]],
 		"lessons": ["capture"],
 		"intro": ["쉿… 저 낙서 토끼들 좀 봐. 반쯤 지워져서 자기가 누군지도 몰라.",
@@ -106,10 +110,10 @@ const MAPS := [
 			"바깥에서 이렇게 다시 그려 준 낙서는 친구가 돼서 같이 싸워 줘."],
 	},
 	{
-		"name": "물감 웅덩이", "bg": "bg_tut_10", "npc": ["붓 할아범", "tnpc_10", Vector2(620, 560)],
-		"monsters": [["tm10", Vector2(1150, 640)], ["tm10", Vector2(820, 680)]],
-		"solids": [Rect2(410, 96, 840, 330)],
-		"spots": {"fish": Vector2(1000, 520), "cast": Vector2(-170, -200)},
+		"name": "물감 웅덩이", "bg": "bg_tut_10", "in": "right", "out": "bottom", "npc": ["붓 할아범", "tnpc_10", Vector2(480, 540)],
+		"monsters": [["tm10", Vector2(1300, 700)], ["tm10", Vector2(380, 720)]],
+		"solids": [Rect2(410, 96, 830, 330)],
+		"spots": {"fish": Vector2(990, 490), "cast": Vector2(-150, -210)},
 		"lessons": ["fish"],
 		"intro": ["허허, 조용히 하게. 물고기 달아나.",
 			"저 표지판 앞에서 F 를 누르면 낚싯대를 던져. 찌가 쑥 들어가며 느낌표가 뜨면 F!",
@@ -117,10 +121,10 @@ const MAPS := [
 		"done": ["월척이구먼! 낮과 밤에 낚이는 게 달라. 먹어도 되고 팔아도 돼."],
 	},
 	{
-		"name": "색종이 텃밭", "bg": "bg_tut_11", "npc": ["색종이 아주머니", "tnpc_11", Vector2(836, 470)],
-		"monsters": [["tm11", Vector2(450, 650)], ["tm11", Vector2(1250, 650)]],
-		"solids": [Rect2(570, 110, 700, 280)],
-		"spots": {"forage": [Vector2(380, 430), Vector2(1400, 620), Vector2(650, 720)]},
+		"name": "색종이 텃밭", "bg": "bg_tut_11", "in": "top", "out": "right", "npc": ["색종이 아주머니", "tnpc_11", Vector2(480, 440)],
+		"monsters": [["tm11", Vector2(700, 720)], ["tm11", Vector2(1300, 680)]],
+		"solids": [Rect2(110, 110, 670, 250)],
+		"spots": {"forage": [Vector2(300, 620), Vector2(1100, 660), Vector2(1400, 330)]},
 		"lessons": ["forage", "farm", "cook"],
 		"intro": ["어서 와요, 일손이 모자랐는데 잘됐네!",
 			"먼저 저기 풀이랑 열매 보이죠? 다가가서 F 를 누르면 낫으로 베어 가져와요. 하나만 주워 봐요."],
@@ -131,7 +135,7 @@ const MAPS := [
 		"done": ["맛있겠다! 낚시, 농사, 요리는 내 마을에 건물을 지으면 언제든 할 수 있어요."],
 	},
 	{
-		"name": "빈 모눈종이", "bg": "bg_tut_12", "npc": ["삼각자 목수", "tnpc_12", Vector2(480, 340)],
+		"name": "빈 모눈종이", "bg": "bg_tut_12", "in": "left", "out": "right", "npc": ["삼각자 목수", "tnpc_12", Vector2(480, 340)],
 		"monsters": [["tm12", Vector2(1250, 650)], ["tm12", Vector2(450, 660)]],
 		"spots": {"lot": Vector2(836, 340)},
 		"lessons": ["build", "sleep"],
@@ -143,7 +147,7 @@ const MAPS := [
 		"done": ["잘 잤나? 나중에 네 마을이 생기면 N 을 눌러서 이렇게 지으면 돼."],
 	},
 	{
-		"name": "마지막 장", "bg": "bg_tut_13", "npc": ["빨간펜 선생님", "tnpc_13", Vector2(360, 470)],
+		"name": "마지막 장", "bg": "bg_tut_13", "in": "left", "out": "right", "npc": ["빨간펜 선생님", "tnpc_13", Vector2(360, 470)],
 		"monsters": [["tm13", Vector2(1150, 470)]],
 		"lessons": ["boss"],
 		"intro": ["여기까지 왔군요. 마지막은 시험이에요.",

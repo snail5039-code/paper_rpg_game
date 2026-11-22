@@ -44,6 +44,8 @@ static func look(sp: String) -> Array:
 	var tint: Color = info.get("tint", Color.WHITE)
 	if str(cfg["art"]) == "strip":
 		return [Art.tex("mon_" + str(cfg["sprite"])), 6, tint]
+	if str(cfg["art"]) == "single":
+		return [Art.tex(str(cfg["sprite"])), 1, tint]
 	return [Art.tex(str(cfg["sprite"]) + "_idle"), 1, tint]
 
 

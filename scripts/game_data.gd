@@ -130,6 +130,7 @@ const CH1_LAYOUT := {
 	"ch1_gridwoods": Vector2i(2, 1), "ch1_erasedroad": Vector2i(1, 2), "ch1_bossroom": Vector2i(1, 3),
 }
 const MAP_NAMES := {
+	"tut_1": "연습 페이지 1", "tut_2": "연습 페이지 2", "tut_3": "연습 페이지 3", "tut_4": "연습 페이지 4", "tut_5": "연습 페이지 5", "tut_6": "연습 페이지 6", "tut_7": "연습 페이지 7", "tut_8": "연습 페이지 8", "tut_9": "연습 페이지 9", "tut_10": "연습 페이지 10", "tut_11": "연습 페이지 11", "tut_12": "연습 페이지 12", "tut_13": "연습 페이지 13",
 	"home": "내 마을", "ch1": "공책 마을", "ch1_meadow": "들판", "ch1_crossroad": "갈림길",
 	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길", "ch1_bossroom": "구깃이의 방", "home_room": "내 집",
 }

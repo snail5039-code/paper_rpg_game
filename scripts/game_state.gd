@@ -937,6 +937,9 @@ func sleep() -> void:
 ## 쓰러졌다: 연필심의 10%를 잃고, 내 마을이 열려 있으면 내 마을로 돌아간다.
 ## 돌려주는 것: 내 마을로 옮겨 갔으면 true (false 면 그 맵의 입구에서 다시 시작)
 func on_player_death() -> bool:
+	if current_map.begins_with("tut_"):
+		notify("쓰러졌다…  연습 페이지에서는 잃는 것이 없어요. 다시 해 봐요!")
+		return false      # 연습 페이지에서는 연필심을 잃지 않고 그 맵의 입구에서 다시 시작한다
 	var lost := pencil_lead / 10
 	pencil_lead -= lost
 	notify("쓰러졌다…  연필심 %d개를 잃었어요." % lost if lost > 0 else "쓰러졌다…")

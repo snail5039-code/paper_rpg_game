@@ -8,6 +8,8 @@ const Items := preload("res://scripts/items.gd")
 const Data := preload("res://scripts/game_data.gd")
 const Tut := preload("res://scripts/tut_data.gd")
 const DIR := "user://test_lessons/"
+## 나가는 문 바로 밖 (bg px)
+const OUT_AT := {"right": Vector2(1662, 470), "left": Vector2(10, 470), "top": Vector2(836, 10), "bottom": Vector2(836, 931)}
 
 var passed := 0
 var failed := 0
@@ -74,7 +76,7 @@ func talk(first: String) -> bool:
 ## 오른쪽 문으로 걸어 나가 다음 맵으로
 func go_next(n: int) -> bool:
 	var p: Node2D = GameState.player_ref
-	p.global_position = Vector2(1662.0, 470.0) * float(map().get("WORLD_PER_BG"))
+	p.global_position = OUT_AT[str(map().call("gate_out"))] * float(map().get("WORLD_PER_BG"))
 	for i in 200:
 		await frames(1)
 		if GameState.current_map == "tut_%d" % n and is_instance_valid(map()) and int(map().get("map_no")) == n:
@@ -126,6 +128,15 @@ func _run() -> void:
 		names[str(m2["npc"][0])] = true
 		kinds[str(m2["monsters"][0][0])] = true
 	check(names.size() == 13 and kinds.size() == 13, "맵마다 선생과 몬스터가 다름")
+	var outs := {}
+	var joined := true
+	var opposite := {"left": "right", "right": "left", "top": "bottom", "bottom": "top"}
+	for i in Tut.MAPS.size():
+		outs[str(Tut.MAPS[i]["out"])] = true
+		if i > 0 and str(Tut.MAPS[i]["in"]) != str(opposite[str(Tut.MAPS[i - 1]["out"])]):
+			joined = false
+	check(outs.size() == 4, "나가는 문이 오른쪽, 왼쪽, 위, 아래 네 방향 모두 나옴")
+	check(joined, "앞 맵에서 나간 방향의 반대쪽으로 다음 맵에 들어옴")
 
 	print("[1 표지 안쪽: 이동, 말 걸기]")
 	var hud: Node = map().get("hud")

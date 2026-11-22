@@ -233,8 +233,9 @@ func _run() -> void:
 	await frames(2)
 	check(not bool(hud0.call("is_bag_open")) and not get_tree().paused, "가방을 닫으면 다시 움직임")
 	var kinds := {}
-	for e in get_tree().get_nodes_in_group("enemies"):
-		kinds[str(e.get("kind"))] = true
+	# 방금 쓰러뜨린 몬스터는 몇 초 뒤에 다시 나오므로, 지금 살아 있는 것이 아니라 마을에 사는 종류를 센다
+	for sp in world.get("MONSTER_SPAWNS"):
+		kinds[str(sp[0])] = true
 	check(kinds.size() >= 2, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
 	player.set("hp", player.get("max_hp"))
 

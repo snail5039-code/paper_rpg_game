@@ -1,8 +1,9 @@
 extends Node2D
 ## 튜토리얼 장 "연습 페이지" 의 맵 한 장 (13장이 같은 장면을 쓴다). 맵마다 선생 한 명, 그 맵의 몬스터, 할 일이 있다.
 ##  - 어느 맵인지는 GameState.current_map ("tut_1" ~ "tut_13"), 내용은 scripts/tut_data.gd 의 MAPS.
-##  - 선생에게 말을 걸면 할 일을 준다. 다 해내면 도장이 찍히고 오른쪽 문이 열린다.
-##  - 왼쪽 문으로 앞 맵에 돌아갈 수 있다. 13장을 끝내고 오른쪽으로 나가면 1장 공책 마을로 간다.
+##  - 선생에게 말을 걸면 할 일을 준다. 다 해내면 도장이 찍히고 나가는 문이 열린다.
+##  - 문은 맵마다 다른 변에 있다 (tut_data.gd 의 "in", "out"): 길이 오른쪽, 아래, 위, 왼쪽으로 꺾인다.
+##  - 들어온 문으로 앞 맵에 돌아갈 수 있다. 13장을 끝내고 나가면 1장 공책 마을로 간다.
 ##  - 진행은 GameState.tut_cleared (끝낸 맵 수) 와 GameState.lesson (지금 하는 할 일) 에 저장된다.
 ##
 ## 위치는 전부 "bg px"(배경 1672×941 픽셀 좌표)로 적고 bg() 로 월드 좌표로 바꾼다.
@@ -26,9 +27,11 @@ const WORLD_PER_BG := 900.0 / 1672.0
 const CAMERA_ZOOM := 1.5
 const RESPAWN_SEC := 5.0
 const PLAY := Rect2(96, 96, 1480, 749)     # 테두리 안쪽 (걸을 수 있는 곳)
-const GATE_HALF_H := 105.0
+const GATE_HALF_H := 105.0     # 왼쪽·오른쪽 문의 반높이
+const GATE_HALF_W := 110.0     # 위·아래 문의 반폭
 const EXIT_MARGIN := 30.0
-const ARRIVE := {"left": Vector2(170, 470), "right": Vector2(1500, 470)}
+const ARRIVE := {"left": Vector2(170, 470), "right": Vector2(1500, 470), "top": Vector2(836, 170), "bottom": Vector2(836, 770)}
+const SIDES := ["left", "right", "top", "bottom"]
 
 ## 할 일마다: 왼쪽 위의 글 (%d 는 지금까지 한 수), 아래쪽 키 안내, 몇 번 해야 하는지, 무엇을 세는지
 const LESSONS := {
@@ -119,9 +122,9 @@ func _ready() -> void:
 
 	player = PlayerScene.instantiate()
 	var arrive := str(GameState.spawn_tag).trim_prefix("gate_")
-	if not ARRIVE.has(arrive):
-		arrive = "left"
-	var start: Vector2 = bg(ARRIVE[arrive]) if map_no > 1 or arrive == "right" else bg(Vector2(500, 600))
+	if not ARRIVE.has(arrive) or (arrive != gate_in() and arrive != gate_out()):
+		arrive = gate_in()
+	var start: Vector2 = bg(ARRIVE[arrive]) if arrive != "" else bg(Vector2(500, 600))
 	player.set("spawn_point", start)
 	player.position = GameState.saved_position if GameState.has_saved_position and GameState.spawn_tag == "" else start
 	GameState.spawn_tag = ""
@@ -160,6 +163,18 @@ func _exit_tree() -> void:
 		GameState.end_trial()
 
 
+## 들어오는 문과 나가는 문이 있는 변 ("" 은 없음: 첫 맵은 들어오는 문이 없다)
+func gate_in() -> String:
+	return str(cfg.get("in", "left"))
+
+
+func gate_out() -> String:
+	return str(cfg.get("out", "right"))
+
+
+const SIDE_NAMES := {"left": "왼쪽", "right": "오른쪽", "top": "위쪽", "bottom": "아래쪽"}
+
+
 ## 이 맵의 할 일을 다 끝냈는지
 func cleared() -> bool:
 	return GameState.tut_cleared >= map_no
@@ -190,10 +205,11 @@ func _show() -> void:
 			text = line
 		hints = info["hints"]
 	elif cleared():
-		text = head + "   (오른쪽 문이 열렸다)" if map_no < Tut.MAPS.size() else head + "   (오른쪽으로 나가면 공책 마을)"
-		hints = [["key_wasd", "오른쪽 문으로"]]
+		var side := str(SIDE_NAMES[gate_out()])
+		text = head + "   (%s 문이 열렸다)" % side if map_no < Tut.MAPS.size() else head + "   (%s으로 나가면 공책 마을)" % side
+		hints = [["key_wasd", "%s 문으로" % side]]
 	else:
-		text = "할 일: %s 에게 말 걸기" % cfg["npc"][0]
+		text = "할 일: %s에게 말 걸기" % cfg["npc"][0]
 	if str(hud.get("quest_text_override")) != text:
 		hud.set("quest_text_override", text)
 		GameState.changed.emit()
@@ -209,6 +225,8 @@ func _process(delta: float) -> void:
 		return
 	_t = 0.0
 	var id := _lesson()
+	if id == "ult" and is_instance_valid(player) and float(player.get("ult")) < 100.0:
+		player.set("ult", 100.0)      # 필살기 연습: 그만두거나 빗나가도 바로 다시 쓸 수 있게 게이지를 채워 둔다
 	if id != "" and _done(id):
 		_finish(id)
 
@@ -261,15 +279,14 @@ func _talk() -> void:
 		if id == "craft" or id == "enhance":
 			(hud.call("menu", "shop") as Control).call("_set_tab", 2 if id == "craft" else 3)
 		return
-	_busy = true
-	await _say(["아직이야. 화면 왼쪽 위의 할 일을 봐!"])
-	_busy = false
+	GameState.notify("아직 할 일이 남았어요. 화면 왼쪽 위를 보세요.")
 
 
 ## 할 일을 시작한다: 필요한 것을 쥐여 준다
 func _begin(id: String) -> void:
 	GameState.set_lesson(id)
-	_counts = {}
+	# 말을 걸기 전에 보스를 먼저 쓰러뜨렸으면 그것은 그대로 쳐 준다 (보스는 다시 나오지 않는다)
+	_counts = {"boss": 1} if int(_counts.get("boss", 0)) > 0 else {}
 	var p: Node = GameState.player_ref
 	match id:
 		"stat":
@@ -409,22 +426,42 @@ func _use_lot() -> void:
 
 # ---------- 문과 충돌 ----------
 
+## 변마다 문이 뚫릴 자리 (bg px). 문이 없는 변은 통째로 막는다.
+func _gate_rect(side: String) -> Rect2:
+	var w := BG_SIZE.x
+	var h := BG_SIZE.y
+	match side:
+		"left": return Rect2(0, h * 0.5 - GATE_HALF_H, PLAY.position.x, GATE_HALF_H * 2.0)
+		"right": return Rect2(PLAY.end.x, h * 0.5 - GATE_HALF_H, w - PLAY.end.x, GATE_HALF_H * 2.0)
+		"top": return Rect2(w * 0.5 - GATE_HALF_W, 0, GATE_HALF_W * 2.0, PLAY.position.y)
+	return Rect2(w * 0.5 - GATE_HALF_W, PLAY.end.y, GATE_HALF_W * 2.0, h - PLAY.end.y)
+
+
 func _build_collision() -> void:
 	var body := StaticBody2D.new()
 	body.name = "MapCollision"
 	add_child(body)
 	var w := BG_SIZE.x
 	var h := BG_SIZE.y
-	var cy := h * 0.5
-	var rects: Array = [Rect2(0, 0, w, PLAY.position.y), Rect2(0, PLAY.end.y, w, h - PLAY.end.y)]
-	for side in ["left", "right"]:
-		var x0 := 0.0 if side == "left" else PLAY.end.x
-		var x1 := PLAY.position.x if side == "left" else w
-		if side == "left" and map_no == 1:
-			rects.append(Rect2(x0, 0, x1 - x0, h))
+	var rects: Array = []
+	for side in SIDES:
+		var band: Rect2
+		match side:
+			"left": band = Rect2(0, 0, PLAY.position.x, h)
+			"right": band = Rect2(PLAY.end.x, 0, w - PLAY.end.x, h)
+			"top": band = Rect2(0, 0, w, PLAY.position.y)
+			_: band = Rect2(0, PLAY.end.y, w, h - PLAY.end.y)
+		if side != gate_in() and side != gate_out():
+			rects.append(band)
+			continue
+		# 문 자리만 비우고 양옆을 막는다
+		var hole := _gate_rect(side)
+		if side == "left" or side == "right":
+			rects.append(Rect2(band.position.x, 0, band.size.x, hole.position.y))
+			rects.append(Rect2(band.position.x, hole.end.y, band.size.x, h - hole.end.y))
 		else:
-			rects.append(Rect2(x0, 0, x1 - x0, cy - GATE_HALF_H))
-			rects.append(Rect2(x0, cy + GATE_HALF_H, x1 - x0, h - cy - GATE_HALF_H))
+			rects.append(Rect2(0, band.position.y, hole.position.x, band.size.y))
+			rects.append(Rect2(hole.end.x, band.position.y, w - hole.end.x, band.size.y))
 	rects.append(Rect2(-60, -60, w + 120, 60))
 	rects.append(Rect2(-60, h, w + 120, 60))
 	rects.append(Rect2(-60, 0, 60, h))
@@ -433,11 +470,13 @@ func _build_collision() -> void:
 		rects.append(r)
 	for r in rects:
 		body.add_child(_box(r))
-	# 오른쪽 문을 막는 벽 (할 일을 끝내면 치운다)
-	_gate = _box(Rect2(PLAY.end.x, cy - GATE_HALF_H, w - PLAY.end.x, GATE_HALF_H * 2.0))
+	# 나가는 문을 막는 벽 (할 일을 끝내면 치운다)
+	var out := _gate_rect(gate_out())
+	_gate = _box(out)
 	body.add_child(_gate)
 	_gate_mark = Node2D.new()
-	_gate_mark.position = bg(Vector2(PLAY.end.x + 10, cy))
+	_gate_mark.position = bg(out.get_center())
+	_gate_mark.rotation = {"right": 0.0, "bottom": PI * 0.5, "left": PI, "top": -PI * 0.5}[gate_out()]
 	_gate_mark.z_index = 5
 	_gate_mark.draw.connect(_draw_gate)
 	add_child(_gate_mark)
@@ -459,18 +498,29 @@ func _refresh_gate() -> void:
 		_gate_mark.queue_redraw()
 
 
-## 닫힌 문에는 빨간 점선, 열린 문에는 초록 화살표
+## 닫힌 문에는 빨간 점선, 열린 문에는 초록 화살표 (나가는 쪽을 가리킨다)
 func _draw_gate() -> void:
-	var half := GATE_HALF_H * WORLD_PER_BG
+	var up_down := gate_out() == "top" or gate_out() == "bottom"
+	var half := (GATE_HALF_W if up_down else GATE_HALF_H) * WORLD_PER_BG
 	if not cleared():
 		for i in 9:
 			var y := -half + i * half * 2.0 / 9.0
-			_gate_mark.draw_line(Vector2(0, y), Vector2(0, y + half * 0.13), Color(0.9, 0.3, 0.3, 0.9), 2.5)
+			_gate_mark.draw_line(Vector2(-14, y), Vector2(-14, y + half * 0.13), Color(0.9, 0.3, 0.3, 0.9), 2.5)
 		return
 	var bob := sin(Time.get_ticks_msec() / 250.0) * 3.0
-	var tip := Vector2(14 + bob, 0)
+	var tip := Vector2(6 + bob, 0)
 	_gate_mark.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-12, -9), tip + Vector2(-12, 9)]), Color(0.4, 0.8, 0.45, 0.95))
 	_gate_mark.draw_line(tip + Vector2(-26, 0), tip + Vector2(-10, 0), Color(0.4, 0.8, 0.45, 0.95), 5.0)
+
+
+## 주인공이 그 변의 문 밖으로 나갔는지
+func _past(side: String, p: Vector2) -> bool:
+	match side:
+		"left": return p.x < EXIT_MARGIN
+		"right": return p.x > BG_SIZE.x - EXIT_MARGIN
+		"top": return p.y < EXIT_MARGIN + 20.0
+		"bottom": return p.y > BG_SIZE.y - EXIT_MARGIN
+	return false
 
 
 func _physics_process(_delta: float) -> void:
@@ -479,15 +529,15 @@ func _physics_process(_delta: float) -> void:
 	if _leaving or not is_instance_valid(player):
 		return
 	var p := player.global_position / WORLD_PER_BG
-	if p.x > BG_SIZE.x - EXIT_MARGIN and cleared():
-		last_exit = "right"
+	if cleared() and _past(gate_out(), p):
+		last_exit = gate_out()
 		if map_no >= Tut.MAPS.size():
 			_leave_chapter()
 		else:
-			_leaving = GameState.goto_map(map_id(map_no + 1), "gate_left")
-	elif p.x < EXIT_MARGIN and map_no > 1:
-		last_exit = "left"
-		_leaving = GameState.goto_map(map_id(map_no - 1), "gate_right")
+			_leaving = GameState.goto_map(map_id(map_no + 1), "gate_" + str(Tut.MAPS[map_no].get("in", "left")))
+	elif map_no > 1 and _past(gate_in(), p):
+		last_exit = gate_in()
+		_leaving = GameState.goto_map(map_id(map_no - 1), "gate_" + str(Tut.MAPS[map_no - 2].get("out", "right")))
 
 
 ## 연습 페이지를 다 넘겼다: 1장 공책 마을로
