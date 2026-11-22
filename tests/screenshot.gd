@@ -101,7 +101,7 @@ func _run() -> void:
 	player.call("attack", Vector2.RIGHT)
 	await _frames(7)
 	await _shot("7_attack.png")
-	slime.call("take_damage", 5, Vector2.RIGHT)
+	slime.call("take_damage", 999, Vector2.RIGHT)
 	await _frames(9)
 	await _shot("8_slime_vanish.png")
 

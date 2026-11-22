@@ -188,7 +188,30 @@ func _run() -> void:
 	check(GameState.level > 5 and GameState.level <= GameState.MAX_LEVEL, "한 번에 여러 레벨이 오름 (필력 %d)" % GameState.level)
 	check(int(player.get("max_hp")) == GameState.max_hp() and int(player.get("hp")) == GameState.max_hp(),
 		"레벨 업하면 최대 HP 가 늘고 전부 회복 (%d)" % GameState.max_hp())
-	check(GameState.attack_power() > 1, "레벨이 오르면 공격력이 오름 (%d)" % GameState.attack_power())
+	check(GameState.stat_points == (GameState.level - 1) * 3, "레벨마다 능력치 포인트 3점 (%d점)" % GameState.stat_points)
+	var atk0 := GameState.attack_power()
+	var hp_max0 := GameState.max_hp()
+	var mp_max0 := GameState.max_mp()
+	check(GameState.add_stat("pressure") and GameState.attack_power() == atk0 + 2, "필압을 올리면 공격력 +2")
+	check(GameState.add_stat("grit") and GameState.max_hp() == hp_max0 + 8 and GameState.defense() == 1, "끈기를 올리면 최대 HP +8, 방어 +1")
+	check(GameState.add_stat("eye") and GameState.max_mp() == mp_max0 + 3, "눈썰미를 올리면 최대 MP +3")
+	check(GameState.add_stat("finger") and is_equal_approx(GameState.crit_chance(), 0.06), "손끝을 올리면 치명타 확률 +1%")
+	await frames(2)
+	check(int(player.get("max_hp")) == GameState.max_hp() and int(player.get("max_mp")) == GameState.max_mp(), "능력치를 올리면 플레이어의 최대 HP·MP 에 바로 반영")
+	var pts := GameState.stat_points
+	GameState.stat_points = 0
+	check(not GameState.add_stat("pressure"), "포인트가 없으면 올릴 수 없음")
+	GameState.stat_points = pts
+	var hud_c: Node = world.get("hud")
+	hud_c.call("toggle_stats")
+	await frames(2)
+	check(bool(hud_c.call("is_stats_open")) and get_tree().paused, "능력치 화면을 열면 게임이 멈춤")
+	hud_c.call("toggle_stats")
+	await frames(2)
+	check(not get_tree().paused, "능력치 화면을 닫으면 다시 움직임")
+	for k in GameState.STAT_KEYS:
+		GameState.stats[k] = 0
+	GameState.stat_points = 0
 	GameState.level = 1
 	GameState.exp = 0
 	player.set("max_hp", GameState.max_hp())
@@ -246,13 +269,14 @@ func _run() -> void:
 			await frames(1)
 			if int(player.get("hp")) < hp0:
 				break
-		check(int(player.get("hp")) == hp0 - 1, "예고 뒤 박치기에 맞으면 HP 1 감소")
+		var hit: int = hp0 - int(player.get("hp"))
+		check(hit == int(s2.get("damage")), "예고 뒤 박치기에 맞으면 몬스터 공격력만큼 HP 감소 (%d)" % hit)
 		# 4) 박치기 뒤에는 쉰다 (연속 피해 없음)
 		player.set("_invuln", 0.0)
 		for i in 30:
 			player.global_position = s2.global_position + Vector2(8, 0)
 			await frames(1)
-		check(int(player.get("hp")) == hp0 - 1, "박치기 직후에는 쉬느라 연속 피해 없음")
+		check(int(player.get("hp")) == hp0 - hit, "박치기 직후에는 쉬느라 연속 피해 없음")
 		# 5) 멀리 도망가면 포기
 		player.global_position = s2.global_position + Vector2(float(s2.get("lose_range")) + 60.0, 0)
 		await frames(120)

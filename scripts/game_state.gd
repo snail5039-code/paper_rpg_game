@@ -10,7 +10,13 @@ signal leveled_up(level: int)
 
 const SAVE_PATH := "user://save.json"
 const BRIDGE_COST := 3
-const MAX_LEVEL := 20
+const MAX_LEVEL := 99
+const STAT_POINTS_PER_LEVEL := 3
+const BASE_WEAPON_ATTACK := 10   # 장비가 생기기 전까지 쓰는 기본 무기 공격력
+## 능력치 4종 (세부설정 3). 키는 저장용, 이름은 화면용.
+const STAT_KEYS := ["pressure", "grit", "finger", "eye"]
+const STAT_NAMES := ["필압", "끈기", "손끝", "눈썰미"]
+const STAT_DESCS := ["공격력 +2", "최대 HP +8, 방어 +1", "치명타 확률 +1%", "최대 MP +3"]
 ## 맵 이름 → 장면. "home" 은 내 마을, "ch1" 은 1장 공책 마을.
 const MAP_SCENES := {
 	"ch1": "res://scenes/main.tscn",
@@ -35,6 +41,8 @@ var intro_seen: bool = false
 var level: int = 1
 var exp: int = 0
 var materials: Dictionary = {}   # 재료 번호(int) → 개수
+var stats: Dictionary = {"pressure": 0, "grit": 0, "finger": 0, "eye": 0}
+var stat_points: int = 0
 var current_map: String = "ch1"
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
 var home_cells: String = ""      # 내 마을 바닥 칸 (압축 + base64)
@@ -112,11 +120,11 @@ func goto_map(map: String, tag: String = "") -> bool:
 
 # ---------- 성장 ----------
 
-## 다음 레벨까지 필요한 경험치
+## 다음 레벨까지 필요한 경험치: 20 × 레벨^1.7
 func exp_needed(lv: int = -1) -> int:
 	if lv < 0:
 		lv = level
-	return 8 + 6 * (lv - 1)
+	return roundi(20.0 * pow(float(lv), 1.7))
 
 
 func add_exp(amount: int) -> void:
@@ -126,6 +134,7 @@ func add_exp(amount: int) -> void:
 	while level < MAX_LEVEL and exp >= exp_needed():
 		exp -= exp_needed()
 		level += 1
+		stat_points += STAT_POINTS_PER_LEVEL
 		leveled_up.emit(level)
 		notify("레벨 업!  필력 %d" % level)
 	if level >= MAX_LEVEL:
@@ -133,13 +142,47 @@ func add_exp(amount: int) -> void:
 	changed.emit()
 
 
-## 레벨에 따른 최대 HP 와 공격력 (능력치 배분은 아직 없음)
+func stat(key: String) -> int:
+	return int(stats.get(key, 0))
+
+
+## 남은 포인트 1점을 능력치에 넣는다
+func add_stat(key: String) -> bool:
+	if stat_points <= 0 or not stats.has(key):
+		return false
+	stat_points -= 1
+	stats[key] = stat(key) + 1
+	changed.emit()
+	return true
+
+
 func max_hp() -> int:
-	return 5 + (level - 1) / 2
+	return 40 + level * 6 + stat("grit") * 8
+
+
+func max_mp() -> int:
+	return 20 + level * 2 + stat("eye") * 3
 
 
 func attack_power() -> int:
-	return 1 + (level - 1) / 3
+	return BASE_WEAPON_ATTACK + stat("pressure") * 2
+
+
+func defense() -> int:
+	return stat("grit")
+
+
+func crit_chance() -> float:
+	return 0.05 + stat("finger") * 0.01
+
+
+## 피해 = (공격력 × 스킬 배율 − 방어) × 치명타(1.5배), 최소 1.  [피해, 치명타 여부] 를 돌려준다
+func roll_damage(skill_mult: float = 1.0, target_defense: int = 0) -> Array:
+	var crit := randf() < crit_chance()
+	var dmg := attack_power() * skill_mult - target_defense
+	if crit:
+		dmg *= 1.5
+	return [maxi(1, roundi(dmg)), crit]
 
 
 func add_material(id: int, amount: int = 1) -> void:
@@ -209,6 +252,8 @@ func save_game() -> bool:
 		"level": level,
 		"exp": exp,
 		"materials": _materials_for_save(),
+		"stats": stats,
+		"stat_points": stat_points,
 		"current_map": current_map,
 		"home_cells": home_cells,
 		"home_doodles": home_doodles,
@@ -240,6 +285,10 @@ func load_game() -> bool:
 	intro_seen = bool(data.get("intro_seen", false))
 	level = clampi(int(data.get("level", 1)), 1, MAX_LEVEL)
 	exp = maxi(0, int(data.get("exp", 0)))
+	stat_points = maxi(0, int(data.get("stat_points", 0)))
+	var st: Variant = data.get("stats", {})
+	for k in STAT_KEYS:
+		stats[k] = maxi(0, int(st.get(k, 0))) if typeof(st) == TYPE_DICTIONARY else 0
 	materials = {}
 	var mats: Variant = data.get("materials", {})
 	if typeof(mats) == TYPE_DICTIONARY:
@@ -275,6 +324,9 @@ func reset_game() -> void:
 	level = 1
 	exp = 0
 	materials = {}
+	stat_points = 0
+	for k in STAT_KEYS:
+		stats[k] = 0
 	menu_open = false
 	has_saved_position = false
 	dialogue_open = false

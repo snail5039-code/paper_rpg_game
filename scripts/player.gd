@@ -19,6 +19,8 @@ signal hp_changed(hp: int, max_hp: int)
 @export var interact_range := 40.0
 
 var hp: int
+var mp: float = 0.0
+var max_mp: int = 0
 var spawn_point := Vector2.ZERO
 var facing := Vector2.DOWN
 
@@ -37,6 +39,8 @@ const FOOT := Vector2(0, 6)
 const WALK_FPS := 8.0
 const IDLE_FRAME := 1
 const SWING_TIME := 0.24
+const MP_REGEN := 1.0       # 초당
+const MP_PER_HIT := 2.0    # 기본 공격이 맞을 때마다
 
 var _sprite: Sprite2D
 var _attack_sprite: Sprite2D
@@ -55,7 +59,10 @@ func _ready() -> void:
 		_attack_sprite.visible = false
 	max_hp = GameState.max_hp()
 	hp = max_hp
+	max_mp = GameState.max_mp()
+	mp = max_mp
 	GameState.leveled_up.connect(_on_level_up)
+	GameState.changed.connect(_on_state_changed)
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1
@@ -67,6 +74,7 @@ func _physics_process(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_swing_timer = maxf(0.0, _swing_timer - delta)
 	_invuln = maxf(0.0, _invuln - delta)
+	mp = minf(float(max_mp), mp + MP_REGEN * delta)
 
 	var dir := Vector2(
 		Input.get_axis("move_left", "move_right"),
@@ -134,14 +142,31 @@ func attack(aim_override := Vector2.ZERO) -> void:
 		var to := enemy.global_position - global_position
 		var reach := attack_range + float(enemy.get("radius"))
 		if to.length() <= reach and absf(rad_to_deg(_swing_dir.angle_to(to))) <= attack_arc_deg * 0.5:
-			enemy.call("take_damage", attack_damage + GameState.attack_power() - 1, _swing_dir)
+			var roll: Array = GameState.roll_damage(1.0, int(enemy.get("defense")))
+			enemy.call("take_damage", int(roll[0]), _swing_dir, bool(roll[1]))
+			mp = minf(float(max_mp), mp + MP_PER_HIT)
 
 
 ## 레벨이 오르면 최대 HP 가 늘고 전부 회복한다
 func _on_level_up(_level: int) -> void:
 	max_hp = GameState.max_hp()
 	hp = max_hp
+	max_mp = GameState.max_mp()
+	mp = max_mp
 	hp_changed.emit(hp, max_hp)
+
+
+## 능력치를 올리면 최대 HP·MP 가 바뀐다. 늘어난 만큼 지금 값도 채워 준다.
+func _on_state_changed() -> void:
+	var new_hp := GameState.max_hp()
+	var new_mp := GameState.max_mp()
+	if new_hp != max_hp:
+		hp = clampi(hp + maxi(0, new_hp - max_hp), 1, new_hp)
+		max_hp = new_hp
+		hp_changed.emit(hp, max_hp)
+	if new_mp != max_mp:
+		mp = clampf(mp + maxf(0.0, new_mp - max_mp), 0.0, new_mp)
+		max_mp = new_mp
 
 
 func try_interact() -> bool:
@@ -166,7 +191,7 @@ func is_dodging() -> bool:
 func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
-	hp -= amount
+	hp -= maxi(1, amount - GameState.defense())
 	_invuln = invuln_time
 	_knock = from_dir.normalized() * 160.0
 	hp_changed.emit(hp, max_hp)
@@ -177,6 +202,7 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 func _die() -> void:
 	GameState.notify("쓰러졌다... 마을 입구에서 다시 시작!")
 	hp = max_hp
+	mp = max_mp
 	_knock = Vector2.ZERO
 	global_position = spawn_point
 	_invuln = 1.5

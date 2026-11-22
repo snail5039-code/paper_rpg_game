@@ -12,6 +12,12 @@ var _hp_clip: Control
 var _exp_clip: Control
 var _level_label: Label
 var _bag: Control
+var _stats: Control
+var _stats_points: Label
+var _stats_derived: Label
+var _stat_rows: Array = []
+var _mp_bar: ColorRect
+var _points_badge: Label
 var _bag_slots: Array = []
 var _bag_info: Label
 var _lead_label: Label
@@ -39,7 +45,7 @@ func _ready() -> void:
 	add_child(root)
 
 	_build_bars(root)
-	_quest_label = _label(root, Vector2(10, 62), 13)
+	_quest_label = _label(root, Vector2(10, 68), 13)
 	_quest_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 
 	_hint_box = HBoxContainer.new()
@@ -54,6 +60,7 @@ func _ready() -> void:
 	_toast.modulate.a = 0.0
 
 	_build_bag(root)
+	_build_stats(root)
 	_build_dialogue(root)
 
 	GameState.changed.connect(_refresh)
@@ -105,20 +112,36 @@ func _build_bars(root: Control) -> void:
 	_tex_rect(_hp_clip, "hud_hp_fill", Vector2.ZERO, Vector2(HP_FILL_W, 9))
 	_hp_label = _label(root, Vector2(150, 7), 12)
 
+	# MP: HP 막대 바로 아래 파란 줄
+	var mp_back := ColorRect.new()
+	mp_back.color = Color(0.25, 0.22, 0.25, 0.8)
+	mp_back.position = Vector2(23, 28)
+	mp_back.size = Vector2(HP_FILL_W + 2, 5)
+	mp_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(mp_back)
+	_mp_bar = ColorRect.new()
+	_mp_bar.color = Color(0.4, 0.62, 0.95)
+	_mp_bar.position = Vector2(24, 29)
+	_mp_bar.size = Vector2(HP_FILL_W, 3)
+	_mp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_mp_bar)
+
 	# 경험치: 자 눈금 위에 노란 줄
-	_tex_rect(root, "hud_exp_frame", Vector2(10, 31), Vector2(120, 12))
+	_tex_rect(root, "hud_exp_frame", Vector2(10, 37), Vector2(120, 12))
 	_exp_clip = Control.new()
-	_exp_clip.position = Vector2(15, 34)
+	_exp_clip.position = Vector2(15, 40)
 	_exp_clip.size = Vector2(0, 4)
 	_exp_clip.clip_contents = true
 	_exp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_exp_clip)
 	_tex_rect(_exp_clip, "hud_exp_fill", Vector2.ZERO, Vector2(EXP_FILL_W, 4))
-	_level_label = _label(root, Vector2(134, 28), 12)
+	_level_label = _label(root, Vector2(134, 34), 12)
+	_points_badge = _label(root, Vector2(186, 34), 12)
+	_points_badge.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
 
 	# 연필 + 연필심
-	_tex_rect(root, "hud_pencil_0", Vector2(10, 47), Vector2(100, 8.4))
-	_lead_label = _label(root, Vector2(114, 42), 12)
+	_tex_rect(root, "hud_pencil_0", Vector2(10, 53), Vector2(100, 8.4))
+	_lead_label = _label(root, Vector2(114, 48), 12)
 
 
 ## 가방 화면 (I 키): 재료 12칸과 내 상태
@@ -190,8 +213,98 @@ func _build_bag(root: Control) -> void:
 	win.add_child(foot)
 
 
+## 능력치 화면 (C 키): 레벨마다 받은 포인트를 필압·끈기·손끝·눈썰미에 넣는다
+func _build_stats(root: Control) -> void:
+	_stats = Control.new()
+	_stats.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stats.visible = false
+	root.add_child(_stats)
+	var dim := ColorRect.new()
+	dim.color = Color(0.1, 0.08, 0.08, 0.45)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stats.add_child(dim)
+	var win := _tex_rect(_stats, "ui_window", Vector2(110, 46), Vector2(420, 268))
+
+	var title := Label.new()
+	title.text = "능력치"
+	title.position = Vector2(0, 14)
+	title.size = Vector2(420, 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
+	win.add_child(title)
+
+	_stats_points = _dark_label(win, Vector2(72, 44), Vector2(280, 18), 12)
+
+	for i in GameState.STAT_KEYS.size():
+		var y := 68.0 + i * 30.0
+		_tex_rect(win, "stat_%d" % i, Vector2(72, y), Vector2(24, 24))
+		var name_l := _dark_label(win, Vector2(102, y + 3), Vector2(60, 18), 13)
+		name_l.text = str(GameState.STAT_NAMES[i])
+		var value_l := _dark_label(win, Vector2(160, y + 3), Vector2(30, 18), 13)
+		value_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var desc_l := _dark_label(win, Vector2(236, y + 5), Vector2(140, 16), 10)
+		desc_l.text = str(GameState.STAT_DESCS[i])
+		desc_l.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+		var btn := Button.new()
+		btn.text = "+"
+		btn.position = Vector2(200, y + 1)
+		btn.size = Vector2(26, 22)
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.pressed.connect(_add_stat.bind(i))
+		win.add_child(btn)
+		_stat_rows.append([value_l, btn])
+
+	_stats_derived = _dark_label(win, Vector2(72, 192), Vector2(290, 34), 11)
+	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
+	foot.text = "1~4 또는 + 로 올리기   ·   C 닫기"
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+
+
+func _dark_label(parent: Control, pos: Vector2, size: Vector2, font_size: int) -> Label:
+	var l := Label.new()
+	l.position = pos
+	l.size = size
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", Color(0.3, 0.25, 0.22))
+	parent.add_child(l)
+	return l
+
+
+func _add_stat(index: int) -> void:
+	GameState.add_stat(str(GameState.STAT_KEYS[index]))
+
+
+func toggle_stats() -> void:
+	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible):
+		return
+	_stats.visible = not _stats.visible
+	GameState.set_menu_open(_stats.visible)
+	_refresh()
+
+
+func is_stats_open() -> bool:
+	return _stats.visible
+
+
+func _refresh_stats() -> void:
+	_stats_points.text = "필력 %d      남은 포인트  %d" % [GameState.level, GameState.stat_points]
+	for i in _stat_rows.size():
+		var row: Array = _stat_rows[i]
+		(row[0] as Label).text = str(GameState.stat(str(GameState.STAT_KEYS[i])))
+		(row[1] as Button).disabled = GameState.stat_points <= 0
+	_stats_derived.text = "공격력 %d    방어 %d    최대 HP %d    최대 MP %d\n치명타 확률 %d%%    경험치 %d / %d" % [
+		GameState.attack_power(), GameState.defense(), GameState.max_hp(), GameState.max_mp(),
+		roundi(GameState.crit_chance() * 100.0), GameState.exp, GameState.exp_needed()]
+
+
 func toggle_bag() -> void:
-	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode):
+	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _stats.visible):
 		return
 	_bag.visible = not _bag.visible
 	GameState.set_menu_open(_bag.visible)
@@ -266,6 +379,8 @@ func _process(_delta: float) -> void:
 		var mx: int = p.get("max_hp")
 		_hp_label.text = "%d / %d" % [maxi(hp, 0), mx]
 		_hp_clip.size.x = HP_FILL_W * clampf(float(hp) / float(maxi(mx, 1)), 0.0, 1.0)
+		var mmx: int = p.get("max_mp")
+		_mp_bar.size.x = HP_FILL_W * clampf(float(p.get("mp")) / float(maxi(mmx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
 
 
@@ -276,8 +391,11 @@ func _refresh() -> void:
 	_level_label.text = "필력 %d" % GameState.level
 	var full := GameState.level >= GameState.MAX_LEVEL
 	_exp_clip.size.x = EXP_FILL_W * (1.0 if full else clampf(float(GameState.exp) / float(GameState.exp_needed()), 0.0, 1.0))
+	_points_badge.text = "C  +%d" % GameState.stat_points if GameState.stat_points > 0 else ""
 	if _bag.visible:
 		_refresh_bag()
+	if _stats.visible:
+		_refresh_stats()
 	var q := GameState.quest
 	if quest_text_override != "":
 		_quest_label.text = quest_text_override
@@ -358,6 +476,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_bag()
 		get_viewport().set_input_as_handled()
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var code: int = event.physical_keycode
+		if code == KEY_C or (_stats.visible and code == KEY_ESCAPE):
+			toggle_stats()
+			get_viewport().set_input_as_handled()
+			return
+		if _stats.visible and code >= KEY_1 and code <= KEY_4:
+			_add_stat(code - KEY_1)
+			get_viewport().set_input_as_handled()
+			return
 	if not _dlg.visible:
 		return
 	var advance: bool = event.is_action_pressed("interact") or event.is_action_pressed("dodge") \

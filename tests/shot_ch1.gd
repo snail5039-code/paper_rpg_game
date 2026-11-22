@@ -103,5 +103,23 @@ func _run() -> void:
 	await _frames(6)
 	await _shot("k_bag.png")
 
+	hud.call("toggle_bag")
+	await _frames(4)
+
+	# 능력치 화면 + 전투 숫자
+	GameState.add_exp(GameState.exp_needed() - GameState.exp)
+	GameState.add_stat("pressure")
+	hud.call("toggle_stats")
+	await _frames(6)
+	await _shot("l_stats.png")
+	hud.call("toggle_stats")
+	await _frames(4)
+	var foe: Node2D = get_tree().get_nodes_in_group("enemies")[0]
+	player.global_position = foe.global_position + Vector2(-22, 0)
+	await _frames(3)
+	player.call("attack", Vector2.RIGHT)
+	await _frames(8)
+	await _shot("m_hit.png")
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	get_tree().quit()

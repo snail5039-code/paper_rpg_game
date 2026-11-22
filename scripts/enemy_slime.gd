@@ -14,6 +14,7 @@ const Data := preload("res://scripts/game_data.gd")
 ## 종류. add_child 하기 전에 정한다.
 var kind := "slime"
 var exp_reward := 3
+var defense := 0
 var grid_move := false
 var _drops: Array = []
 var _strip := false
@@ -64,6 +65,7 @@ func _ready() -> void:
 	damage = int(cfg["damage"])
 	radius = float(cfg["radius"])
 	exp_reward = int(cfg["exp"])
+	defense = int(cfg.get("def", 0))
 	_drops = cfg["drops"]
 	grid_move = bool(cfg.get("grid", false))
 	aggro_range = float(cfg.get("aggro", aggro_range))
@@ -196,8 +198,9 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
-func take_damage(amount: int, dir: Vector2) -> void:
+func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	hp -= amount
+	_pop_number(amount, crit)
 	_flash = 0.25
 	_knock = dir.normalized() * 190.0
 	# 맞으면 준비 동작이 끊기고 잠깐 움찔한 뒤 쫓아온다
@@ -249,11 +252,28 @@ func _draw() -> void:
 
 
 func _draw_hp() -> void:
-	# 체력 표시 (맞았을 때만)
+	# 체력 막대 (맞았을 때만)
 	if hp < max_hp:
-		for i in max_hp:
-			var c := Color(0.9, 0.3, 0.35) if i < hp else Color(0.4, 0.4, 0.45)
-			draw_rect(Rect2(-max_hp * 2.5 + i * 5.0, -24, 4, 3), c)
+		var w := 22.0
+		draw_rect(Rect2(-w * 0.5 - 1, -27, w + 2, 5), Color(0.2, 0.18, 0.2))
+		draw_rect(Rect2(-w * 0.5, -26, w * clampf(float(hp) / float(max_hp), 0.0, 1.0), 3), Color(0.9, 0.3, 0.35))
+
+
+## 머리 위로 떠오르는 피해 숫자
+func _pop_number(amount: int, crit: bool) -> void:
+	var l := Label.new()
+	l.text = str(amount) + ("!" if crit else "")
+	l.add_theme_font_size_override("font_size", 13 if crit else 10)
+	l.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3) if crit else Color(1, 1, 1))
+	l.add_theme_color_override("font_outline_color", Color(0.2, 0.15, 0.15))
+	l.add_theme_constant_override("outline_size", 4)
+	l.z_index = 50
+	l.position = global_position + Vector2(randf_range(-8, 4), -34)
+	get_parent().add_child(l)
+	var tw := l.create_tween().set_parallel(true)
+	tw.tween_property(l, "position:y", l.position.y - 14.0, 0.5)
+	tw.tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.2)
+	tw.chain().tween_callback(l.queue_free)
 
 
 ## 공격 예고: 움츠리는 동안 머리 위에 빨간 느낌표
