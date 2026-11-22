@@ -8,6 +8,8 @@ signal dialogue_requested(speaker: String, lines: Array, portrait: String)
 signal dialogue_finished
 signal leveled_up(level: int)
 
+const Items := preload("res://scripts/items.gd")
+
 const SAVE_PATH := "user://save.json"
 const BRIDGE_COST := 3
 const MAX_LEVEL := 99
@@ -47,6 +49,15 @@ var exp: int = 0
 var materials: Dictionary = {}   # 재료 번호(int) → 개수
 var stats: Dictionary = {"pressure": 0, "grit": 0, "finger": 0, "eye": 0}
 var stat_points: int = 0
+var coins: int = 0
+var dust: int = 0                 # 지우개 가루 (강화 재료)
+var inventory: Array = []         # 가방 속 장비 (items.gd 의 장비 Dictionary)
+var equipped: Dictionary = {}     # 부위 → 장비
+var consumables: Dictionary = {}  # 소모품 id → 개수
+var skill_points: int = 0
+var skill_ranks: Dictionary = {}  # 스킬 id → 단계
+var skill_slots: Array = ["", "", ""]   # Q, E, R 칸에 넣은 스킬
+const INVENTORY_SIZE := 24
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
@@ -65,6 +76,7 @@ var menu_open: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_starting_gear()
 	load_game()
 
 
@@ -142,6 +154,7 @@ func add_exp(amount: int) -> void:
 		exp -= exp_needed()
 		level += 1
 		stat_points += STAT_POINTS_PER_LEVEL
+		skill_points += 1
 		leveled_up.emit(level)
 		notify("레벨 업!  필력 %d" % level)
 	if level >= MAX_LEVEL:
@@ -164,23 +177,242 @@ func add_stat(key: String) -> bool:
 
 
 func max_hp() -> int:
-	return 40 + level * 6 + stat("grit") * 8
+	return 40 + level * 6 + stat("grit") * 8 + gear("hp")
 
 
 func max_mp() -> int:
-	return 20 + level * 2 + stat("eye") * 3
+	return 20 + level * 2 + stat("eye") * 3 + gear("mp")
 
 
+## 공격력 = (도구 공격력 + 필압 × 2 + 옵션) × 연필 깎기
 func attack_power() -> int:
-	return BASE_WEAPON_ATTACK + stat("pressure") * 2
+	var base := (gear("atk") if equipped.has("tool") else 6) + stat("pressure") * 2
+	return roundi(base * (1.0 + 0.03 * skill_rank("sharpen")))
 
 
 func defense() -> int:
-	return stat("grit")
+	return stat("grit") + gear("def")
 
 
 func crit_chance() -> float:
-	return 0.05 + stat("finger") * 0.01
+	return 0.05 + stat("finger") * 0.01 + gear("crit") * 0.01
+
+
+func crit_mult() -> float:
+	return 1.5 + gear("critdmg") * 0.01
+
+
+func move_speed_mult() -> float:
+	return 1.0 + gear("mspd") * 0.01
+
+
+func attack_speed_mult() -> float:
+	return 1.0 + gear("aspd") * 0.01 + 0.02 * skill_rank("warmup")
+
+
+# ---------- 장비 ----------
+
+## 새 게임의 기본 장비: 낙서 연필 한 자루
+func _starting_gear() -> void:
+	inventory = []
+	equipped = {"tool": Items.make("tool", 0, 0, 1)}
+	consumables = {"bandage": 2}
+
+
+## 입고 있는 장비에서 오는 능력 합계 (기본 능력 + 무작위 옵션)
+func gear(key: String) -> int:
+	var total := 0
+	for slot in equipped:
+		var item: Dictionary = equipped[slot]
+		if str(Items.MAIN_STAT[str(item["slot"])]) == key:
+			total += Items.main_value(item)
+		for o in item["opts"]:
+			if str(o[0]) == key:
+				total += int(o[1])
+	return total
+
+
+func add_item(item: Dictionary) -> bool:
+	if inventory.size() >= INVENTORY_SIZE:
+		return false
+	inventory.append(item)
+	changed.emit()
+	return true
+
+
+## 가방의 index 번째 장비를 입는다. 입고 있던 것은 가방으로 돌아온다.
+func equip(index: int) -> bool:
+	if index < 0 or index >= inventory.size():
+		return false
+	var item: Dictionary = inventory[index]
+	if int(item["level"]) > level:
+		notify("필력이 %d 이상이어야 쓸 수 있어요." % int(item["level"]))
+		return false
+	var slot := str(item["slot"])
+	inventory.remove_at(index)
+	if equipped.has(slot):
+		inventory.append(equipped[slot])
+	equipped[slot] = item
+	changed.emit()
+	return true
+
+
+func unequip(slot: String) -> bool:
+	if not equipped.has(slot) or inventory.size() >= INVENTORY_SIZE:
+		return false
+	inventory.append(equipped[slot])
+	equipped.erase(slot)
+	changed.emit()
+	return true
+
+
+func sell_item(index: int) -> int:
+	if index < 0 or index >= inventory.size():
+		return 0
+	var price := Items.sell_price(inventory[index])
+	inventory.remove_at(index)
+	coins += price
+	changed.emit()
+	return price
+
+
+## 분해하면 지우개 가루가 나온다
+func disassemble(index: int) -> int:
+	if index < 0 or index >= inventory.size():
+		return 0
+	var got := Items.dust_value(inventory[index])
+	inventory.remove_at(index)
+	dust += got
+	changed.emit()
+	return got
+
+
+## 강화. 결과: "ok", "fail"(변화 없음), "down"(한 단계 하락), "broken"(파괴), "saved"(코팅지가 막음), 또는 못 하는 이유.
+func enhance(item: Dictionary) -> String:
+	if int(item.get("plus", 0)) >= Items.MAX_PLUS:
+		return "최고 단계예요."
+	var cost: Array = Items.enhance_cost(item)
+	if pencil_lead < int(cost[0]) or dust < int(cost[1]):
+		return "재료가 부족해요. (연필심 %d, 지우개 가루 %d)" % [int(cost[0]), int(cost[1])]
+	pencil_lead -= int(cost[0])
+	dust -= int(cost[1])
+	var plus := int(item.get("plus", 0))
+	var result := "ok"
+	if randf() < Items.enhance_rate(item):
+		item["plus"] = plus + 1
+	elif plus < 6:
+		result = "fail"
+	elif consumable_count("coating") > 0:
+		consumables["coating"] = consumable_count("coating") - 1
+		result = "saved"
+	elif plus < 9:
+		item["plus"] = plus - 1
+		result = "down"
+	else:
+		for slot in equipped.keys():
+			if is_same(equipped[slot], item):
+				equipped.erase(slot)
+		for i in range(inventory.size() - 1, -1, -1):
+			if is_same(inventory[i], item):
+				inventory.remove_at(i)
+		result = "broken"
+	changed.emit()
+	return result
+
+
+# ---------- 동전, 소모품, 조합 ----------
+
+func add_coins(amount: int) -> void:
+	coins = maxi(0, coins + amount)
+	changed.emit()
+
+
+func consumable_count(id: String) -> int:
+	return int(consumables.get(id, 0))
+
+
+func add_consumable(id: String, amount: int = 1) -> void:
+	consumables[id] = consumable_count(id) + amount
+	changed.emit()
+
+
+## 문방구에서 사기. entry 는 Items.SHOP 의 한 줄.
+func buy(entry: Variant) -> bool:
+	if typeof(entry) == TYPE_STRING:
+		var price := int(Items.CONSUMABLES[entry][2])
+		if coins < price:
+			return false
+		coins -= price
+		add_consumable(str(entry))
+		return true
+	var arr: Array = entry
+	if coins < int(arr[3]) or inventory.size() >= INVENTORY_SIZE:
+		return false
+	coins -= int(arr[3])
+	add_item(Items.make(str(arr[0]), int(arr[1]), int(arr[2]), 1))
+	return true
+
+
+func can_craft(recipe: Array) -> bool:
+	var mats: Dictionary = recipe[2]
+	for id in mats:
+		if material_count(int(id)) < int(mats[id]):
+			return false
+	if pencil_lead < int(recipe[3]):
+		return false
+	return typeof(recipe[1]) == TYPE_STRING or inventory.size() < INVENTORY_SIZE
+
+
+func craft(recipe: Array) -> bool:
+	if not can_craft(recipe):
+		return false
+	var mats: Dictionary = recipe[2]
+	for id in mats:
+		materials[int(id)] = material_count(int(id)) - int(mats[id])
+	pencil_lead -= int(recipe[3])
+	if typeof(recipe[1]) == TYPE_STRING:
+		add_consumable(str(recipe[1]))
+	else:
+		var r: Array = recipe[1]
+		add_item(Items.make(str(r[0]), int(r[1]), int(r[2]), maxi(1, level)))
+	changed.emit()
+	return true
+
+
+# ---------- 스킬 ----------
+
+func skill_rank(id: String) -> int:
+	return int(skill_ranks.get(id, 0))
+
+
+## 스킬 포인트 1점으로 스킬을 배우거나 한 단계 올린다
+func learn_skill(id: String) -> bool:
+	if not Items.SKILLS.has(id) or skill_points <= 0:
+		return false
+	var info: Dictionary = Items.SKILLS[id]
+	if level < int(info["level"]) or skill_rank(id) >= int(info["max"]):
+		return false
+	skill_points -= 1
+	skill_ranks[id] = skill_rank(id) + 1
+	# 처음 배운 쓰는 스킬은 빈 칸에 자동으로 넣는다
+	if str(info["kind"]) == "active" and not skill_slots.has(id):
+		var empty := skill_slots.find("")
+		if empty >= 0:
+			skill_slots[empty] = id
+	changed.emit()
+	return true
+
+
+func set_skill_slot(slot: int, id: String) -> void:
+	if slot < 0 or slot >= skill_slots.size():
+		return
+	if id != "" and (skill_rank(id) <= 0 or str(Items.SKILLS[id]["kind"]) != "active"):
+		return
+	for i in skill_slots.size():
+		if skill_slots[i] == id:
+			skill_slots[i] = ""
+	skill_slots[slot] = id
+	changed.emit()
 
 
 ## 피해 = (공격력 × 스킬 배율 − 방어) × 치명타(1.5배), 최소 1.  [피해, 치명타 여부] 를 돌려준다
@@ -188,7 +420,7 @@ func roll_damage(skill_mult: float = 1.0, target_defense: int = 0) -> Array:
 	var crit := randf() < crit_chance()
 	var dmg := attack_power() * skill_mult - target_defense
 	if crit:
-		dmg *= 1.5
+		dmg *= crit_mult()
 	return [maxi(1, roundi(dmg)), crit]
 
 
@@ -261,6 +493,14 @@ func save_game() -> bool:
 		"materials": _materials_for_save(),
 		"stats": stats,
 		"stat_points": stat_points,
+		"coins": coins,
+		"dust": dust,
+		"inventory": inventory,
+		"equipped": equipped,
+		"consumables": consumables,
+		"skill_points": skill_points,
+		"skill_ranks": skill_ranks,
+		"skill_slots": skill_slots,
 		"current_map": current_map,
 		"visited": visited,
 		"home_cells": home_cells,
@@ -297,6 +537,20 @@ func load_game() -> bool:
 	var st: Variant = data.get("stats", {})
 	for k in STAT_KEYS:
 		stats[k] = maxi(0, int(st.get(k, 0))) if typeof(st) == TYPE_DICTIONARY else 0
+	coins = maxi(0, int(data.get("coins", 0)))
+	dust = maxi(0, int(data.get("dust", 0)))
+	skill_points = maxi(0, int(data.get("skill_points", 0)))
+	if typeof(data.get("inventory")) == TYPE_ARRAY:
+		inventory = data["inventory"]
+	if typeof(data.get("equipped")) == TYPE_DICTIONARY:
+		equipped = data["equipped"]
+	if typeof(data.get("consumables")) == TYPE_DICTIONARY:
+		consumables = data["consumables"]
+	if typeof(data.get("skill_ranks")) == TYPE_DICTIONARY:
+		skill_ranks = data["skill_ranks"]
+	var slots: Variant = data.get("skill_slots", [])
+	if typeof(slots) == TYPE_ARRAY and (slots as Array).size() == 3:
+		skill_slots = slots
 	materials = {}
 	var mats: Variant = data.get("materials", {})
 	if typeof(mats) == TYPE_DICTIONARY:
@@ -340,6 +594,12 @@ func reset_game() -> void:
 	stat_points = 0
 	for k in STAT_KEYS:
 		stats[k] = 0
+	coins = 0
+	dust = 0
+	skill_points = 0
+	skill_ranks = {}
+	skill_slots = ["", "", ""]
+	_starting_gear()
 	menu_open = false
 	has_saved_position = false
 	dialogue_open = false

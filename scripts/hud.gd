@@ -4,6 +4,8 @@ extends CanvasLayer
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const MapViewScript := preload("res://scripts/map_view.gd")
+const MenusScript := preload("res://scripts/menus.gd")
+const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
 
@@ -21,8 +23,9 @@ var _mp_bar: ColorRect
 var _map: Control
 var _map_view: Control
 var _points_badge: Label
-var _bag_slots: Array = []
-var _bag_info: Label
+var _menus: Dictionary = {}
+var _quick: Array = []
+var _coin_label: Label
 var _lead_label: Label
 var _quest_label: Label
 var _hint_box: HBoxContainer
@@ -62,7 +65,8 @@ func _ready() -> void:
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
 
-	_build_bag(root)
+	_build_quickbar(root)
+	_build_menus(root)
 	_build_stats(root)
 	_build_map(root)
 	_build_dialogue(root)
@@ -146,75 +150,104 @@ func _build_bars(root: Control) -> void:
 	# 연필 + 연필심
 	_tex_rect(root, "hud_pencil_0", Vector2(10, 53), Vector2(100, 8.4))
 	_lead_label = _label(root, Vector2(114, 48), 12)
+	_coin_label = _label(root, Vector2(176, 48), 12)
+	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
 
 
-## 가방 화면 (I 키): 재료 12칸과 내 상태
-func _build_bag(root: Control) -> void:
-	_bag = Control.new()
-	_bag.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_bag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bag.visible = false
-	root.add_child(_bag)
-	var dim := ColorRect.new()
-	dim.color = Color(0.1, 0.08, 0.08, 0.45)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bag.add_child(dim)
+## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
+func _build_menus(root: Control) -> void:
+	for k in ["bag", "skills", "shop"]:
+		var m: Control = MenusScript.new()
+		m.set("kind", k)
+		root.add_child(m)
+		_menus[k] = m
+	_bag = _menus["bag"]
 
-	# 창은 늘리지 않고 원래 비율 그대로 쓴다 (왼쪽 고리 장식이 늘어나지 않게)
-	var win := _tex_rect(_bag, "ui_window", Vector2(110, 46), Vector2(420, 268))
 
-	var title := Label.new()
-	title.text = "가방"
-	title.position = Vector2(0, 14)
-	title.size = Vector2(420, 24)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 17)
-	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
-	win.add_child(title)
+## 오른쪽 아래: 소모품 2칸(1, 2)과 스킬 3칸(Q, E, R)
+func _build_quickbar(root: Control) -> void:
+	var keys := ["1", "2", "Q", "E", "R"]
+	for i in 5:
+		var pos := Vector2(462 + i * 34 + (8 if i >= 2 else 0), 296)
+		_tex_rect(root, "hud_slot_item" if i < 2 else "hud_slot_skill", pos, Vector2(30, 30))
+		var icon := _tex_rect(root, "", pos + Vector2(5, 5), Vector2(20, 20))
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var shade := ColorRect.new()
+		shade.color = Color(0.15, 0.12, 0.15, 0.6)
+		shade.position = pos + Vector2(4, 4)
+		shade.size = Vector2(22, 0)
+		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(shade)
+		var key_l := _label(root, pos + Vector2(1, -5), 9)
+		key_l.text = keys[i]
+		var num_l := _label(root, pos + Vector2(14, 17), 9)
+		num_l.size = Vector2(16, 12)
+		num_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_quick.append([icon, shade, num_l])
 
-	_bag_info = Label.new()
-	_bag_info.position = Vector2(72, 44)
-	_bag_info.size = Vector2(280, 40)
-	_bag_info.add_theme_font_size_override("font_size", 12)
-	_bag_info.add_theme_color_override("font_color", Color(0.3, 0.25, 0.22))
-	win.add_child(_bag_info)
 
-	# 재료 칸 6×2
-	for i in Data.MATERIALS.size():
-		var cell := Control.new()
-		cell.position = Vector2(60 + (i % 6) * 51, 92 + (i / 6) * 68)
-		cell.size = Vector2(46, 62)
-		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		win.add_child(cell)
-		_tex_rect(cell, "ui_slot", Vector2(3, 0), Vector2(40, 40))
-		var icon := _tex_rect(cell, "mat_%d" % i, Vector2(9, 6), Vector2(28, 28))
-		var count := Label.new()
-		count.position = Vector2(20, 24)
-		count.size = Vector2(24, 16)
-		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		count.add_theme_font_size_override("font_size", 11)
-		count.add_theme_color_override("font_color", Color(0.25, 0.2, 0.2))
-		count.add_theme_color_override("font_outline_color", Color(1, 0.97, 0.9))
-		count.add_theme_constant_override("outline_size", 4)
-		cell.add_child(count)
-		var name_l := Label.new()
-		name_l.position = Vector2(-6, 41)
-		name_l.size = Vector2(58, 14)
-		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_l.add_theme_font_size_override("font_size", 9)
-		name_l.add_theme_color_override("font_color", Color(0.35, 0.3, 0.28))
-		cell.add_child(name_l)
-		_bag_slots.append([icon, count, name_l])
+func _refresh_quickbar() -> void:
+	var p := GameState.player_ref
+	for i in _quick.size():
+		var q: Array = _quick[i]
+		var icon: TextureRect = q[0]
+		var shade: ColorRect = q[1]
+		var num: Label = q[2]
+		shade.size.y = 0
+		if i < 2:
+			var id := str(Items.QUICK_SLOTS[i])
+			var n := GameState.consumable_count(id)
+			_set_icon(icon, str(Items.CONSUMABLES[id][1]))
+			icon.modulate = Color(1, 1, 1, 1.0 if n > 0 else 0.3)
+			num.text = str(n) if n > 0 else ""
+		else:
+			var sid := str(GameState.skill_slots[i - 2])
+			num.text = ""
+			if sid == "":
+				icon.texture = null
+				continue
+			_set_icon(icon, str(Items.SKILLS[sid]["icon"]))
+			var cd := 0.0
+			if is_instance_valid(p):
+				cd = float((p.get("skill_cd") as Dictionary).get(sid, 0.0))
+				icon.modulate = Color(1, 1, 1, 1.0 if float(p.get("mp")) >= float(Items.SKILLS[sid]["mp"]) else 0.4)
+			if cd > 0.0:
+				shade.size.y = 22.0 * clampf(cd / float(Items.SKILLS[sid]["cd"]), 0.0, 1.0)
+				num.text = str(ceili(cd))
 
-	var foot := Label.new()
-	foot.text = "I  닫기"
-	foot.position = Vector2(0, 240)
-	foot.size = Vector2(420, 16)
-	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	foot.add_theme_font_size_override("font_size", 11)
-	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
-	win.add_child(foot)
+
+## 아이콘 텍스처는 이름이 바뀔 때만 다시 불러온다
+func _set_icon(icon: TextureRect, tex_name: String) -> void:
+	if icon.get_meta("tex_name", "") != tex_name:
+		icon.set_meta("tex_name", tex_name)
+		icon.texture = Art.tex(tex_name)
+
+
+## 창 하나를 열거나 닫는다. 다른 창이 열려 있거나 대화·컷신 중에는 열지 않는다.
+func toggle_menu(k: String) -> void:
+	var m: Control = _menus[k]
+	if not m.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
+		return
+	m.visible = not m.visible
+	GameState.set_menu_open(m.visible)
+	if m.visible:
+		m.call("open")
+
+
+func is_menu_open(k: String) -> bool:
+	return (_menus[k] as Control).visible
+
+
+func _any_window_open() -> bool:
+	for k in _menus:
+		if (_menus[k] as Control).visible:
+			return true
+	return _stats.visible or _map.visible
+
+
+func open_shop() -> void:
+	if not is_menu_open("shop"):
+		toggle_menu("shop")
 
 
 ## 능력치 화면 (C 키): 레벨마다 받은 포인트를 필압·끈기·손끝·눈썰미에 넣는다
@@ -285,7 +318,7 @@ func _add_stat(index: int) -> void:
 
 
 func toggle_stats() -> void:
-	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible or _map.visible):
+	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
 		return
 	_stats.visible = not _stats.visible
 	GameState.set_menu_open(_stats.visible)
@@ -337,7 +370,7 @@ func _build_map(root: Control) -> void:
 
 
 func toggle_map() -> void:
-	if not _map.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible or _stats.visible):
+	if not _map.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
 		return
 	_map.visible = not _map.visible
 	GameState.set_menu_open(_map.visible)
@@ -350,28 +383,11 @@ func is_map_open() -> bool:
 
 
 func toggle_bag() -> void:
-	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _stats.visible or _map.visible):
-		return
-	_bag.visible = not _bag.visible
-	GameState.set_menu_open(_bag.visible)
-	_refresh()
+	toggle_menu("bag")
 
 
 func is_bag_open() -> bool:
-	return _bag.visible
-
-
-func _refresh_bag() -> void:
-	var need := GameState.exp_needed()
-	_bag_info.text = "필력 %d   경험치 %d / %d   공격력 %d   최대 HP %d\n연필심 %d개" % [
-		GameState.level, GameState.exp, need, GameState.attack_power(), GameState.max_hp(), GameState.pencil_lead]
-	for i in _bag_slots.size():
-		var n := GameState.material_count(i)
-		var slot: Array = _bag_slots[i]
-		# 아직 얻지 못한 재료는 흐리게, 이름은 물음표
-		(slot[0] as TextureRect).modulate = Color(1, 1, 1, 1) if n > 0 else Color(0.2, 0.2, 0.2, 0.25)
-		(slot[1] as Label).text = str(n) if n > 0 else ""
-		(slot[2] as Label).text = str(Data.MATERIALS[i]) if n > 0 else "?"
+	return is_menu_open("bag")
 
 
 func _build_dialogue(root: Control) -> void:
@@ -428,18 +444,18 @@ func _process(_delta: float) -> void:
 		var mmx: int = p.get("max_mp")
 		_mp_bar.size.x = HP_FILL_W * clampf(float(p.get("mp")) / float(maxi(mmx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
+	_refresh_quickbar()
 
 
 func _refresh() -> void:
 	var Q := GameState.Quest
 	var need := GameState.BRIDGE_COST
 	_lead_label.text = "× %d" % GameState.pencil_lead
+	_coin_label.text = "동전 %d" % GameState.coins
 	_level_label.text = "필력 %d" % GameState.level
 	var full := GameState.level >= GameState.MAX_LEVEL
 	_exp_clip.size.x = EXP_FILL_W * (1.0 if full else clampf(float(GameState.exp) / float(GameState.exp_needed()), 0.0, 1.0))
 	_points_badge.text = "C  +%d" % GameState.stat_points if GameState.stat_points > 0 else ""
-	if _bag.visible:
-		_refresh_bag()
 	if _stats.visible:
 		_refresh_stats()
 	var q := GameState.quest
@@ -522,6 +538,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_bag()
 		get_viewport().set_input_as_handled()
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var kc: int = event.physical_keycode
+		if kc == KEY_K or (is_menu_open("skills") and kc == KEY_ESCAPE):
+			toggle_menu("skills")
+			get_viewport().set_input_as_handled()
+			return
+		if is_menu_open("shop") and kc == KEY_ESCAPE:
+			toggle_menu("shop")
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code: int = event.physical_keycode
 		if code == KEY_M or (_map.visible and code == KEY_ESCAPE):

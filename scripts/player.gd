@@ -32,15 +32,24 @@ var _swing_dir := Vector2.DOWN
 var _invuln := 0.0
 var _knock := Vector2.ZERO
 var _anim_t := 0.0
+var combo := 0                  # 기본 공격 연타 (0, 1, 2 → 세 번째가 강하다)
+var _combo_timer := 0.0
+var skill_cd: Dictionary = {}   # 스킬 id → 남은 재사용 시간
+var _dash_timer := 0.0
+var _dash_dir := Vector2.ZERO
+var _fx: Dictionary = {}        # 방금 쓴 스킬의 효과 그림
 
 
 const Art := preload("res://scripts/art.gd")
+const Items := preload("res://scripts/items.gd")
 const FOOT := Vector2(0, 6)
 const WALK_FPS := 8.0
 const IDLE_FRAME := 1
 const SWING_TIME := 0.24
 const MP_REGEN := 1.0       # 초당
 const MP_PER_HIT := 2.0    # 기본 공격이 맞을 때마다
+const COMBO_WINDOW := 0.7  # 이 안에 다시 치면 연타가 이어진다
+const COMBO_FINISH_MULT := 1.5
 
 var _sprite: Sprite2D
 var _attack_sprite: Sprite2D
@@ -75,6 +84,15 @@ func _physics_process(delta: float) -> void:
 	_swing_timer = maxf(0.0, _swing_timer - delta)
 	_invuln = maxf(0.0, _invuln - delta)
 	mp = minf(float(max_mp), mp + MP_REGEN * delta)
+	_combo_timer = maxf(0.0, _combo_timer - delta)
+	if _combo_timer <= 0.0:
+		combo = 0
+	for id in skill_cd:
+		skill_cd[id] = maxf(0.0, float(skill_cd[id]) - delta)
+	if not _fx.is_empty():
+		_fx["t"] = float(_fx["t"]) - delta
+		if float(_fx["t"]) <= 0.0:
+			_fx = {}
 
 	var dir := Vector2(
 		Input.get_axis("move_left", "move_right"),
@@ -89,11 +107,14 @@ func _physics_process(delta: float) -> void:
 		_dodge_timer -= delta
 		velocity = facing * dodge_speed
 	else:
-		velocity = dir * move_speed
+		velocity = dir * move_speed * GameState.move_speed_mult()
 		if Input.is_action_just_pressed("dodge") and _dodge_cd <= 0.0:
 			_dodge_timer = dodge_time
 			_dodge_cd = dodge_cooldown
 
+	if _dash_timer > 0.0:
+		_dash_timer -= delta
+		velocity = _dash_dir * 330.0
 	velocity += _knock
 	_knock = _knock.move_toward(Vector2.ZERO, 600.0 * delta)
 	move_and_slide()
@@ -125,13 +146,31 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("interact"):
 		if try_interact():
 			get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		var code: int = event.physical_keycode
+		var used := false
+		if code == KEY_Q:
+			used = use_skill_slot(0)
+		elif code == KEY_E:
+			used = use_skill_slot(1)
+		elif code == KEY_R:
+			used = use_skill_slot(2)
+		elif code == KEY_1:
+			used = use_consumable(str(Items.QUICK_SLOTS[0]))
+		elif code == KEY_2:
+			used = use_consumable(str(Items.QUICK_SLOTS[1]))
+		if used:
+			get_viewport().set_input_as_handled()
 
 
 ## aim_override 를 주면 마우스 대신 그 방향으로 공격 (테스트·패드 대응용)
 func attack(aim_override := Vector2.ZERO) -> void:
 	if _attack_cd > 0.0:
 		return
-	_attack_cd = attack_cooldown
+	_attack_cd = attack_cooldown / GameState.attack_speed_mult()
+	var finisher := combo == 2
+	combo = (combo + 1) % 3
+	_combo_timer = COMBO_WINDOW
 	_swing_timer = SWING_TIME
 	var aim := aim_override if aim_override != Vector2.ZERO else get_global_mouse_position() - global_position
 	_swing_dir = aim.normalized() if aim.length() > 1.0 else facing
@@ -142,8 +181,7 @@ func attack(aim_override := Vector2.ZERO) -> void:
 		var to := enemy.global_position - global_position
 		var reach := attack_range + float(enemy.get("radius"))
 		if to.length() <= reach and absf(rad_to_deg(_swing_dir.angle_to(to))) <= attack_arc_deg * 0.5:
-			var roll: Array = GameState.roll_damage(1.0, int(enemy.get("defense")))
-			enemy.call("take_damage", int(roll[0]), _swing_dir, bool(roll[1]))
+			_hit(enemy, COMBO_FINISH_MULT if finisher else 1.0, _swing_dir)
 			mp = minf(float(max_mp), mp + MP_PER_HIT)
 
 
@@ -167,6 +205,112 @@ func _on_state_changed() -> void:
 	if new_mp != max_mp:
 		mp = clampf(mp + maxf(0.0, new_mp - max_mp), 0.0, new_mp)
 		max_mp = new_mp
+
+
+# ---------- 스킬 (Q, E, R) ----------
+
+## slot 번째 칸의 스킬을 쓴다. 못 쓰면 false.
+func use_skill_slot(slot: int, aim_override := Vector2.ZERO) -> bool:
+	var id := str(GameState.skill_slots[slot]) if slot < GameState.skill_slots.size() else ""
+	return use_skill(id, aim_override) if id != "" else false
+
+
+func use_skill(id: String, aim_override := Vector2.ZERO) -> bool:
+	var rank := GameState.skill_rank(id)
+	if rank <= 0 or not Items.SKILLS.has(id):
+		return false
+	var info: Dictionary = Items.SKILLS[id]
+	if float(skill_cd.get(id, 0.0)) > 0.0:
+		return false
+	if mp < float(info["mp"]):
+		GameState.notify("MP 가 부족해요.")
+		return false
+	mp -= float(info["mp"])
+	skill_cd[id] = float(info["cd"])
+	var aim := aim_override if aim_override != Vector2.ZERO else get_global_mouse_position() - global_position
+	var dir := aim.normalized() if aim.length() > 1.0 else facing
+	facing = dir
+	_swing_dir = dir
+	_swing_timer = SWING_TIME
+	var mult := Items.skill_mult(id, rank)
+	_fx = {"id": id, "t": 0.3, "dir": dir, "from": global_position}
+	match id:
+		"slash":
+			# 앞으로 미끄러지며 지나가는 길의 적을 모두 벤다
+			_dash_dir = dir
+			_dash_timer = 0.16
+			_invuln = maxf(_invuln, 0.2)
+			for e in _enemies():
+				var rel: Vector2 = e.global_position - global_position
+				var along := rel.dot(dir)
+				if along > -10.0 and along < 80.0 and absf(rel.dot(dir.orthogonal())) < 20.0 + float(e.get("radius")):
+					_hit(e, mult, dir)
+		"circle":
+			for e in _enemies():
+				if e.global_position.distance_to(global_position) < 48.0 + float(e.get("radius")):
+					_hit(e, mult, (e.global_position - global_position).normalized())
+		"dot":
+			var target := _nearest_in_cone(dir, 170.0, 35.0)
+			if target:
+				_fx["to"] = target.global_position
+				_hit(target, mult, dir)
+			else:
+				_fx["to"] = global_position + dir * 170.0
+		"hatch":
+			var target2 := _nearest_in_cone(dir, 46.0, 100.0)
+			if target2:
+				for i in 5:
+					if is_instance_valid(target2) and int(target2.get("hp")) > 0:
+						_hit(target2, mult, dir)
+		"press":
+			var target3 := _nearest_in_cone(dir, 44.0, 100.0)
+			if target3:
+				_hit(target3, mult, dir, true)
+		"erase":
+			_invuln = maxf(_invuln, mult)
+	queue_redraw()
+	return true
+
+
+func _enemies() -> Array:
+	return get_tree().get_nodes_in_group("enemies")
+
+
+func _hit(enemy: Node2D, mult: float, dir: Vector2, ignore_defense: bool = false) -> void:
+	var roll: Array = GameState.roll_damage(mult, 0 if ignore_defense else int(enemy.get("defense")))
+	enemy.call("take_damage", int(roll[0]), dir, bool(roll[1]))
+
+
+func _nearest_in_cone(dir: Vector2, reach: float, cone_deg: float) -> Node2D:
+	var best: Node2D = null
+	var best_d := INF
+	for e in _enemies():
+		var to: Vector2 = e.global_position - global_position
+		var d := to.length() - float(e.get("radius"))
+		if d <= reach and absf(rad_to_deg(dir.angle_to(to))) <= cone_deg * 0.5 and d < best_d:
+			best = e
+			best_d = d
+	return best
+
+
+## 소모품을 쓴다 (1, 2 번 키). 회복할 것이 없으면 쓰지 않는다.
+func use_consumable(id: String) -> bool:
+	if GameState.consumable_count(id) <= 0 or not Items.CONSUMABLES.has(id):
+		return false
+	var info: Array = Items.CONSUMABLES[id]
+	if str(info[4]) == "hp":
+		if hp >= max_hp:
+			return false
+		hp = mini(max_hp, hp + ceili(max_hp * float(info[5])))
+		hp_changed.emit(hp, max_hp)
+	elif str(info[4]) == "mp":
+		if mp >= float(max_mp):
+			return false
+		mp = minf(float(max_mp), mp + max_mp * float(info[5]))
+	else:
+		return false
+	GameState.add_consumable(id, -1)
+	return true
 
 
 func try_interact() -> bool:
@@ -217,6 +361,7 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 	if _attack_sprite == null:
 		_draw_swing()
+	_draw_skill_fx()
 	if not use_placeholder_art:
 		return
 	# 무적 시간 깜빡임
@@ -238,6 +383,33 @@ func _draw() -> void:
 	if facing.y >= -0.3:
 		draw_rect(Rect2(Vector2(-3, -6 + bob) + eye, Vector2(1, 2)), Color(0.1, 0.1, 0.15, a))
 		draw_rect(Rect2(Vector2(2, -6 + bob) + eye, Vector2(1, 2)), Color(0.1, 0.1, 0.15, a))
+
+
+## 스킬 효과: 그림이 없어서 연필선으로 그린다
+func _draw_skill_fx() -> void:
+	if _fx.is_empty():
+		return
+	var a := clampf(float(_fx["t"]) / 0.3, 0.0, 1.0)
+	var col := Color(0.2, 0.2, 0.25, a)
+	var d: Vector2 = _fx["dir"]
+	match str(_fx["id"]):
+		"slash":
+			var from: Vector2 = (_fx["from"] as Vector2) - global_position
+			draw_line(from + Vector2(0, -8), from + d * 80.0 + Vector2(0, -8), col, 3.0)
+		"circle":
+			draw_arc(Vector2(0, -8), 48.0, 0, TAU, 28, col, 3.0)
+		"dot":
+			var to: Vector2 = (_fx["to"] as Vector2) - global_position
+			draw_line(Vector2(0, -8), to + Vector2(0, -8), Color(col, a * 0.5), 1.5)
+			draw_circle(to + Vector2(0, -8), 3.0, col)
+		"hatch":
+			for i in 5:
+				var o := d.orthogonal() * (i - 2) * 5.0 + d * 26.0 + Vector2(0, -8)
+				draw_line(o - d.rotated(0.6) * 9.0, o + d.rotated(0.6) * 9.0, col, 2.0)
+		"press":
+			draw_circle(d * 30.0 + Vector2(0, -6), 9.0 * a + 3.0, col)
+		"erase":
+			draw_arc(Vector2(0, -10), 16.0, 0, TAU, 20, Color(0.95, 0.6, 0.7, a), 2.5)
 
 
 func _draw_swing() -> void:

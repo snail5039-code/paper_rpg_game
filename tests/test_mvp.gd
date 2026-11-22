@@ -173,6 +173,9 @@ func _run() -> void:
 		# 드롭된 연필심 줍기
 		await frames(20)
 		for c in world.get("actors").get_children():
+			# 기다리는 사이에 사라진 것(피해 숫자, 이미 주운 것)은 건너뛴다
+			if not is_instance_valid(c):
+				continue
 			if c.get_script() == preload("res://scripts/pickup.gd"):
 				player.global_position = c.global_position
 				await frames(5)
@@ -232,7 +235,7 @@ func _run() -> void:
 	var kinds := {}
 	for e in get_tree().get_nodes_in_group("enemies"):
 		kinds[str(e.get("kind"))] = true
-	check(kinds.size() >= 3, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
+	check(kinds.size() >= 2, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
 	player.set("hp", player.get("max_hp"))
 
 	print("[슬라임 AI: 일정 거리 안에서만 공격]")

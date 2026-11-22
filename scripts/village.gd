@@ -16,6 +16,8 @@ const PlayerScene := preload("res://scenes/player.tscn")
 const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
 const VillagerScript := preload("res://scripts/villager.gd")
+const ShopkeeperScript := preload("res://scripts/shopkeeper.gd")
+const SHOP_POS := Vector2(250, 452)
 
 const BG_SIZE := Vector2(1672, 941)
 const WORLD_PER_BG := 640.0 / 1672.0
@@ -62,6 +64,7 @@ var goal: Node2D
 var tutorial: Node
 var bridge_sprite: Sprite2D
 var bridge_blocker: StaticBody2D
+var shopkeeper: Node2D
 
 
 static func bg(p: Vector2) -> Vector2:
@@ -183,6 +186,12 @@ func _ready() -> void:
 	hud = HudScript.new()
 	hud.name = "HUD"
 	add_child(hud)
+
+	# 문방구 할아버지
+	shopkeeper = ShopkeeperScript.new()
+	shopkeeper.set("hud", hud)
+	shopkeeper.position = bg(SHOP_POS)
+	actors.add_child(shopkeeper)
 
 	# 튜토리얼 연출 (오프닝, 조작 안내, 문 열기, 페이지 넘김)
 	tutorial = TutorialScript.new()

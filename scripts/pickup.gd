@@ -4,18 +4,27 @@ extends Node2D
 
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
+const Items := preload("res://scripts/items.gd")
 
 @export var amount := 1
 var mat_id := -1
+var item: Dictionary = {}   # 비어 있지 않으면 장비
+var _full_notice := 0.0
 var _t := 0.0
 var _sprite: Sprite2D
 
 
 func _ready() -> void:
 	var t := Art.tex("prop_lead") if mat_id < 0 else Art.tex("mat_%d" % mat_id)
+	if not item.is_empty():
+		t = Art.tex(Items.icon(item))
 	if t:
 		_sprite = Art.make_sprite(self, t)
-		if mat_id >= 0:
+		if not item.is_empty():
+			_sprite.scale = Vector2.ONE * (16.0 / t.get_width())
+			_sprite.offset = Vector2(0, -t.get_height() / 2.0)
+			_sprite.modulate = Items.tier_color(item)
+		elif mat_id >= 0:
 			_sprite.scale = Vector2.ONE * (14.0 / t.get_width())
 			_sprite.offset = Vector2(0, -t.get_height() / 2.0)
 
@@ -26,7 +35,15 @@ func _physics_process(delta: float) -> void:
 	if is_instance_valid(p) and _t > 0.3:
 		var to := p.global_position - global_position
 		if to.length() < 12.0:
-			if mat_id >= 0:
+			if not item.is_empty():
+				if not GameState.add_item(item):
+					_full_notice -= delta
+					if _full_notice <= 0.0:
+						_full_notice = 2.0
+						GameState.notify("가방이 가득 찼어요.")
+					return
+				GameState.notify("%s 획득!" % Items.item_name(item))
+			elif mat_id >= 0:
 				GameState.add_material(mat_id, amount)
 				GameState.notify("%s +%d" % [Data.MATERIALS[mat_id], amount])
 			else:

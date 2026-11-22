@@ -10,6 +10,8 @@ signal died(home: Vector2)
 const PickupScript := preload("res://scripts/pickup.gd")
 const Fx := preload("res://scripts/fx_frames.gd")
 const Data := preload("res://scripts/game_data.gd")
+const Items := preload("res://scripts/items.gd")
+const EQUIP_DROP_RATE := 0.05   # 장비가 떨어질 확률 ("흐릿한" 단계)
 
 ## 종류. add_child 하기 전에 정한다.
 var kind := "slime"
@@ -223,6 +225,13 @@ func _die() -> void:
 			mat.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
 			get_parent().add_child(mat)
 	GameState.add_exp(exp_reward)
+	GameState.add_coins(maxi(1, exp_reward / 2) + randi() % 2)
+	# 장비: 많이 지워진 모습은 조금 더 잘 준다
+	if randf() < EQUIP_DROP_RATE * (1.6 if kind.ends_with("_erased") else 1.0):
+		var gear: Node2D = PickupScript.new()
+		gear.set("item", Items.random_drop(maxi(1, GameState.level), 1))
+		gear.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
+		get_parent().add_child(gear)
 	var vanish := Art.tex("slime_vanish")
 	if vanish:
 		Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
