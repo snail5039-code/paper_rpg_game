@@ -26,6 +26,7 @@ OUT = os.path.join(ROOT, "assets", "sprites")
 
 # 시트 이름: (칸 수 가로, 세로, [(저장 이름, 긴 변 크기)] 왼쪽 위부터)
 HAT_SCALE = 0.26     # 원본(가로 약 1620) 의 모자가 주인공 머리(약 64 텍셀)에 맞는 배율
+TOOL_SCALE = 0.17    # 원본(가로 1536) 의 긴 연필이 주인공 그림 텍셀의 두 배 크기(약 72)가 되는 배율. 게임에서 절반으로 줄여 그린다
 SHEETS = {
     "23_ui_kit": (4, 3, [
         ("ui_row", 300), ("ui_btn_sq", 72), ("ui_btn_sq_on", 72), ("ui_close", 60),
@@ -43,6 +44,8 @@ SHEETS = {
     # 모자: 줄 = 보는 쪽 (앞, 옆, 뒤), 칸 = 모자. 크기가 1 보다 작으면 "긴 변" 이 아니라 줄이는 배율이다.
     "33_hats_a": (5, 3, [("hat_%d_%d" % (c, v), HAT_SCALE) for v in range(3) for c in range(5)]),
     "34_hats_b": (5, 3, [("hat_%d_%d" % (c + 5, v), HAT_SCALE) for v in range(3) for c in range(5)]),
+    # 손에 드는 도구 10종 (촉이 위, 쥐는 쪽이 아래). 모두 같은 배율로 줄여야 서로의 길이가 맞는다.
+    "41_tools": (5, 2, [("tool_%d" % i, TOOL_SCALE) for i in range(10)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
 FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0)}

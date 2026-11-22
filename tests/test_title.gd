@@ -130,17 +130,26 @@ func _run() -> void:
 	await frames(5)
 	var player: Node2D = world.get("player")
 	var hat: Sprite2D = player.get("_hat")
-	var mat: ShaderMaterial = player.get("_look_mat")
-	check(not hat.visible and float(mat.get_shader_parameter("hue")) < 0.0 and float(mat.get_shader_parameter("tool_hue")) < 0.0,
-		"기본 차림: 모자 없음, 노란 연필, 파란 후드티")
+	var held: Sprite2D = player.get("_tool")
+	var body: Sprite2D = player.get("_sprite")
+	var swing_body: Sprite2D = player.get("_attack_sprite")
+	var ArtT := preload("res://scripts/art.gd")
+	check(not hat.visible and held.visible and held.texture == ArtT.tex("tool_0") and body.texture == ArtT.tex("player_walk_c0"),
+		"기본 차림: 모자 없음, 손에 연필, 후드티")
 	GameState.equipped["hat"] = Items.make("hat", 2, 0, 1)
 	GameState.equipped["cloth"] = Items.make("cloth", 2, 0, 1)
 	GameState.equipped["tool"] = Items.make("tool", 7, 0, 1)
 	GameState.changed.emit()
 	await frames(3)
 	check(hat.visible and hat.texture != null, "모자를 쓰면 머리 위에 보임")
-	check(is_equal_approx(float(mat.get_shader_parameter("hue")), 0.14), "옷을 입으면 옷 색이 바뀜 (우비는 노란색)")
-	check(is_equal_approx(float(mat.get_shader_parameter("tool_hue")), 0.0), "도구를 바꾸면 손에 든 연필의 색이 바뀜 (사인펜은 빨간색)")
+	check(body.texture == ArtT.tex("player_walk_c2") and swing_body.texture == ArtT.tex("player_attack_c2"),
+		"옷을 입으면 걷기와 공격 그림이 그 옷을 입은 그림으로 바뀜 (우비)")
+	check(held.texture == ArtT.tex("tool_7"), "도구를 바꾸면 손에 든 그림이 그 도구로 바뀜 (사인펜)")
+	var walk_len := held.region_rect.size.y
+	check(walk_len < held.texture.get_height(), "걸을 때는 긴 도구의 촉 쪽만 손 밖으로 보임")
+	for shape in 10:
+		check(ArtT.tex("player_walk_c%d" % shape) != null and ArtT.tex("player_attack_c%d" % shape) != null and ArtT.tex("tool_%d" % shape) != null,
+			"옷 %d번의 걷기·공격 그림과 도구 %d번 그림이 있음" % [shape, shape])
 	# 네 방향에서 모자가 머리 위에 붙어 있는지: 모자의 가운데가 머리 가운데에서 크게 벗어나지 않아야 한다
 	var Anchors := preload("res://scripts/player_anchors.gd")
 	var ok_all := true
@@ -165,6 +174,8 @@ func _run() -> void:
 	await frames(4)
 	await shot("title_5_attack.png")
 	check(hat.visible, "공격하는 동안에도 모자가 머리에 붙어 있음")
+	check(held.visible and is_equal_approx(held.region_rect.size.y, float(held.texture.get_height())) and absf(held.rotation) > 0.01,
+		"공격하는 동안에는 도구가 통째로, 휘두르는 방향으로 기울어 보임")
 	for shape in 10:
 		check(preload("res://scripts/art.gd").tex("hat_%d_0" % shape) != null and preload("res://scripts/art.gd").tex("hat_%d_1" % shape) != null
 			and preload("res://scripts/art.gd").tex("hat_%d_2" % shape) != null, "모자 %d번의 앞·옆·뒤 그림이 있음" % shape)

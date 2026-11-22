@@ -42,51 +42,16 @@ var _fx_tex: Dictionary = {}    # 효과 그림 (계속 쥐고 있어야 한다)
 var _hat: Sprite2D              # 쓴 모자 (머리 모양에 맞춰 그린 앞·옆·뒤 그림)
 var _hat_tex: Array = [null, null, null]   # 지금 모자의 앞, 옆(왼쪽을 봄), 뒤 그림
 var _hat_shape := -1
-var _look_mat: ShaderMaterial   # 옷과 도구의 색 (그림의 파란 옷, 노란 연필을 바꿔 칠한다)
+var _tool: Sprite2D             # 손에 든 도구 (프레임마다 주먹 자리에 놓는다)
+var _tool_tex: Texture2D
 var _look := ""
 
 const Anchors := preload("res://scripts/player_anchors.gd")
-## 옷 모양마다 색 [색상환 0~1 (-1 은 원래 파란 후드티), 진하기 배율, 밝기(1보다 크면 밝게 끌어올리고 작으면 어둡게)]
-const CLOTH_LOOK := [[-1.0, 1.0, 1.0], [0.33, 0.8, 1.2], [0.14, 0.9, 2.0], [0.95, 0.6, 1.8], [0.6, 1.2, 0.8],
-	[0.76, 0.75, 1.2], [0.62, 1.1, 0.65], [0.0, 1.0, 1.3], [0.08, 1.0, 1.6], [0.47, 0.8, 1.2]]
-## 도구 모양마다 색 [색상환 (-1 은 원래 노란 연필), 진하기 배율, 밝기 배율]. 캐릭터가 든 연필 자체의 색을 바꾼다.
-##  연필, 몽당연필, 샤프, 깃펜, 붓, 넓은 붓, 분필, 사인펜, 형광펜, 크레용
-const TOOL_LOOK := [[-1.0, 1.0, 1.0], [0.07, 1.0, 0.9], [0.58, 0.45, 1.0], [0.1, 0.12, 1.1], [0.06, 0.8, 0.6],
-	[0.02, 0.8, 0.5], [0.45, 0.22, 1.08], [0.0, 1.0, 0.92], [0.27, 1.0, 1.05], [0.88, 0.8, 1.0]]
 ## 모자마다 [크기 배율, 머리 꼭대기에서 모자 아랫단까지 내려오는 길이(텍셀)]
 const HAT_FIT := [[0.72, 24.0], [0.72, 24.0], [0.72, 27.0], [0.72, 29.0], [0.72, 27.0],
 	[0.72, 23.0], [0.74, 28.0], [0.72, 22.0], [0.72, 29.0], [0.72, 26.0]]
-const LOOK_SHADER := """
-shader_type canvas_item;
-uniform float hue = -1.0;
-uniform float sat = 1.0;
-uniform float val = 1.0;
-uniform float tool_hue = -1.0;
-uniform float tool_sat = 1.0;
-uniform float tool_val = 1.0;
-vec3 rgb2hsv(vec3 c) {
-	vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-	vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-	vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-	float d = q.x - min(q.w, q.y);
-	return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
-}
-vec3 hsv2rgb(vec3 c) {
-	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-	vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-	return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
-void fragment() {
-	// COLOR 에는 이미 그림 색이 들어 있다. 파란 옷과 노란 연필 부분만 새 색으로 바꿔 넣는다.
-	vec4 c = texture(TEXTURE, UV);
-	vec3 h = rgb2hsv(c.rgb);
-	if (hue >= 0.0 && h.x > 0.5 && h.x < 0.75 && h.y > 0.1 && h.z > 0.15) {
-		COLOR.rgb = hsv2rgb(vec3(hue, clamp(max(h.y * sat, 0.42), 0.0, 1.0), val >= 1.0 ? 1.0 - (1.0 - h.z) / val : h.z * val));
-	} else if (tool_hue >= 0.0 && h.x > 0.09 && h.x < 0.19 && h.y > 0.55 && h.z > 0.55) {
-		COLOR.rgb = hsv2rgb(vec3(tool_hue, clamp(h.y * tool_sat, 0.0, 1.0), clamp(h.z * tool_val, 0.0, 1.0)));
-	}
-}
-"""
+const TOOL_K := 0.5             # 도구 그림은 주인공 그림보다 두 배 촘촘하다
+const TOOL_TUCK := 6.0          # 도구의 쥐는 쪽을 주먹 안으로 이만큼 밀어 넣는다 (주인공 텍셀)
 var ult := 0.0                  # 필살기 게이지 (0 ~ 100)
 
 
@@ -121,14 +86,14 @@ func _ready() -> void:
 		_attack_sprite = Art.make_sprite(self, attack_sheet, FOOT, 3, 4)
 		_attack_sprite.show_behind_parent = true
 		_attack_sprite.visible = false
-	# 장비 겉모습: 옷과 도구는 캐릭터 그림의 색을 바꾸고, 모자는 머리에 맞춰 그린 그림을 프레임마다 머리 위에 놓는다
-	var sh := Shader.new()
-	sh.code = LOOK_SHADER
-	_look_mat = ShaderMaterial.new()
-	_look_mat.shader = sh
-	for sp in [_sprite, _attack_sprite]:
-		if sp:
-			(sp as Sprite2D).material = _look_mat
+	# 장비 겉모습: 옷은 옷마다 따로 그린 캐릭터 그림(맨손)으로 바꾸고,
+	#  도구는 프레임마다 주먹 자리에, 모자는 머리 위에 놓는다
+	_tool = Sprite2D.new()
+	_tool.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_tool.show_behind_parent = true
+	_tool.region_enabled = true
+	_tool.visible = false
+	add_child(_tool)
 	_hat = Sprite2D.new()
 	_hat.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hat.visible = false
@@ -282,27 +247,34 @@ func _refresh_look() -> void:
 	_hat_shape = int(eq["hat"]["shape"]) if eq.has("hat") else -1
 	for v in 3:
 		_hat_tex[v] = Art.tex("hat_%d_%d" % [_hat_shape, v]) if _hat_shape >= 0 else null
-	var cloth: Array = CLOTH_LOOK[int(eq["cloth"]["shape"]) % CLOTH_LOOK.size()] if eq.has("cloth") else CLOTH_LOOK[0]
-	_look_mat.set_shader_parameter("hue", float(cloth[0]))
-	_look_mat.set_shader_parameter("sat", float(cloth[1]))
-	_look_mat.set_shader_parameter("val", float(cloth[2]))
-	var tool: Array = TOOL_LOOK[int(eq["tool"]["shape"]) % TOOL_LOOK.size()] if eq.has("tool") else TOOL_LOOK[0]
-	_look_mat.set_shader_parameter("tool_hue", float(tool[0]))
-	_look_mat.set_shader_parameter("tool_sat", float(tool[1]))
-	_look_mat.set_shader_parameter("tool_val", float(tool[2]))
+	# 옷: 옷마다 걷기·공격 그림이 따로 있다 (없으면 기본 후드티)
+	var cloth := int(eq["cloth"]["shape"]) if eq.has("cloth") else 0
+	var walk := Art.tex("player_walk_c%d" % cloth)
+	var swing := Art.tex("player_attack_c%d" % cloth)
+	if walk and _sprite:
+		_sprite.texture = walk
+	if swing and _attack_sprite:
+		_attack_sprite.texture = swing
+	# 도구: 안 들었으면 처음부터 들고 있던 연필
+	_tool_tex = Art.tex("tool_%d" % (int(eq["tool"]["shape"]) if eq.has("tool") else 0))
 
 
-## 모자를 지금 보이는 프레임의 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 머리 자리가 다르다)
+## 지금 보이는 프레임에 맞춰 도구를 주먹에, 모자를 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 자리가 다르다)
 func _place_look(_moving: bool) -> void:
-	if _hat_shape < 0 or _sprite == null:
+	if _sprite == null:
 		_hat.visible = false
+		_tool.visible = false
 		return
 	var swinging := _attack_sprite != null and _attack_sprite.visible
 	var shown: Sprite2D = _attack_sprite if swinging else _sprite
 	var fc: Vector2i = shown.frame_coords
-	var table: Array = Anchors.ATTACK if swinging else Anchors.WALK
+	var cols := 3 if swinging else 4
 	var frame: Vector2 = Anchors.ATTACK_FRAME if swinging else Anchors.WALK_FRAME
-	var head: Array = table[fc.y * (3 if swinging else 4) + fc.x]
+	_place_tool(shown, (Anchors.ATTACK_TOOL if swinging else Anchors.WALK_TOOL)[fc.y * cols + fc.x], frame, swinging)
+	if _hat_shape < 0:
+		_hat.visible = false
+		return
+	var head: Array = (Anchors.ATTACK if swinging else Anchors.WALK)[fc.y * cols + fc.x]
 	var view := 0 if fc.y == 0 else (2 if fc.y == 3 else 1)
 	var tex: Texture2D = _hat_tex[view]
 	_hat.visible = tex != null and (shown.visible or _sprite.visible)
@@ -317,6 +289,32 @@ func _place_look(_moving: bool) -> void:
 	var bottom := Vector2(float(head[0]) - frame.x * 0.5, float(head[1]) + float(fit[1]) - frame.y)
 	_hat.position = FOOT + (bottom - Vector2(0, tex.get_height() * k * 0.5)) * Art.SCALE.x
 	_hat.modulate.a = shown.modulate.a
+
+
+## 도구를 주먹에 쥐여 준다. spot = [쥔 쪽 끝 x, y, 촉으로 가는 방향 x, y, 원래 연필이 보이던 길이, 몸 앞이면 1]
+##  도구 그림은 촉이 위를 본다. 쥐는 쪽을 주먹 안으로 밀어 넣고, 몸 뒤에 그려서 주먹이 도구를 덮게 한다.
+##  걸을 때는 원래 연필이 보이던 만큼만 (촉 쪽을) 보여 준다. 긴 도구가 땅에 끌리지 않게.
+func _place_tool(shown: Sprite2D, spot: Array, frame: Vector2, swinging: bool) -> void:
+	_tool.visible = _tool_tex != null and shown.visible
+	if not _tool.visible:
+		return
+	var front := int(spot[5]) == 1
+	var dir := Vector2(float(spot[2]), float(spot[3]))
+	var full := _tool_tex.get_height() * TOOL_K
+	var tuck := 0.0 if front else minf(TOOL_TUCK, full * 0.25)   # 몽당연필처럼 짧은 도구는 덜 밀어 넣는다
+	var length := full if swinging else minf(full, float(spot[4]) + tuck)
+	var base := Vector2(float(spot[0]) - frame.x * 0.5, float(spot[1]) - frame.y) - dir * tuck
+	_tool.texture = _tool_tex
+	_tool.region_rect = Rect2(0, 0, _tool_tex.get_width(), length / TOOL_K)
+	_tool.scale = Art.SCALE * TOOL_K
+	_tool.rotation = dir.angle() + PI * 0.5
+	_tool.position = FOOT + (base + dir * length * 0.5) * Art.SCALE.x
+	_tool.modulate.a = shown.modulate.a
+	# 몸 뒤(맨 앞 자식) 또는 몸 앞(걷기·공격 그림 다음)
+	var want := get_child_count() - 1 if front else 0
+	if _tool.get_index() != want:
+		move_child(_tool, want)
+	_tool.show_behind_parent = not front
 
 
 func _on_state_changed() -> void:
