@@ -48,6 +48,8 @@ SHEETS = {
     "41_tools": (5, 2, [("tool_%d" % i, TOOL_SCALE) for i in range(10)]),
     # 생활 도구: 낚싯대, 갈퀴, 낫 (쥐는 쪽이 아래), 물뿌리개 (주둥이가 왼쪽), 찌, 물보라
     "43_life_tools": (3, 2, [("life_rod", 124), ("life_rake", 104), ("life_sickle", 64), ("life_can", 60), ("life_bobber", 48), ("life_splash", 48)]),
+    # 수업을 끝낼 때 찍히는 "참 잘했어요" 도장, 축하 별가루
+    "44_stamp": (2, 1, [("ui_stamp", 160), ("ui_confetti", 200)]),
     # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
     "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
 }

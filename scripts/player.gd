@@ -176,6 +176,7 @@ func _physics_process(delta: float) -> void:
 		velocity = dir * move_speed * GameState.move_speed_mult()
 		if Input.is_action_just_pressed("dodge") and _dodge_cd <= 0.0:
 			_dodge_timer = dodge_time
+			GameState.lesson_note("dodge")
 			_dodge_cd = dodge_cooldown * (0.8 if GameState.has_fx("light") else 1.0)
 
 	if _dash_timer > 0.0:
@@ -433,11 +434,13 @@ func use_skill(id: String, aim_override := Vector2.ZERO) -> bool:
 	var info: Dictionary = Items.SKILLS[id]
 	if float(skill_cd.get(id, 0.0)) > 0.0:
 		return false
-	if mp < float(info["mp"]):
-		GameState.notify("MP 가 부족해요.")
-		return false
-	mp -= float(info["mp"])
-	skill_cd[id] = float(info["cd"])
+	if not GameState.trial:
+		if mp < float(info["mp"]):
+			GameState.notify("MP 가 부족해요.")
+			return false
+		mp -= float(info["mp"])
+	skill_cd[id] = float(info["cd"]) * (0.3 if GameState.trial else 1.0)   # 체험 중에는 MP 없이, 금방 다시
+	GameState.lesson_skill(id)
 	var aim := aim_override if aim_override != Vector2.ZERO else get_global_mouse_position() - global_position
 	var dir := aim.normalized() if aim.length() > 1.0 else facing
 	facing = dir
@@ -535,6 +538,7 @@ func use_ultimate() -> bool:
 
 ## 따라 그린 점수(0~1)만큼 강한 한 방을 화면의 모든 적에게 넣는다
 func finish_ultimate(score: float) -> void:
+	GameState.lesson_skill("ult")
 	Sound.play("sk_ult")
 	ult = 0.0
 	var mult := 3.0 + 7.0 * clampf(score, 0.0, 1.0)
@@ -591,6 +595,7 @@ func use_consumable(id: String) -> bool:
 	else:
 		return false
 	GameState.add_consumable(id, -1)
+	GameState.lesson_note("use")
 	return true
 
 

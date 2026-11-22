@@ -147,6 +147,12 @@ func _ready() -> void:
 	hud.set("quest_text_override", "내 마을: 빈 페이지에 마을을 그려 보자")
 	add_child(hud)
 	(hud.call("menu", "build") as Control).connect("build_chosen", _on_build_chosen)
+	# 수업 (새 캐릭터만): 종이 붙이기 → 내 집 짓기 → 잠자기
+	var lessons := preload("res://scripts/lessons.gd").new()
+	lessons.name = "Lessons"
+	lessons.set("hud", hud)
+	lessons.set("place", "home")
+	add_child(lessons)
 
 	if not GameState.home_intro_seen:
 		_first_visit.call_deferred()

@@ -32,6 +32,9 @@ var _quick: Array = []
 var _ult: Control              # 필살기 화면
 var _trace: Control            # 따라 그리기 화면 (포획, 건물 짓기)
 var _fishing: Control          # 낚시 화면
+var _stamp: TextureRect        # "참 잘했어요" 도장 (수업을 하나 끝낼 때)
+var _confetti: TextureRect
+var _stamp_tween: Tween
 var _night: ColorRect          # 밤에 화면을 어둡게 덮는 막
 var _clock_label: Label
 var _board_label: Label        # 게시판 부탁 진행도
@@ -125,6 +128,29 @@ func _ready() -> void:
 	root.add_child(_trace)
 	_fishing = FishingScript.new()
 	root.add_child(_fishing)
+	# 수업을 끝낼 때 찍히는 도장
+	_stamp = TextureRect.new()
+	_stamp.texture = Art.tex("ui_stamp")
+	_stamp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_stamp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_stamp.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stamp.size = Vector2(80, 80)
+	_stamp.position = Vector2(280, 96)
+	_stamp.pivot_offset = Vector2(40, 40)
+	_stamp.visible = false
+	root.add_child(_stamp)
+	_confetti = TextureRect.new()
+	_confetti.texture = Art.tex("ui_confetti")
+	_confetti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_confetti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_confetti.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_confetti.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_confetti.size = Vector2(120, 120)
+	_confetti.position = Vector2(260, 76)
+	_confetti.pivot_offset = Vector2(60, 60)
+	_confetti.visible = false
+	root.add_child(_confetti)
 	_build_name_box(root)
 	add_to_group("hud")
 	_build_stats(root)
@@ -400,6 +426,38 @@ func fishing() -> Control:
 
 
 ## at: 찌를 던질 물의 자리 (월드). 주지 않으면 캐릭터가 보는 쪽 앞.
+## 화면 가운데에 도장을 쾅 찍는다 (수업을 하나 끝냈을 때)
+func stamp() -> void:
+	if _stamp == null or _stamp.texture == null:
+		return
+	if _stamp_tween:
+		_stamp_tween.kill()
+	Sound.play("stamp")
+	_stamp.visible = true
+	_stamp.modulate.a = 1.0
+	_stamp.scale = Vector2(2.4, 2.4)
+	_stamp.rotation = -0.3
+	_confetti.visible = _confetti.texture != null
+	_confetti.modulate.a = 0.0
+	_confetti.scale = Vector2(0.5, 0.5)
+	_stamp_tween = create_tween().set_parallel(true)
+	_stamp_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_stamp_tween.tween_property(_stamp, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_stamp_tween.tween_property(_stamp, "rotation", 0.0, 0.16)
+	_stamp_tween.tween_property(_confetti, "modulate:a", 1.0, 0.1).set_delay(0.14)
+	_stamp_tween.tween_property(_confetti, "scale", Vector2(1.4, 1.4), 0.5).set_delay(0.14)
+	_stamp_tween.chain().tween_interval(0.5)
+	_stamp_tween.chain().tween_property(_stamp, "modulate:a", 0.0, 0.35)
+	_stamp_tween.parallel().tween_property(_confetti, "modulate:a", 0.0, 0.35)
+	_stamp_tween.chain().tween_callback(func() -> void:
+		_stamp.visible = false
+		_confetti.visible = false)
+
+
+func stamp_showing() -> bool:
+	return _stamp != null and _stamp.visible
+
+
 func start_fishing(fine: bool, place: String = "home", at: Vector2 = Vector2.INF) -> void:
 	if not _any_window_open():
 		_fishing.call("start", fine, place, at)

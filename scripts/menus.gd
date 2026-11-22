@@ -990,7 +990,11 @@ func _refresh_slots() -> void:
 	for n in range(1, GameState.SLOT_COUNT + 1):
 		var info := GameState.slot_info(n)
 		if info.is_empty():
-			_row(box, "ui_slot", "%d번 칸: 비어 있음" % n, [["새로 만들기", GameState.start_slot.bind(n), true]])
+			# 튜토리얼을 한 번 끝낸 뒤에는 새 캐릭터가 건너뛸 수 있다
+			var make: Array = [["새로 만들기", GameState.start_slot.bind(n), true]]
+			if bool(GameState.settings.get("tutorial_done", false)):
+				make.append(["튜토리얼 건너뛰기", GameState.start_slot.bind(n, true), true])
+			_row(box, "ui_slot", "%d번 칸: 비어 있음" % n, make)
 		else:
 			_row(box, "portrait_player", "%d. 그린이 (연필잡이)  필력 %d · %d일째 · %s" % [n, int(info["level"]), int(info["day"]), info["map"]],
 				[["시작", GameState.start_slot.bind(n), true], ["지우기", _delete_slot.bind(n), true]])

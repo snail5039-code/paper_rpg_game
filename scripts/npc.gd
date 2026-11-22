@@ -89,6 +89,9 @@ func interact() -> void:
 			"슬라임이 납작하게 움츠리면 곧 박치기한다는 뜻이야. 조심해!",
 		], "haru_smile")
 		GameState.set_quest(Q.FIND_LEAD)
+		if GameState.lessons_on:
+			await GameState.say(npc_name, ["아, 그 전에! 연필 쓰는 법부터 하나씩 알려 줄게.", "먼저 풀밭의 슬라임을 한 마리만 혼내 줘. 마우스 왼쪽을 누르면 연필을 휘둘러."], "haru_smile")
+			GameState.set_lesson("attack")
 	elif q == Q.FIND_LEAD:
 		if GameState.pencil_lead < need:
 			await GameState.say(npc_name, [

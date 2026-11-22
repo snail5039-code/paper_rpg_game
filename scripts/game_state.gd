@@ -44,6 +44,12 @@ enum Quest {
 
 var save_path: String = SAVE_PATH  # 테스트에서 별도 파일로 바꿔 쓴다
 var quest: int = Quest.NOT_STARTED
+## 튜토리얼 수업 (scripts/lessons.gd). lesson: 지금 수업의 이름 ("" 은 없음, "home" 은 내 마을에서 이어짐)
+var lesson: String = ""
+var lessons_on: bool = false      # 새로 만든 캐릭터만 수업을 받는다
+var trial: bool = false           # 스킬 체험 중: 모든 스킬을 MP 없이 쓸 수 있다
+var _lesson_counts: Dictionary = {}
+var _trial_slots: Array = []
 var pencil_lead: int = 0
 var bridge_built: bool = false
 var intro_seen: bool = false
@@ -199,13 +205,19 @@ func slot_info(n: int) -> Dictionary:
 
 
 ## 그 칸의 캐릭터로 게임을 시작한다. 빈 칸이면 새 캐릭터 (프롤로그부터). 마을과 창고는 이어받는다.
-func start_slot(n: int) -> void:
+## skip: 새 캐릭터일 때 튜토리얼을 건너뛸지
+func start_slot(n: int, skip: bool = false) -> void:
 	if n < 1 or n > SLOT_COUNT:
 		return
+	var fresh := not FileAccess.file_exists(slot_path(n))
 	slot = n
 	save_path = slot_path(n)
 	_reset_state()
 	load_game()
+	if fresh:
+		lessons_on = true        # 새 캐릭터는 하루의 수업을 받는다
+		if skip:
+			skip_tutorial()
 	settings["last_slot"] = n
 	save_settings()
 	save_game()
@@ -250,6 +262,74 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 # ---------- 진행도 ----------
+
+func set_lesson(id: String) -> void:
+	lesson = id
+	_lesson_counts = {}
+	changed.emit()
+	save_game()
+
+
+## 수업 중에 한 일을 센다 ("kill", "dodge", "stat", "use", "expand", "sleep")
+func lesson_note(what: String) -> void:
+	_lesson_counts[what] = int(_lesson_counts.get(what, 0)) + 1
+
+
+## 써 본 스킬 (서로 다른 것만 센다)
+func lesson_skill(id: String) -> void:
+	var used: Dictionary = _lesson_counts.get("skills", {})
+	used[id] = true
+	_lesson_counts["skills"] = used
+
+
+func lesson_count(what: String) -> int:
+	if what == "skill":
+		return (_lesson_counts.get("skills", {}) as Dictionary).size()
+	return int(_lesson_counts.get(what, 0))
+
+
+## 스킬 체험: 스킬 칸에 긋기·동그라미·점 찍기를 넣어 주고, 모든 스킬을 배운 것처럼 쓸 수 있게 한다
+func begin_trial() -> void:
+	if trial:
+		return
+	trial = true
+	_trial_slots = skill_slots.duplicate()
+	skill_slots = ["slash", "circle", "dot"]
+	if is_instance_valid(player_ref):
+		player_ref.set("ult", 100.0)
+	changed.emit()
+
+
+func end_trial() -> void:
+	if not trial:
+		return
+	trial = false
+	skill_slots = _trial_slots.duplicate() if _trial_slots.size() == 3 else ["", "", ""]
+	for i in skill_slots.size():
+		if str(skill_slots[i]) != "" and int(skill_ranks.get(str(skill_slots[i]), 0)) <= 0:
+			skill_slots[i] = ""
+	changed.emit()
+
+
+## 튜토리얼을 건너뛴다 (두 번째 캐릭터부터): 1장을 끝낸 것으로 하고, 수업에서 받는 것을 한꺼번에 준다
+func skip_tutorial() -> void:
+	intro_seen = true
+	quest = Quest.CLEARED
+	bridge_built = true
+	lesson = ""
+	lessons_on = false
+	if level < 2:
+		level = 2
+		stat_points += STAT_POINTS_PER_LEVEL
+		skill_points += 1
+	add_item(Items.make("hat", 2, 0, 1))
+	add_consumable("bandage", 2, true)
+	if friends.is_empty():
+		add_friend("slime")
+	current_map = "home"
+	if not visited.has("home"):
+		visited.append("home")
+
 
 func set_quest(value: int) -> void:
 	quest = value
@@ -337,6 +417,7 @@ func add_stat(key: String) -> bool:
 		return false
 	stat_points -= 1
 	stats[key] = stat(key) + 1
+	lesson_note("stat")
 	changed.emit()
 	return true
 
@@ -653,7 +734,7 @@ func try_capture(kind: String, score: float) -> String:
 	if consumable_count(id) <= 0:
 		return "no_paper"
 	consumables[id] = consumable_count(id) - 1
-	var ok := randf() < capture_chance(score, kind, thick)
+	var ok := randf() < capture_chance(score, kind, thick) or lesson == "capture"   # 수업의 첫 친구는 반드시 된다
 	if ok:
 		add_friend(Data.species_of(kind))
 	changed.emit()
@@ -829,6 +910,7 @@ func clock_text() -> String:
 
 ## 내 집에서 잔다: 다음 날 아침 6시로 넘어가고 피로가 풀린다. 정성 집이면 피로도가 10 더 찬다.
 func sleep() -> void:
+	lesson_note("sleep")
 	clock = DAY_START
 	_new_day()
 	if has_fine("bld_house"):
@@ -923,6 +1005,7 @@ func board_reward(q: Dictionary, what: String) -> int:
 
 ## 몬스터를 물리칠 때마다 부른다
 func on_kill(kind: String) -> void:
+	lesson_note("kill")
 	var sp := Data.species_of(kind)
 	for q in board_quests:
 		if board_day == day and str(q["sp"]) == sp and not bool(q["claimed"]):
@@ -1309,6 +1392,7 @@ func expand_home() -> bool:
 	if cost.is_empty() or not pay(cost):
 		return false
 	home_sheets = int(Data.HOME_STEPS[Data.HOME_STEPS.find(home_sheets) + 1])
+	lesson_note("expand")
 	changed.emit()
 	return true
 
@@ -1316,7 +1400,10 @@ func expand_home() -> bool:
 # ---------- 스킬 ----------
 
 func skill_rank(id: String) -> int:
-	return int(skill_ranks.get(id, 0))
+	var rank := int(skill_ranks.get(id, 0))
+	if trial and Items.SKILLS.has(id) and str(Items.SKILLS[id]["kind"]) != "passive":
+		return maxi(1, rank)     # 체험 중에는 쓰는 스킬을 모두 한 단계로 써 볼 수 있다
+	return rank
 
 
 ## 스킬 포인트 1점으로 스킬을 배우거나 한 단계 올린다
@@ -1440,6 +1527,8 @@ func _update_pause() -> void:
 func save_game() -> bool:
 	var data := {
 		"quest": quest,
+		"lesson": lesson,
+		"lessons_on": lessons_on,
 		"pencil_lead": pencil_lead,
 		"bridge_built": bridge_built,
 		"intro_seen": intro_seen,
@@ -1455,7 +1544,7 @@ func save_game() -> bool:
 		"consumables": consumables,
 		"skill_points": skill_points,
 		"skill_ranks": skill_ranks,
-		"skill_slots": skill_slots,
+		"skill_slots": _trial_slots if trial and _trial_slots.size() == 3 else skill_slots,
 		"bag_size": bag_size,
 		"bag_sizes": bag_sizes,
 		"friends": friends,
@@ -1532,6 +1621,8 @@ func load_game() -> bool:
 	pencil_lead = int(data.get("pencil_lead", 0))
 	bridge_built = bool(data.get("bridge_built", false))
 	intro_seen = bool(data.get("intro_seen", false))
+	lesson = str(data.get("lesson", ""))
+	lessons_on = bool(data.get("lessons_on", false))
 	level = clampi(int(data.get("level", 1)), 1, MAX_LEVEL)
 	exp = maxi(0, int(data.get("exp", 0)))
 	stat_points = maxi(0, int(data.get("stat_points", 0)))
@@ -1664,6 +1755,10 @@ func _materials_for_save() -> Dictionary:
 ## 모든 값을 새 게임 상태로 돌린다 (파일은 건드리지 않는다)
 func _reset_state() -> void:
 	quest = Quest.NOT_STARTED
+	lesson = ""
+	lessons_on = false
+	trial = false
+	_lesson_counts = {}
 	pencil_lead = 0
 	bridge_built = false
 	intro_seen = false

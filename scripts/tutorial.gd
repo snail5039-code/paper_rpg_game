@@ -8,6 +8,7 @@ extends Node
 signal _advance
 
 const Art := preload("res://scripts/art.gd")
+const Lessons := preload("res://scripts/lessons.gd")
 const PAPER := Color(0.99, 0.96, 0.87)
 
 var village: Node2D   # village.gd 가 넣어 준다
@@ -76,6 +77,9 @@ func _current_hints() -> Array:
 		if q == Q.FIND_LEAD:
 			return [["key_mouse_l", "점선을 따라 그리기"], ["key_mouse_r", "지우기"], ["key_enter", "완성"], ["key_tab", "닫기"]]
 		return [["key_mouse_l", "그리기"], ["key_mouse_r", "지우기"], ["key_tab", "닫기"]]
+	var lesson_hints: Array = Lessons.hints()
+	if not lesson_hints.is_empty():
+		return lesson_hints
 	if q == Q.NOT_STARTED:
 		if not _moved:
 			return [["key_wasd", "움직여 보자"]]
@@ -326,6 +330,8 @@ func _on_door_entered() -> void:
 
 	if GameState.quest != GameState.Quest.CLEARED:
 		GameState.set_quest(GameState.Quest.CLEARED)
+		if GameState.lessons_on:
+			GameState.set_lesson("home")     # 수업은 내 마을에서 이어진다
 	await _wait(0.4)
 	await _wait_advance()
 	if GameState.goto_map("home", "from_ch1"):

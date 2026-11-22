@@ -12,6 +12,8 @@ const DrawingScript := preload("res://scripts/drawing_manager.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const GoalScript := preload("res://scripts/goal.gd")
 const TutorialScript := preload("res://scripts/tutorial.gd")
+const Lessons := preload("res://scripts/lessons.gd")
+var lessons: Node
 const PlayerScene := preload("res://scenes/player.tscn")
 const Companion := preload("res://scripts/companion.gd")
 const SlimeScene := preload("res://scenes/enemy.tscn")
@@ -219,6 +221,13 @@ func _ready() -> void:
 	tutorial.set("drawing", drawing)
 	add_child(tutorial)
 
+	# 하루의 수업 (새 캐릭터만): 할 일을 하나씩 준다
+	lessons = Lessons.new()
+	lessons.name = "Lessons"
+	lessons.set("hud", hud)
+	lessons.set("spawn_dummy", _spawn_dummy)
+	add_child(lessons)
+
 
 # ---------- 아래쪽 문 ----------
 
@@ -276,6 +285,15 @@ func _build_collision() -> void:
 			body.add_child(cp)
 
 
+## 스킬 체험용 허수아비를 주인공 옆에 세운다
+func _spawn_dummy() -> Node:
+	var d: Node2D = SlimeScene.instantiate()
+	d.set("kind", "dummy")
+	d.position = (player.global_position if is_instance_valid(player) else bg(SHOP_POS)) + Vector2(56, 0)
+	actors.add_child(d)
+	return d
+
+
 func _spawn_monster(kind: String, pos: Vector2) -> void:
 	var s: Node2D = SlimeScene.instantiate()
 	s.set("kind", kind)
@@ -317,6 +335,9 @@ func _on_blueprint_submitted(strokes: Array) -> void:
 		return
 	if GameState.quest == Q.NOT_STARTED:
 		GameState.notify("먼저 마을 사람에게 이야기를 들어 보자. [F]")
+		return
+	if GameState.lessons_on and Lessons.VILLAGE.has(GameState.lesson) and Lessons.VILLAGE.find(GameState.lesson) < Lessons.VILLAGE.find("bridge"):
+		GameState.notify("먼저 하루가 알려 주는 것부터 해 보자.")
 		return
 	if GameState.pencil_lead < need:
 		GameState.notify("연필심이 부족해요. (%d/%d)" % [GameState.pencil_lead, need])

@@ -277,6 +277,10 @@ func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	_pop_number(amount, crit)
 	_flash = 0.25
 	_knock = dir.normalized() * (190.0 if boss == "" else 40.0)
+	if kind == "dummy":
+		hp = max_hp          # 허수아비는 맞기만 한다
+		_knock = Vector2.ZERO
+		return
 	# 맞으면 준비 동작이 끊기고 잠깐 움찔한 뒤 쫓아온다
 	if state != State.LUNGE:
 		_set_state(State.REST)

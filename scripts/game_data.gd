@@ -64,6 +64,11 @@ const MONSTERS := {
 	},
 	# --- 보스 (다시 그릴 수 없다). boss: "mid" 중간 보스, "boss" 대장, "field" 필드 보스
 	#     slam: 몇 초마다 바닥을 내리친다 (빨간 동그라미가 먼저 보인다). summon: 체력이 절반이 되면 부르는 몬스터
+	# 스킬 체험용 허수아비: 움직이지도 때리지도 쓰러지지도 않는다
+	"dummy": {
+		"name": "연습용 허수아비", "art": "single", "sprite": "deco_scarecrow", "hp": 9999, "speed": 0.0, "damage": 0,
+		"radius": 13.0, "exp": 0, "def": 0, "drops": [], "aggro": 0.0,
+	},
 	"boss_bug": {
 		"name": "왕 지우개똥 벌레", "art": "single", "sprite": "boss_0", "hp": 160, "speed": 30.0, "damage": 8,
 		"radius": 20.0, "exp": 60, "def": 2, "drops": [10, 1.0, 11, 0.6], "lunge_time": 0.5, "lunge_speed": 170.0,
