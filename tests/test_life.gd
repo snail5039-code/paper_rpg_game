@@ -247,7 +247,12 @@ func _run() -> void:
 	check((home.get("objects") as Array).size() == 1 and bool(GameState.home_objects[0]["fine"]) and GameState.pencil_lead == 445, "잘 따라 그리면 정성 건물, 연필심을 냄")
 	check(not bool(home.call("can_place", "bld_shop", Vector2(810, 422))), "다른 건물과 겹치게는 놓을 수 없음")
 	home.call("start_placing", "bld_shop")
-	check(bool(await home.call("place_at", Vector2(960, 420), 0.4)) and not bool(GameState.home_objects[1]["fine"]), "대충 그려도 지어지지만 정성은 아님")
+	var lead_before := GameState.pencil_lead
+	var coins_before := GameState.coins
+	check(not bool(await home.call("place_at", Vector2(960, 420), 0.3)) and GameState.home_objects.size() == 1
+		and GameState.pencil_lead == lead_before and GameState.coins == coins_before, "점선을 제대로 안 따라 그리면 지어지지 않고 값도 안 듦")
+	home.call("start_placing", str(home.get("placing")) if str(home.get("placing")) != "" else "bld_shop")
+	check(bool(await home.call("place_at", Vector2(960, 420), 0.6)) and not bool(GameState.home_objects[1]["fine"]), "절반 넘게 따라 그리면 지어지지만 정성은 아님")
 	home.call("start_placing", "deco_tree_round")
 	var coins0 := GameState.coins
 	check(bool(await home.call("place_at", Vector2(700, 440))) and bool(await home.call("place_at", Vector2(1060, 440))), "소품은 바로 놓이고 이어서 놓을 수 있음")

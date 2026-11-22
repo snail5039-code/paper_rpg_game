@@ -396,6 +396,10 @@ func _use_lot() -> void:
 		_busy = false
 		if score < 0.0:
 			return
+		if score < 0.5 or float(panel.get("accuracy")) < 0.5:
+			Sound.play("fail")
+			GameState.notify("점선을 제대로 따라 그리지 않았어요. 점선 위로 다시 그려 보세요!")
+			return
 		_built = true
 		lot.call("show_sprite", "bld_house", 70.0)
 		Sound.play("craft")

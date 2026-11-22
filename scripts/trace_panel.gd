@@ -119,6 +119,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## 마지막으로 잰, 그린 선 가운데 점선 위에 있는 비율 (0~1). 화면을 마구 칠하면 낮아진다.
+var accuracy := 1.0
+
+
 ## 지금까지 그린 선의 점수: 점선을 덮은 비율 × (선 위에 그린 정도)
 func measure() -> float:
 	var all: Array = strokes.duplicate()
@@ -127,6 +131,7 @@ func measure() -> float:
 	if all.is_empty() or guides.is_empty():
 		return 0.0
 	var r: Dictionary = Validator.evaluate(guides, all, TOLERANCE, 0.0, 0.0)
+	accuracy = float(r["accuracy"])
 	return clampf(float(r["coverage"]) * (0.5 + 0.5 * float(r["accuracy"])), 0.0, 1.0)
 
 

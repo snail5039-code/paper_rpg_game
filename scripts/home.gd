@@ -22,6 +22,7 @@ const ObjectScript := preload("res://scripts/home_object.gd")
 const Data := preload("res://scripts/game_data.gd")
 const TracePanel := preload("res://scripts/trace_panel.gd")
 const FINE_SCORE := 0.85     # 이만큼 잘 따라 그리면 "정성" 건물
+const BUILD_SCORE := 0.5     # 적어도 이만큼은 점선을 따라 그려야 지어진다 (아무렇게나 그으면 안 지어진다)
 const CAMERA_ZOOM := 1.5
 const BRUSH_RADIUS := 18.0
 
@@ -550,10 +551,18 @@ func place_at(pos: Vector2, score: float = -2.0) -> bool:
 			panel.call("start", "%s 짓기" % info["name"], TracePanel.house(Rect2(245, 170, 150, 100)), 8.0,
 				Art.tex(id), Rect2(220, 80, 200, 200), Color(1, 1, 1, 0.3))
 			score = await panel.finished
+			# 화면을 마구 칠해서 점선을 덮은 것은 따라 그린 것이 아니다
+			if score >= 0.0 and float(panel.get("accuracy")) < BUILD_SCORE:
+				score = minf(score, BUILD_SCORE - 0.01)
 			if is_instance_valid(_ghost):
 				_ghost.visible = true
 		if score < 0.0:
 			return false          # 그만뒀다
+		if score < BUILD_SCORE:
+			# 점선을 제대로 따라 그리지 않았다: 짓지 않고, 값도 받지 않는다. 같은 자리에서 다시 그릴 수 있다.
+			Sound.play("fail")
+			GameState.notify("점선을 제대로 따라 그리지 않았어요. (%d%%, %d%% 는 넘어야 해요) 점선 위로 다시 그려 보세요!" % [roundi(score * 100.0), roundi(BUILD_SCORE * 100.0)])
+			return false
 		fine = score >= FINE_SCORE
 	if not GameState.pay(info["cost"]):
 		return false
