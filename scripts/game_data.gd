@@ -62,6 +62,23 @@ const MONSTERS := {
 		"name": "조금 지워진 지우개똥 벌레", "art": "strip", "sprite": "bug_faded", "hp": 18, "speed": 34.0, "damage": 4,
 		"radius": 12.0, "exp": 6, "def": 1, "drops": [10, 0.6, 11, 0.1], "lunge_time": 0.45, "lunge_speed": 150.0,
 	},
+	# --- 보스 (다시 그릴 수 없다). boss: "mid" 중간 보스, "boss" 대장, "field" 필드 보스
+	#     slam: 몇 초마다 바닥을 내리친다 (빨간 동그라미가 먼저 보인다). summon: 체력이 절반이 되면 부르는 몬스터
+	"boss_bug": {
+		"name": "왕 지우개똥 벌레", "art": "single", "sprite": "boss_0", "hp": 160, "speed": 30.0, "damage": 8,
+		"radius": 20.0, "exp": 60, "def": 2, "drops": [10, 1.0, 11, 0.6], "lunge_time": 0.5, "lunge_speed": 170.0,
+		"boss": "mid", "scale": 1.0, "summon": "bug_faded", "aggro": 150.0,
+	},
+	"boss_crumple": {
+		"name": "구겨진 종이 구깃이", "art": "single", "sprite": "boss_1", "hp": 320, "speed": 34.0, "damage": 10,
+		"radius": 24.0, "exp": 150, "def": 3, "drops": [6, 1.0, 7, 1.0], "lunge_time": 0.45, "lunge_speed": 200.0,
+		"boss": "boss", "scale": 1.0, "slam": 6.0, "summon": "dots_erased", "aggro": 220.0,
+	},
+	"boss_scribble": {
+		"name": "떠돌이 큰 낙서", "art": "single", "sprite": "boss_2", "hp": 240, "speed": 46.0, "damage": 9,
+		"radius": 22.0, "exp": 110, "def": 2, "drops": [0, 1.0, 1, 1.0], "lunge_time": 0.4, "lunge_speed": 230.0,
+		"boss": "field", "scale": 1.0, "slam": 8.0, "aggro": 160.0,
+	},
 	"bug_erased": {
 		"name": "많이 지워진 지우개똥 벌레", "art": "strip", "sprite": "bug_erased", "hp": 29, "speed": 38.0, "damage": 5,
 		"radius": 12.0, "exp": 10, "def": 2, "drops": [10, 0.8, 11, 0.25], "lunge_time": 0.5, "lunge_speed": 160.0,
@@ -75,11 +92,11 @@ const MONSTERS := {
 ##         [지워진 길]
 const CH1_LAYOUT := {
 	"ch1": Vector2i(1, 0), "ch1_meadow": Vector2i(0, 1), "ch1_crossroad": Vector2i(1, 1),
-	"ch1_gridwoods": Vector2i(2, 1), "ch1_erasedroad": Vector2i(1, 2),
+	"ch1_gridwoods": Vector2i(2, 1), "ch1_erasedroad": Vector2i(1, 2), "ch1_bossroom": Vector2i(1, 3),
 }
 const MAP_NAMES := {
 	"home": "내 마을", "ch1": "공책 마을", "ch1_meadow": "들판", "ch1_crossroad": "갈림길",
-	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길",
+	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길", "ch1_bossroom": "구깃이의 방", "home_room": "내 집",
 }
 
 ## 사냥터 화면 (scripts/field.gd). 위치는 bg px (배경 1672×941).
@@ -111,11 +128,18 @@ const FIELDS := {
 			["spider_faded", Vector2(500, 420)], ["spider_faded", Vector2(900, 520)], ["spider_faded", Vector2(1300, 430)],
 			["squiggle_faded", Vector2(700, 400)], ["squiggle_faded", Vector2(1100, 540)],
 			["spider_erased", Vector2(1450, 520)], ["squiggle_erased", Vector2(1420, 400)],
+			["boss_bug", Vector2(1300, 470)],
 		],
+	},
+	"ch1_bossroom": {
+		"name": "구깃이의 방", "bg": "bg_ch1_erasedroad", "tint": Color(0.78, 0.74, 0.82), "fatigue": 8,
+		"gates": {"top": "ch1_erasedroad"},
+		"solids": [],
+		"monsters": [["boss_crumple", Vector2(836, 520)]],
 	},
 	"ch1_erasedroad": {
 		"name": "지워진 길", "bg": "bg_ch1_erasedroad",
-		"gates": {"top": "ch1_crossroad"},
+		"gates": {"top": "ch1_crossroad", "bottom": "ch1_bossroom"},
 		"solids": [],
 		"monsters": [
 			["bug_faded", Vector2(400, 300)], ["bug_faded", Vector2(1250, 300)], ["bug_faded", Vector2(350, 600)],
@@ -161,6 +185,8 @@ const BUILDS := {
 	"bld_fishing": {"name": "낚시터", "w": 70, "kind": "building", "use": "fishing", "cost": {"lead": 20, "coins": 150}},
 	"bld_villager_a": {"name": "주민 집 (보라 지붕)", "w": 70, "kind": "building", "use": "villager", "cost": {"lead": 20, "coins": 120}},
 	"bld_villager_b": {"name": "주민 집 (초록 지붕)", "w": 70, "kind": "building", "use": "villager", "cost": {"lead": 20, "coins": 120}},
+	"bld_farm": {"name": "밭", "w": 70, "kind": "building", "use": "farm", "cost": {"lead": 10, "coins": 80}, "walk": true},
+	"bld_diner": {"name": "식당", "w": 70, "kind": "building", "use": "cook", "cost": {"lead": 20, "coins": 150}},
 	"deco_tree_round": {"name": "둥근 나무", "w": 30, "kind": "deco", "cost": {"coins": 20}},
 	"deco_tree_pine": {"name": "뾰족 나무", "w": 28, "kind": "deco", "cost": {"coins": 20}},
 	"deco_bush": {"name": "덤불", "w": 24, "kind": "deco", "cost": {"coins": 10}},
@@ -185,3 +211,28 @@ const BUILDS := {
 ## 내 마을 넓히기: 종이 장수 → 가로 × 세로 (화면 한 장은 640 × 360)
 const HOME_STEPS := [4, 6, 9, 12, 16]
 const HOME_GRID := {4: Vector2i(2, 2), 6: Vector2i(3, 2), 9: Vector2i(3, 3), 12: Vector2i(4, 3), 16: Vector2i(4, 4)}
+
+
+## 이야기가 있는 주민 (1장). 부탁을 들어주고 내 마을에 주민 집이 있으면 이사 온다. 이름은 플레이어가 지어 준다.
+##  like: 좋아하는 선물 (호감도 +3), gift: 하트 1개부터 하루 한 번 주는 것, memory: 하트 3개에 들려주는 옛 기억
+const VILLAGERS := {
+	"baker": {"title": "빵집 아주머니", "sprite": "villager_0", "like": "c_radish", "gift": "bread",
+		"memory": ["간판에 뭐라고 썼었는지 기억났어.", "가게 이름이 아니었어. 우리 애 이름이었지.", "…그 애가 누구였는지는, 아직 모르겠구나."]},
+	"elder": {"title": "지팡이 할아버지", "sprite": "villager_1", "like": "f_carp", "gift": "g_twig",
+		"memory": ["그 흰 자국 말이다. 날마다 그 앞에 서 있었지.", "이름은 끝내 못 찾았어. 그래도 누가 서 있었다는 건 내가 안다.", "잊지 않는 사람이 하나라도 있으면, 다 지워진 건 아니란다."]},
+	"kid": {"title": "풍선 아이", "sprite": "villager_2", "like": "g_berry", "gift": "candy",
+		"memory": ["풍선 준 사람, 생각났어!", "키가 크고… 손이 따뜻했어. 얼굴은 안 보여.", "나중에 만나면 내가 먼저 알아볼 거야."]},
+}
+const HEART_NEED := [10, 30, 60, 100, 150]
+## 날아간 풍선이 걸려 있는 곳 (화면, bg px)
+const BALLOONS := {"ch1_meadow": Vector2(1300, 620), "ch1_crossroad": Vector2(420, 330), "ch1_gridwoods": Vector2(1000, 470)}
+
+## 난이도 단계: 이름, 권장 레벨, 몬스터 HP·공격·경험치 배율, 떨어지는 장비 등급 (가장 낮은 것, 가장 높은 것)
+const DIFFICULTY := [
+	{"name": "흐릿한", "level": 1, "hp": 1.0, "dmg": 1.0, "exp": 1.0, "tier": [0, 1]},
+	{"name": "지워지는", "level": 20, "hp": 5.0, "dmg": 3.0, "exp": 6.0, "tier": [1, 2]},
+	{"name": "찢어진", "level": 45, "hp": 20.0, "dmg": 8.0, "exp": 30.0, "tier": [2, 3]},
+	{"name": "빈", "level": 70, "hp": 70.0, "dmg": 20.0, "exp": 120.0, "tier": [3, 4]},
+]
+## 필드 보스가 나올 수 있는 화면
+const FIELD_BOSS_MAPS := ["ch1_meadow", "ch1_crossroad", "ch1_gridwoods"]

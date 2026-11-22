@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://lgoldrgc10ii"
-path="res://.godot/imported/fish_big.png-e3dcf05f15aee08feb93bf3f346048e8.ctex"
+uid="uid://c1njdc34ynhgh"
+path="res://.godot/imported/bld_farm.png-8f23d077a8e8977f536fc8a1b1952eda.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/fish_big.png"
-dest_files=["res://.godot/imported/fish_big.png-e3dcf05f15aee08feb93bf3f346048e8.ctex"]
+source_file="res://assets/sprites/bld_farm.png"
+dest_files=["res://.godot/imported/bld_farm.png-8f23d077a8e8977f536fc8a1b1952eda.ctex"]
 
 [params]
 

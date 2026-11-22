@@ -62,11 +62,13 @@ func _run() -> void:
 	GameState.save_path = "user://test_field_save.json"
 	GameState.clock = 480.0
 	GameState.fatigue = 100
+	GameState.difficulty = 0
+	GameState.field_boss = {"day": GameState.day, "map": "", "dead": true}   # 필드 보스는 따로 시험한다
 	GameState.quest = GameState.Quest.FIND_LEAD
 	GameState.intro_seen = true
 
 	print("[화면 표]")
-	check(Data.FIELDS.size() == 4 and Data.CH1_LAYOUT.size() == 5, "1장은 마을 + 사냥터 4장")
+	check(Data.FIELDS.size() == 5 and Data.CH1_LAYOUT.size() == 6, "1장은 마을 + 사냥터 4장 + 대장 방")
 	var ok_links := true
 	var opposite := {"top": "bottom", "bottom": "top", "left": "right", "right": "left"}
 	for id in Data.FIELDS:
@@ -147,7 +149,7 @@ func _run() -> void:
 	p = f.get("player")
 	p.global_position = Vector2(836, 760) * S
 	await walk("move_down", 90)
-	check(p.global_position.y < 822.0 * S and str(f.get("last_exit")) == "", "지워진 길: 아래쪽은 막혀 있음 (y=%.0f)" % (p.global_position.y / S))
+	check(str(f.get("last_exit")) == "bottom", "지워진 길: 아래쪽 문은 대장 방으로 이어짐")
 	p.global_position = Vector2(836, 560) * S
 	await frames(20)
 	await shot("field_5_erasedroad.png")

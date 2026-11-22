@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장"]}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -30,6 +30,9 @@ var _tab_buttons: Array = []
 var _fixed: Array = []         # 다시 그려도 남기는 단추 (닫기)
 var _message := ""
 var _pending := ""             # 한 번 더 눌러야 하는 행동 (확인 대기)
+var ctx := ""                  # 무엇에 대한 창인지 (밭의 자리, 주민의 id, 포탈의 목적지)
+var _seed := ""                # 밭에서 고른 씨앗
+var _memory := 0
 var _page := 0                # 가방 쪽 (한 쪽에 24칸)
 var _canvas: Control          # 직접 그려서 만들기 화면
 const PAGE := 24
@@ -59,9 +62,10 @@ func _ready() -> void:
 	_fixed.append(UI.icon_button(_win, "ui_close", Vector2(396, 0), Vector2(20, 20), func() -> void: close_requested.emit()))
 	var x := 66.0
 	for i in (TABS[kind] as Array).size():
-		var b := UI.button(_win, str(TABS[kind][i]), Vector2(x, 37), Vector2(50, 19), _set_tab.bind(i), "tab")
+		var many := (TABS[kind] as Array).size() > 4
+		var b := UI.button(_win, str(TABS[kind][i]), Vector2(x, 37), Vector2(44 if many else 50, 19), _set_tab.bind(i), "tab")
 		_tab_buttons.append(b)
-		x += 52.0
+		x += 46.0 if many else 52.0
 	_body = Control.new()
 	_body.position = Vector2(62, 62 if not (TABS[kind] as Array).is_empty() else 44)
 	_body.size = Vector2(300, 130 if not (TABS[kind] as Array).is_empty() else 148)
@@ -152,6 +156,11 @@ func refresh() -> void:
 		"storage": _refresh_storage()
 		"board": _refresh_board()
 		"pause": _refresh_pause()
+		"farm": _refresh_farm()
+		"cook": _refresh_cook()
+		"resident": _refresh_resident()
+		"furnish": _refresh_furnish()
+		"portal": _refresh_portal()
 
 
 # ---------- 가방 ----------
@@ -386,8 +395,14 @@ func _refresh_shop() -> void:
 			var item: Dictionary = GameState.inventory[i]
 			_row(box, Items.icon(item), Items.item_name(item),
 				[["팔기 %d" % Items.sell_price(item), _sell.bind(i), true]], Items.tier_color(item))
-		if GameState.inventory.is_empty():
-			_row(box, "", "팔 장비가 없어요.", [])
+		# 먹거리와 잡동사니도 판다 (값의 절반)
+		for gid in Items.CONSUMABLES:
+			var g := str(gid)
+			if GameState.consumable_count(g) > 0 and (g.begins_with("f_") or g.begins_with("j_") or g.begins_with("c_") or g.begins_with("g_") or g.begins_with("d_")):
+				_row(box, GameState.consumable_icon(g), "%s ×%d" % [Items.CONSUMABLES[g][0], GameState.consumable_count(g)],
+					[["팔기 %d" % maxi(1, int(Items.CONSUMABLES[g][2]) / 2), _sell_goods.bind(g), true]])
+		if box.get_child_count() == 0:
+			_row(box, "", "팔 것이 없어요.", [])
 	elif tab == 2:
 		for recipe in Items.RECIPES:
 			var parts: Array = []
@@ -406,6 +421,20 @@ func _refresh_shop() -> void:
 				tint = Items.TIER_COLORS[int(r[2])]
 			_row(box, icon_name, "%s  ←  %s" % [recipe[0], ", ".join(parts)], [["그리기", _craft.bind(recipe), GameState.can_craft(recipe)]], tint)
 		wallet += "   직접 그려서 만들어요."
+	elif tab == 4:
+		for sid in Items.CROPS:
+			var info2: Array = Items.CONSUMABLES[sid]
+			_row(box, str(info2[1]), "%s  (%d개 있음)  %d일" % [info2[0], GameState.consumable_count(str(sid)), int(Items.CROPS[sid][1])],
+				[["%d" % GameState.price_of(sid), _buy.bind(sid), GameState.coins >= GameState.price_of(sid)]])
+		wallet += "   밭(내 마을, N)에 심어요."
+	elif tab == 5:
+		for fid in Items.FURNITURE:
+			var cost2 := int(Items.FURNITURE[fid][1])
+			if cost2 <= 0:
+				continue
+			_row(box, str(fid), "%s  (%d개 있음)" % [Items.FURNITURE[fid][0], GameState.furniture_count(str(fid))],
+				[["%d" % cost2, _buy_furniture.bind(str(fid)), GameState.coins >= cost2]])
+		wallet += "   내 집 안에서 N 으로 놓아요."
 	else:
 		var all: Array = []
 		for slot in Items.SLOTS:
@@ -649,3 +678,184 @@ func _quit() -> void:
 		return
 	GameState.save_game()
 	get_tree().quit()
+
+
+func _sell_goods(id: String) -> void:
+	_message = "동전 %d개를 받았어요." % GameState.sell_goods(id)
+	refresh()
+
+
+func _buy_furniture(id: String) -> void:
+	_message = "%s 을(를) 샀어요." % Items.FURNITURE[id][0] if GameState.buy_furniture(id) else "동전이 모자라요."
+	refresh()
+
+
+# ---------- 밭 ----------
+
+func _owned_seeds() -> Array:
+	var out: Array = []
+	for sid in Items.CROPS:
+		if GameState.consumable_count(str(sid)) > 0:
+			out.append(str(sid))
+	return out
+
+
+func _refresh_farm() -> void:
+	var box := _list()
+	var seeds := _owned_seeds()
+	if not seeds.has(_seed):
+		_seed = str(seeds[0]) if not seeds.is_empty() else ""
+	if _seed == "":
+		_row(box, "icon_seed", "씨앗이 없어요. (문방구의 씨앗 탭)", [])
+	else:
+		_row(box, "icon_seed", "심을 씨앗: %s ×%d" % [Items.CONSUMABLES[_seed][0], GameState.consumable_count(_seed)],
+			[["다른 씨앗", _next_seed, seeds.size() > 1]])
+	_row(box, "icon_water", "물 주기 (심은 칸 전부, 하루 한 번)", [["물 주기", _water, true]])
+	var plots := GameState.farm_plots(ctx)
+	for i in plots.size():
+		var p: Dictionary = plots[i]
+		if str(p["seed"]) == "":
+			_row(box, "", "%d번 칸: 비어 있음" % (i + 1), [["심기", _plant.bind(i), _seed != ""]])
+			continue
+		var crop := str(Items.CROPS[str(p["seed"])][0])
+		var need := int(Items.CROPS[str(p["seed"])][1])
+		if GameState.plot_ripe(p):
+			_row(box, str(Items.CONSUMABLES[crop][1]), "%d번 칸: %s  다 자랐어요!" % [i + 1, Items.CONSUMABLES[crop][0]], [["거두기", _harvest.bind(i), true]])
+		else:
+			_row(box, "crop_sprout", "%d번 칸: %s  %d/%d일  %s" % [i + 1, Items.CONSUMABLES[crop][0], int(p["grown"]), need,
+				"물 줌" if bool(p["watered"]) else "물이 필요해요"], [])
+	if _message == "":
+		_info.text = "물을 준 칸만 날이 바뀔 때 하루만큼 자라요."
+
+
+func _next_seed() -> void:
+	var seeds := _owned_seeds()
+	_seed = str(seeds[(seeds.find(_seed) + 1) % seeds.size()])
+	refresh()
+
+
+func _plant(i: int) -> void:
+	_message = "심었어요. 물을 주세요." if GameState.plant(ctx, i, _seed) else "심을 수 없어요."
+	refresh()
+
+
+func _water() -> void:
+	var n := GameState.water(ctx)
+	_message = "%d칸에 물을 줬어요." % n if n > 0 else "물을 줄 칸이 없어요."
+	refresh()
+
+
+func _harvest(i: int) -> void:
+	var id := GameState.harvest(ctx, i)
+	_message = "%s 을(를) 거뒀어요." % Items.CONSUMABLES[id][0] if id != "" else "아직 덜 자랐어요."
+	refresh()
+
+
+# ---------- 식당 ----------
+
+func _refresh_cook() -> void:
+	var box := _list()
+	for dish in Items.DISHES:
+		var parts: Array = []
+		var need: Dictionary = Items.DISHES[dish]
+		for id in need:
+			parts.append("%s %d/%d" % [Items.CONSUMABLES[id][0], GameState.consumable_count(str(id)), int(need[id])])
+		_row(box, str(Items.CONSUMABLES[dish][1]), "%s  ←  %s" % [Items.CONSUMABLES[dish][0], ", ".join(parts)],
+			[["요리", _cook.bind(str(dish)), GameState.can_cook(str(dish))]])
+		_hit(box.get_child(box.get_child_count() - 1) as Control, Vector2.ZERO, Vector2(200, 24), _show_dish.bind(str(dish)))
+	if _message == "":
+		_info.text = "요리 이름을 누르면 효과가 나와요. 만든 요리는 가방의 소모품에서 먹어요."
+
+
+func _show_dish(dish: String) -> void:
+	_message = "%s: %s" % [Items.CONSUMABLES[dish][0], Items.CONSUMABLES[dish][3]]
+	refresh()
+
+
+func _cook(dish: String) -> void:
+	_message = "%s 을(를) 만들었어요. (%s)" % [Items.CONSUMABLES[dish][0], Items.CONSUMABLES[dish][3]] if GameState.cook(dish) else "재료가 모자라요."
+	refresh()
+
+
+# ---------- 주민 ----------
+
+func _refresh_resident() -> void:
+	if not Data.VILLAGERS.has(ctx):
+		return
+	var box := _list()
+	var v := GameState.villager(ctx)
+	var info: Dictionary = Data.VILLAGERS[ctx]
+	var like := str(info["like"])
+	var h := GameState.hearts(ctx)
+	_row(box, "", "이야기하기  (하루 한 번, 호감 +1)", [["이야기", _talk, int(v["talk_day"]) != GameState.day]])
+	_row(box, GameState.consumable_icon(like), "선물하기: %s  (가진 것 %d, 호감 +3)" % [Items.CONSUMABLES[like][0], GameState.consumable_count(like)],
+		[["주기", _give, int(v.get("give_day", 0)) != GameState.day and GameState.consumable_count(like) > 0]])
+	_row(box, GameState.consumable_icon(str(info["gift"])), "오늘의 선물: %s  (하트 1개부터)" % Items.CONSUMABLES[str(info["gift"])][0],
+		[["받기", _daily, h >= 1 and int(v["gift_day"]) != GameState.day]])
+	_row(box, "", "옛 기억  (하트 3개부터)", [["듣기", _recall, h >= 3]])
+	var next := "다 채웠어요" if h >= 5 else "다음 하트까지 %d" % (int(Data.HEART_NEED[h]) - int(v["aff"]))
+	var head := "%s (%s)   %s%s   호감 %d  (%s)" % [GameState.villager_name(ctx), info["title"], "♥".repeat(h), "♡".repeat(5 - h), int(v["aff"]), next]
+	_info.text = head + ("\n" + _message if _message != "" else "")
+
+
+func _talk() -> void:
+	var lines := ["여기 살게 해 줘서 고마워.", "네가 그린 마을, 마음에 들어.", "오늘은 날이 좋네. 종이 냄새가 나."]
+	if GameState.hearts(ctx) >= 5:
+		lines = ["나는 %s. 네가 지어 준 이름이야. 이제 누가 물어도 대답할 수 있어." % GameState.villager_name(ctx)]
+	_message = "\"%s\"" % lines[GameState.day % lines.size()] if GameState.villager_talk(ctx) else "오늘은 이미 이야기했어요."
+	refresh()
+
+
+func _give() -> void:
+	_message = "\"이거 내가 좋아하는 건데! 고마워.\"" if GameState.villager_give(ctx) else "줄 수 없어요."
+	refresh()
+
+
+func _daily() -> void:
+	var id := GameState.villager_daily(ctx)
+	_message = "%s 을(를) 받았어요." % Items.CONSUMABLES[id][0] if id != "" else "오늘은 이미 받았어요."
+	refresh()
+
+
+func _recall() -> void:
+	var mem: Array = Data.VILLAGERS[ctx]["memory"]
+	_message = "\"%s\"" % mem[_memory % mem.size()]
+	_memory += 1
+	refresh()
+
+
+# ---------- 꾸미기 (내 집 안, N) ----------
+
+func _refresh_furnish() -> void:
+	var box := _list()
+	var any := false
+	for fid in Items.FURNITURE:
+		var n := GameState.furniture_count(str(fid))
+		if n > 0:
+			any = true
+			_row(box, str(fid), "%s ×%d" % [Items.FURNITURE[fid][0], n], [["놓기", _choose.bind(str(fid)), true]])
+	if not any:
+		_row(box, "", "가진 가구가 없어요. (문방구의 가구 탭, 주민의 선물)", [])
+	_row(box, "tool_eraser", "치우기 (누른 가구를 가방으로)", [["고르기", _choose.bind(""), true]])
+	if _message == "":
+		_info.text = "가구를 고른 뒤 방 안을 눌러 놓아요. 오른쪽 클릭으로 그만둬요."
+
+
+# ---------- 난이도 (내 마을의 문) ----------
+
+func _refresh_portal() -> void:
+	var box := _list()
+	for i in Data.DIFFICULTY.size():
+		var d: Dictionary = Data.DIFFICULTY[i]
+		var open := i <= GameState.max_difficulty
+		_row(box, "portal_open" if open else "portal_locked", "%s  필력 %d+  HP×%d 공격×%d 경험×%d" % [d["name"], int(d["level"]), int(d["hp"]), int(d["dmg"]), int(d["exp"])],
+			[["들어가기", _enter.bind(i), open]])
+	if _message == "":
+		_info.text = "대장을 물리치면 다음 단계가 열려요. 단계가 높을수록 좋은 장비가 나와요."
+
+
+func _enter(i: int) -> void:
+	var parts := ctx.split("|")
+	if GameState.set_difficulty(i):
+		close_requested.emit()
+		GameState.goto_map(parts[0], parts[1] if parts.size() > 1 else "")

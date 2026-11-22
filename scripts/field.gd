@@ -11,6 +11,8 @@ const HudScript := preload("res://scripts/hud.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
 const Companion := preload("res://scripts/companion.gd")
 const MonsterScene := preload("res://scenes/enemy.tscn")
+const SpotScript := preload("res://scripts/pickup_spot.gd")
+const FORAGE_SPOTS := 4
 
 const BG_SIZE := Vector2(1672, 941)
 const WORLD_PER_BG := 640.0 / 1672.0
@@ -62,6 +64,7 @@ func _ready() -> void:
 		back.scale = Vector2.ONE * WORLD_PER_BG
 		back.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		back.z_index = -10
+		back.modulate = cfg.get("tint", Color.WHITE)
 		add_child(back)
 	else:
 		push_error("assets/sprites/%s.png 가 없습니다. tools/import_map_v6.py 를 먼저 실행하세요." % cfg["bg"])
@@ -75,6 +78,37 @@ func _ready() -> void:
 
 	for m in cfg["monsters"]:
 		_spawn_monster(str(m[0]), bg(m[1]))
+	# 오늘의 필드 보스
+	if GameState.field_boss_map() == field_id:
+		_spawn_monster("boss_scribble", bg(Vector2(836, 470)))
+		GameState.notify.call_deferred("필드 보스 \"떠돌이 큰 낙서\" 가 이 근처에 있어요!")
+	# 채집 자리 (하루에 한 번). 자리는 화면마다 정해져 있다.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(field_id)
+	var made := 0
+	var tries := 0
+	while made < FORAGE_SPOTS and tries < 60:
+		tries += 1
+		var at := Vector2(rng.randf_range(PLAY.position.x + 80, PLAY.end.x - 80), rng.randf_range(PLAY.position.y + 80, PLAY.end.y - 80))
+		var blocked := false
+		for r in cfg["solids"]:
+			if (r as Rect2).grow(40).has_point(at):
+				blocked = true
+		if blocked:
+			continue
+		var spot: Node2D = SpotScript.new()
+		spot.set("mode", "forage")
+		spot.set("key", "%s:%d" % [field_id, made])
+		spot.position = bg(at)
+		actors.add_child(spot)
+		made += 1
+	# 풍선 아이의 날아간 풍선
+	if Data.BALLOONS.has(field_id):
+		var balloon: Node2D = SpotScript.new()
+		balloon.set("mode", "balloon")
+		balloon.set("key", field_id)
+		balloon.position = bg(Data.BALLOONS[field_id])
+		actors.add_child(balloon)
 
 	player = PlayerScene.instantiate()
 	var gates: Dictionary = cfg["gates"]
@@ -100,7 +134,7 @@ func _ready() -> void:
 
 	hud = HudScript.new()
 	hud.name = "HUD"
-	hud.set("quest_text_override", "1장 · %s" % cfg["name"])
+	hud.set("quest_text_override", "1장 · %s  (%s)" % [cfg["name"], GameState.diff()["name"]])
 	add_child(hud)
 	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "I 가방  K 스킬  M 지도"]])
 	_tips.call_deferred()
@@ -168,8 +202,10 @@ func _spawn_monster(kind: String, pos: Vector2) -> void:
 	if GameState.is_night() and kind.ends_with("_faded") and Data.MONSTERS.has(kind.replace("_faded", "_erased")):
 		shown = kind.replace("_faded", "_erased")
 	m.set("kind", shown)
+	m.set("tier", GameState.difficulty)
 	m.position = pos
-	m.connect("died", _on_monster_died.bind(kind))
+	if not Data.MONSTERS[shown].has("boss"):     # 보스는 화면을 나갔다 들어와야 다시 나온다
+		m.connect("died", _on_monster_died.bind(kind))
 	actors.add_child(m)
 
 

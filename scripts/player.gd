@@ -93,7 +93,7 @@ func _physics_process(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_swing_timer = maxf(0.0, _swing_timer - delta)
 	_invuln = maxf(0.0, _invuln - delta)
-	mp = minf(float(max_mp), mp + MP_REGEN * delta)
+	mp = minf(float(max_mp), mp + MP_REGEN * (2.0 if GameState.has_buff("mpregen") else 1.0) * delta)
 	_combo_timer = maxf(0.0, _combo_timer - delta)
 	if _combo_timer <= 0.0:
 		combo = 0
@@ -351,6 +351,20 @@ func use_consumable(id: String) -> bool:
 		if mp >= float(max_mp):
 			return false
 		mp = minf(float(max_mp), mp + max_mp * float(info[5]))
+	elif str(info[4]) == "food":
+		# 요리: 회복과 한동안 이어지는 효과
+		var fx: Dictionary = Items.FOOD_FX.get(id, {})
+		var need := fx.has("buff") or (fx.has("hp") and hp < max_hp) or (fx.has("mp") and mp < float(max_mp))
+		if not need:
+			return false
+		if fx.has("hp"):
+			hp = mini(max_hp, hp + ceili(max_hp * float(fx["hp"])))
+			hp_changed.emit(hp, max_hp)
+		if fx.has("mp"):
+			mp = minf(float(max_mp), mp + max_mp * float(fx["mp"]))
+		if fx.has("buff"):
+			GameState.add_buff(str(fx["buff"]), float(fx["time"]))
+			GameState.notify("%s (%d분)" % [Items.BUFF_NAMES[str(fx["buff"])], int(float(fx["time"]) / 60.0)])
 	else:
 		return false
 	GameState.add_consumable(id, -1)

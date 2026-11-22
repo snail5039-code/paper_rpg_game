@@ -12,3 +12,14 @@ ChatGPT 한 대화에서 차례로 받았다. 첫 메시지에 `ch1_v5/09_ui_com
 | `25_ult_cutin.png` | 3:2 일러스트 | 주인공이 큰 연필로 점선 별을 그리는 필살기 컷인. 가운데 62% 띠만 잘라 쓴다 | `ult_cutin` |
 
 스킬 효과는 한 장짜리 그림이고, 움직임(돌기, 커지기, 사라지기)은 코드(`scripts/player.gd` 의 `_draw_skill_fx`)가 만든다.
+
+## 생활·보스 그림 (같은 대화에서 이어 받음)
+
+| 파일 | 크기 | 내용 | 게임에서 쓰는 이름 |
+|---|---|---|---|
+| `26_food.png` | 4칸 × 3줄 | 물고기 8종과 잡동사니 4종 | `food_0` ~ `food_11` |
+| `27_crops.png` | 4칸 × 4줄 | 작물 8종, 씨앗 봉투, 풀·돌·나뭇가지·열매, 빵, 물뿌리개, 하트 | `crop_0` ~ `crop_7`, `icon_seed`, `forage_0` ~ `forage_3`, `icon_bread`, `icon_water`, `icon_heart` |
+| `28_dishes.png` | 4칸 × 3줄 | 요리 8종, 밭, 식당, 새싹, 풍선 | `dish_0` ~ `dish_7`, `bld_farm`, `bld_diner`, `crop_sprout`, `deco_balloon` |
+| `29_furniture.png` | 4칸 × 3줄 | 가구 12종 | `furn_0` ~ `furn_11` |
+| `30_bosses.png` | 3칸 × 1줄 | 왕 지우개똥 벌레, 구겨진 종이 구깃이, 떠돌이 큰 낙서 | `boss_0` ~ `boss_2` |
+| `31_room_bg.png` | 16:9 배경 | 빈 방 (벽지와 나무 바닥) | `bg_room` |

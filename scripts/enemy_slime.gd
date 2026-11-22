@@ -21,6 +21,18 @@ var defense := 0
 var grid_move := false
 var _drops: Array = []
 var _strip := false
+var _single := false         # 그림 한 장짜리 (보스)
+var tier := 0                # 난이도 단계 (사냥터가 정해 준다)
+var boss := ""               # "mid", "boss", "field" (보스가 아니면 빈 글)
+var display_name := ""
+var _slam_every := 0.0       # 바닥 내리치기 간격 (0 은 안 함)
+var _slam_t := 4.0
+var _slam_warn := 0.0        # 내리치기 예고가 남은 시간
+var _slam_pos := Vector2.ZERO
+var _summon := ""
+var _summoned := false
+const SLAM_RADIUS := 46.0
+const SLAM_WARN := 1.0
 
 @export var use_placeholder_art := true
 @export var max_hp := 3
@@ -75,7 +87,29 @@ func _ready() -> void:
 	windup_time = float(cfg.get("windup", windup_time))
 	lunge_time = float(cfg.get("lunge_time", lunge_time))
 	lunge_speed = float(cfg.get("lunge_speed", lunge_speed))
-	if str(cfg["art"]) == "strip":
+	display_name = str(cfg["name"])
+	boss = str(cfg.get("boss", ""))
+	_slam_every = float(cfg.get("slam", 0.0))
+	_summon = str(cfg.get("summon", ""))
+	# 난이도 단계: HP·공격·경험치가 몇 배가 된다
+	var d: Dictionary = Data.DIFFICULTY[clampi(tier, 0, Data.DIFFICULTY.size() - 1)]
+	max_hp = roundi(max_hp * float(d["hp"]))
+	damage = roundi(damage * float(d["dmg"]))
+	exp_reward = roundi(exp_reward * float(d["exp"]))
+	defense = roundi(defense * float(d["dmg"]))
+	if boss != "":
+		add_to_group("boss")
+		leash_range = 400.0
+		lose_range = 400.0
+	if str(cfg["art"]) == "single":
+		var one := Art.tex(str(cfg["sprite"]))
+		if one:
+			_single = true
+			use_placeholder_art = false
+			_sprite = Art.make_sprite(self, one, FOOT)
+			_sprite.scale = Vector2.ONE * (radius * 3.4 / one.get_width())
+			_sprite.show_behind_parent = true
+	elif str(cfg["art"]) == "strip":
 		var sheet := Art.tex("mon_" + str(cfg["sprite"]))
 		if sheet:
 			_strip = true
@@ -166,7 +200,14 @@ func _physics_process(delta: float) -> void:
 	_knock = _knock.move_toward(Vector2.ZERO, 500.0 * delta)
 	move_and_slide()
 
-	if _sprite and _strip:
+	_boss_moves(delta, p, has_player)
+	if _sprite and _single:
+		if absf(move.x) > 1.0:
+			_sprite.flip_h = move.x < 0.0
+		var wob := Vector2(sin(_t * 70.0) * 1.5, 0) if state == State.WINDUP else Vector2.ZERO
+		_sprite.position = FOOT + wob + Vector2(0, -hop * 3.0)
+		_sprite.modulate = Color(1.6, 1.6, 1.6) if _flash > 0.0 else Color.WHITE
+	elif _sprite and _strip:
 		# 6칸 시트: 기본, 움직임1, 움직임2, 예고, 공격, 맞음
 		var col := 0
 		if _flash > 0.0:
@@ -201,11 +242,37 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+## 보스의 추가 움직임: 바닥 내리치기(빨간 동그라미가 1초 보인 뒤 그 자리에 피해), 체력이 절반일 때 부하 부르기
+func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
+	if boss == "" or not has_player:
+		return
+	if _slam_every > 0.0:
+		if _slam_warn > 0.0:
+			_slam_warn -= delta
+			if _slam_warn <= 0.0 and p.global_position.distance_to(_slam_pos) <= SLAM_RADIUS:
+				p.call("take_damage", roundi(damage * 1.5), (p.global_position - _slam_pos).normalized())
+		else:
+			_slam_t -= delta
+			if _slam_t <= 0.0 and p.global_position.distance_to(global_position) < 170.0:
+				_slam_t = _slam_every
+				_slam_warn = SLAM_WARN
+				_slam_pos = p.global_position
+	if _summon != "" and not _summoned and hp <= max_hp / 2:
+		_summoned = true
+		for side in [-1, 1]:
+			var m: Node2D = load("res://scenes/enemy.tscn").instantiate()
+			m.set("kind", _summon)
+			m.set("tier", tier)
+			m.position = position + Vector2(40 * side, 10)
+			get_parent().add_child(m)
+		GameState.notify("%s 이(가) 부하를 불렀어요!" % display_name)
+
+
 func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	hp -= amount
 	_pop_number(amount, crit)
 	_flash = 0.25
-	_knock = dir.normalized() * 190.0
+	_knock = dir.normalized() * (190.0 if boss == "" else 40.0)
 	# 맞으면 준비 동작이 끊기고 잠깐 움찔한 뒤 쫓아온다
 	if state != State.LUNGE:
 		_set_state(State.REST)
@@ -220,7 +287,7 @@ func _die() -> void:
 	get_parent().add_child(drop)
 	# 재료: 흔한 것과 드문 것을 따로 굴린다
 	for i in range(0, _drops.size(), 2):
-		if randf() < float(_drops[i + 1]):
+		if randf() < float(_drops[i + 1]) * GameState.drop_mult():
 			var mat: Node2D = PickupScript.new()
 			mat.set("mat_id", int(_drops[i]))
 			mat.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
@@ -229,10 +296,21 @@ func _die() -> void:
 	GameState.on_kill(kind)
 	GameState.add_coins(maxi(1, exp_reward / 2) + randi() % 2)
 	# 장비: 많이 지워진 모습은 조금 더 잘 준다
-	if randf() < EQUIP_DROP_RATE * (1.6 if kind.ends_with("_erased") else 1.0):
+	# 보스는 반드시 장비를 준다 (중간 보스·필드 보스 1개, 대장 2개). 등급은 난이도 단계를 따른다.
+	var tiers: Array = Data.DIFFICULTY[clampi(tier, 0, Data.DIFFICULTY.size() - 1)]["tier"]
+	var gear_n := 0
+	if boss != "":
+		gear_n = 2 if boss == "boss" else 1
+		GameState.add_coins(exp_reward)
+		GameState.on_boss_killed(kind)
+	elif randf() < EQUIP_DROP_RATE * (1.6 if kind.ends_with("_erased") else 1.0) * GameState.drop_mult():
+		gear_n = 1
+	for i in gear_n:
 		var gear: Node2D = PickupScript.new()
-		gear.set("item", Items.random_drop(maxi(1, GameState.level), 1))
-		gear.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
+		var it := Items.random_drop(maxi(1, GameState.level), int(tiers[1]))
+		it["tier"] = maxi(int(it["tier"]), int(tiers[0]) + (1 if boss == "boss" and int(tiers[0]) < int(tiers[1]) else 0))
+		gear.set("item", Items.make(str(it["slot"]), int(it["shape"]), int(it["tier"]), int(it["level"])))
+		gear.global_position = global_position + Vector2(randf_range(-14, 14), randf_range(-8, 8))
 		get_parent().add_child(gear)
 	# 도화지가 있으면 다시 그려 줄 수 있게 흐린 자국을 남긴다
 	if not GameState.has_paper() and GameState.level >= 2:
@@ -272,8 +350,9 @@ func _draw() -> void:
 
 
 func _draw_hp() -> void:
-	# 체력 막대 (맞았을 때만)
-	if hp < max_hp:
+	_draw_slam()
+	# 체력 막대 (맞았을 때만). 보스의 막대는 화면 위쪽에 따로 나온다.
+	if hp < max_hp and boss == "":
 		var w := 22.0
 		draw_rect(Rect2(-w * 0.5 - 1, -27, w + 2, 5), Color(0.2, 0.18, 0.2))
 		draw_rect(Rect2(-w * 0.5, -26, w * clampf(float(hp) / float(max_hp), 0.0, 1.0), 3), Color(0.9, 0.3, 0.35))
@@ -294,6 +373,17 @@ func _pop_number(amount: int, crit: bool) -> void:
 	tw.tween_property(l, "position:y", l.position.y - 14.0, 0.5)
 	tw.tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.2)
 	tw.chain().tween_callback(l.queue_free)
+
+
+## 내리치기 예고: 떨어질 자리에 빨간 동그라미가 차오른다
+func _draw_slam() -> void:
+	if _slam_warn <= 0.0:
+		return
+	var c := _slam_pos - global_position
+	var k := 1.0 - _slam_warn / SLAM_WARN
+	draw_circle(c, SLAM_RADIUS, Color(0.9, 0.25, 0.25, 0.18))
+	draw_circle(c, SLAM_RADIUS * k, Color(0.9, 0.25, 0.25, 0.3))
+	draw_arc(c, SLAM_RADIUS, 0, TAU, 32, Color(0.9, 0.25, 0.25, 0.9), 2.0)
 
 
 ## 공격 예고: 움츠리는 동안 머리 위에 빨간 느낌표

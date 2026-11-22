@@ -43,11 +43,96 @@ const CONSUMABLES := {
 	"candy": ["사탕", "item_4", 6, "HP 를 12% 회복한다", "hp", 0.12],
 	"paper": ["도화지", "icon_paper", 30, "쓰러진 몬스터를 다시 그릴 때 쓴다", "", 0.0],
 	"paper_thick": ["두꺼운 도화지", "icon_paper_thick", 150, "다시 그리기 성공률이 20% 오른다", "", 0.0],
-	"fish_small": ["붕어 낙서", "fish_small", 8, "낚시터에서 낚는다. HP 를 20% 회복한다", "hp", 0.2],
-	"fish_big": ["잉어 낙서", "fish_big", 25, "낚시터에서 낚는다. HP 를 50% 회복한다", "hp", 0.5],
+	"f_carp": ["연필 붕어", "food_0", 12, "내 마을 물에서 낚는다. HP 를 10% 회복한다", "hp", 0.1],
+	"f_minnow": ["모눈 송사리", "food_1", 8, "내 마을 물에서 낚는다. HP 를 10% 회복한다", "hp", 0.1],
+	"f_clam": ["지우개 조개", "food_2", 15, "내 마을 물에서 낚는다. HP 를 10% 회복한다", "hp", 0.1],
+	"f_catfish": ["잉크 메기", "food_3", 40, "내 마을 물에서 밤에만 낚인다. HP 를 15% 회복한다", "hp", 0.15],
+	"f_crayon": ["크레용 피라미", "food_4", 10, "1장 강에서 낚는다. HP 를 10% 회복한다", "hp", 0.1],
+	"f_cray": ["낙서 가재", "food_5", 18, "1장 강에서 낚는다. HP 를 10% 회복한다", "hp", 0.1],
+	"f_boat": ["종이배", "food_6", 14, "1장 강에 떠다닌다. 팔 수 있다", "", 0.0],
+	"f_moon": ["달빛 은어", "food_7", 45, "1장 강에서 밤에만 낚인다. MP 를 30% 회복한다", "mp", 0.3],
+	"j_scrap": ["찢어진 종이", "food_8", 3, "어디서나 가끔 낚인다. 팔 수 있다", "", 0.0],
+	"j_bottle": ["병 속 쪽지", "food_9", 30, "누군가의 쪽지가 들어 있다. 글씨는 지워졌다", "", 0.0],
+	"j_boot": ["낡은 장화", "food_10", 5, "누가 신던 걸까", "", 0.0],
+	"j_crane": ["접힌 종이학", "food_11", 60, "밤에 아주 가끔 낚인다", "", 0.0],
+	"c_radish": ["연필 무", "crop_0", 10, "밭에서 하루면 자란다. HP 를 10% 회복한다", "hp", 0.1],
+	"c_carrot": ["크레용 당근", "crop_1", 18, "밭에서 이틀이면 자란다. HP 를 10% 회복한다", "hp", 0.1],
+	"c_cabbage": ["모눈 양배추", "crop_2", 18, "밭에서 이틀이면 자란다. HP 를 10% 회복한다", "hp", 0.1],
+	"c_flower": ["색종이 꽃", "crop_3", 28, "밭에서 사흘이면 핀다. 선물로 좋다", "", 0.0],
+	"c_tomato": ["물감 토마토", "crop_4", 28, "밭에서 사흘이면 익는다. HP 를 10% 회복한다", "hp", 0.1],
+	"c_cotton": ["솜사탕 목화", "crop_5", 40, "밭에서 나흘이면 핀다", "", 0.0],
+	"c_corn": ["별사탕 옥수수", "crop_6", 40, "밭에서 나흘이면 익는다. HP 를 10% 회복한다", "hp", 0.1],
+	"c_grape": ["잉크 포도", "crop_7", 55, "밭에서 닷새면 익는다. MP 를 10% 회복한다", "mp", 0.1],
+	"g_grass": ["풀", "forage_0", 2, "사냥터에서 뜯는다", "", 0.0],
+	"g_stone": ["돌", "forage_1", 3, "사냥터에서 줍는다", "", 0.0],
+	"g_twig": ["나뭇가지", "forage_2", 3, "사냥터에서 줍는다", "", 0.0],
+	"g_berry": ["열매", "forage_3", 6, "사냥터에서 딴다. HP 를 10% 회복한다", "hp", 0.1],
+	"bread": ["빵", "icon_bread", 20, "빵집 아주머니가 굽는다. HP 를 40% 회복한다", "hp", 0.4],
+	"d_carp": ["붕어 구이", "dish_0", 30, "HP 를 30% 회복한다", "food", 0.0],
+	"d_radish": ["무 조림", "dish_1", 35, "HP 20% 회복, 5분간 방어 +10%", "food", 0.0],
+	"d_cake": ["당근 케이크", "dish_2", 70, "10분간 경험치 +10%", "food", 0.0],
+	"d_wrap": ["양배추 쌈", "dish_3", 60, "10분간 공격력 +10%", "food", 0.0],
+	"d_soup": ["토마토 수프", "dish_4", 70, "MP 를 50% 회복한다", "food", 0.0],
+	"d_corn": ["옥수수 구이", "dish_5", 60, "10분간 드롭률 +10%", "food", 0.0],
+	"d_juice": ["포도 주스", "dish_6", 120, "10분간 MP 회복 2배", "food", 0.0],
+	"d_stew": ["메기 매운탕", "dish_7", 90, "HP 와 MP 를 전부 회복한다", "food", 0.0],
+	"s_radish": ["연필 무 씨앗", "icon_seed", 6, "밭에 심으면 1일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_carrot": ["크레용 당근 씨앗", "icon_seed", 12, "밭에 심으면 2일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_cabbage": ["모눈 양배추 씨앗", "icon_seed", 12, "밭에 심으면 2일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_flower": ["색종이 꽃 씨앗", "icon_seed", 18, "밭에 심으면 3일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_tomato": ["물감 토마토 씨앗", "icon_seed", 18, "밭에 심으면 3일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_cotton": ["솜사탕 목화 씨앗", "icon_seed", 24, "밭에 심으면 4일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_corn": ["별사탕 옥수수 씨앗", "icon_seed", 24, "밭에 심으면 4일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
+	"s_grape": ["잉크 포도 씨앗", "icon_seed", 30, "밭에 심으면 5일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
 	"coating": ["코팅지", "item_2", 300, "강화 실패 때 하락과 파괴를 한 번 막는다", "", 0.0],
 }
 const QUICK_SLOTS := ["bandage", "milk"]   # 1, 2 번 키
+
+## 요리의 효과: hp·mp 는 회복하는 비율, buff 는 한동안 오르는 것 (def, exp, atk, drop, mpregen), time 은 초
+const FOOD_FX := {
+	"d_carp": {"hp": 0.3},
+	"d_radish": {"hp": 0.2, "buff": "def", "time": 300},
+	"d_cake": {"buff": "exp", "time": 600},
+	"d_wrap": {"buff": "atk", "time": 600},
+	"d_soup": {"mp": 0.5},
+	"d_corn": {"buff": "drop", "time": 600},
+	"d_juice": {"buff": "mpregen", "time": 600},
+	"d_stew": {"hp": 1.0, "mp": 1.0},
+}
+const BUFF_NAMES := {"def": "방어 +10%", "exp": "경험치 +10%", "atk": "공격력 +10%", "drop": "드롭률 +10%", "mpregen": "MP 회복 2배"}
+
+## 요리법 (식당): 요리 id → 재료 {id: 개수}
+const DISHES := {
+	"d_carp": {"f_carp": 1},
+	"d_radish": {"c_radish": 2},
+	"d_cake": {"c_carrot": 2, "bread": 1},
+	"d_wrap": {"c_cabbage": 1, "f_cray": 1},
+	"d_soup": {"c_tomato": 2},
+	"d_corn": {"c_corn": 1},
+	"d_juice": {"c_grape": 2},
+	"d_stew": {"f_catfish": 1, "c_carrot": 1},
+}
+
+## 작물: 씨앗 id → [거두는 것, 자라는 날]
+const CROPS := {
+	"s_radish": ["c_radish", 1], "s_carrot": ["c_carrot", 2], "s_cabbage": ["c_cabbage", 2], "s_flower": ["c_flower", 3],
+	"s_tomato": ["c_tomato", 3], "s_cotton": ["c_cotton", 4], "s_corn": ["c_corn", 4], "s_grape": ["c_grape", 5],
+}
+const FARM_PLOTS := 6
+
+## 낚시터마다 낚이는 것: [낮, 밤, 드물게(낮), 드물게(밤)]
+const FISH := {
+	"home": [["f_carp", "f_minnow", "f_clam"], ["f_catfish", "f_carp"], ["j_scrap", "j_bottle", "j_boot"], ["j_crane", "j_bottle"]],
+	"ch1": [["f_crayon", "f_cray", "f_boat"], ["f_moon", "f_cray"], ["j_scrap", "j_bottle", "j_boot"], ["j_crane", "j_bottle"]],
+}
+const FORAGE := ["g_grass", "g_stone", "g_twig", "g_berry"]
+
+## 가구 (집 안 꾸미기). id 는 그림 이름. 값은 동전.
+const FURNITURE := {
+	"furn_0": ["책상", 80], "furn_1": ["침대", 0], "furn_2": ["스탠드", 60], "furn_3": ["책장", 120],
+	"furn_4": ["러그", 70], "furn_5": ["화분", 40], "furn_6": ["액자", 50], "furn_7": ["의자", 40],
+	"furn_8": ["둥근 탁자", 90], "furn_9": ["장난감 상자", 100], "furn_10": ["벽시계", 60], "furn_11": ["창문", 80],
+}
 
 ## 조합법: [이름, 결과, 재료 {재료 번호: 개수}, 연필심]
 ##   결과가 문자열이면 소모품 id, 배열이면 장비 [부위, 모양, 등급]

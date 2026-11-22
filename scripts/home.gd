@@ -98,7 +98,13 @@ func _ready() -> void:
 
 	player = PlayerScene.instantiate()
 	player.set("spawn_point", SPAWN)
-	if GameState.spawn_tag == "from_ch1":
+	if GameState.spawn_tag == "from_room":
+		# 내 집에서 나왔다: 집 앞에 선다
+		player.position = SPAWN
+		for o in GameState.home_objects:
+			if str(o["id"]) == "bld_house":
+				player.position = Vector2(float(o["x"]), float(o["y"]) + 22.0)
+	elif GameState.spawn_tag == "from_ch1":
 		player.position = portal_pos(0) + Vector2(-60, 10)
 	elif GameState.has_saved_position:
 		player.position = GameState.saved_position

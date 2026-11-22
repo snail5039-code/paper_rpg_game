@@ -8,6 +8,7 @@ const MenusScript := preload("res://scripts/menus.gd")
 const UltimateScript := preload("res://scripts/ultimate.gd")
 const TracePanelScript := preload("res://scripts/trace_panel.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
+const UI := preload("res://scripts/ui_kit.gd")
 const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
@@ -34,6 +35,13 @@ var _fishing: Control          # 낚시 화면
 var _night: ColorRect          # 밤에 화면을 어둡게 덮는 막
 var _clock_label: Label
 var _board_label: Label        # 게시판 부탁 진행도
+var _buff_label: Label         # 요리 효과
+var _boss_name: Label
+var _boss_back: ColorRect
+var _boss_bar: ColorRect
+var _name_box: Control
+var _name_title: Label
+var _name_edit: LineEdit
 var _toast_queue: Array = []   # 차례를 기다리는 알림
 var _friend_slot: Array = []   # 친구 스킬 칸 [틀, 얼굴, 가림막, 글]
 var _friend_sp := ""
@@ -75,6 +83,24 @@ func _ready() -> void:
 	help.modulate.a = 0.8
 	_board_label = _label(root, Vector2(10, 84), 9)
 	_board_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+	_buff_label = _label(root, Vector2(10, 96), 9)
+	_buff_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
+	# 보스 체력 막대 (화면 위 가운데)
+	_boss_back = ColorRect.new()
+	_boss_back.color = Color(0.2, 0.17, 0.18, 0.85)
+	_boss_back.position = Vector2(220, 46)
+	_boss_back.size = Vector2(200, 8)
+	_boss_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_boss_back)
+	_boss_bar = ColorRect.new()
+	_boss_bar.color = Color(0.85, 0.3, 0.4)
+	_boss_bar.position = Vector2(221, 47)
+	_boss_bar.size = Vector2(198, 6)
+	_boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_boss_bar)
+	_boss_name = _label(root, Vector2(220, 30), 11)
+	_boss_name.size = Vector2(200, 14)
+	_boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	_build_bars(root)
 	_quest_label = _label(root, Vector2(10, 68), 13)
@@ -99,6 +125,7 @@ func _ready() -> void:
 	root.add_child(_trace)
 	_fishing = FishingScript.new()
 	root.add_child(_fishing)
+	_build_name_box(root)
 	add_to_group("hud")
 	_build_stats(root)
 	_build_map(root)
@@ -189,7 +216,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause"]:
+	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause", "farm", "cook", "resident", "furnish", "portal"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -349,7 +376,7 @@ func _any_window_open() -> bool:
 	for k in _menus:
 		if (_menus[k] as Control).visible:
 			return true
-	return _stats.visible or _map.visible or bool(_trace.get("active")) or bool(_ult.call("is_active")) or bool(_fishing.call("is_active"))
+	return _stats.visible or _map.visible or _name_box.visible or bool(_trace.get("active")) or bool(_ult.call("is_active")) or bool(_fishing.call("is_active"))
 
 
 ## tab: 열 때 고를 탭 (0 사기, 1 팔기, 2 만들기, 3 강화)
@@ -372,9 +399,67 @@ func fishing() -> Control:
 	return _fishing
 
 
-func start_fishing(fine: bool) -> void:
+func start_fishing(fine: bool, place: String = "home") -> void:
 	if not _any_window_open():
-		_fishing.call("start", fine)
+		_fishing.call("start", fine, place)
+
+
+## 창을 열면서 무엇에 대한 창인지 알려 준다 (밭의 자리, 주민의 id, 포탈의 목적지)
+func open_menu(k: String, ctx: String) -> void:
+	(_menus[k] as Control).set("ctx", ctx)
+	if not is_menu_open(k):
+		toggle_menu(k)
+
+
+# ---------- 이름 짓기 ----------
+
+signal name_done(text: String)
+
+## 이름을 물어본다 (주민이 이사 올 때). 돌려주는 것: 적은 이름 (비우면 빈 글)
+func ask_name(who: String) -> String:
+	_name_title.text = "%s 의 새 이름" % who
+	_name_edit.text = ""
+	_name_box.visible = true
+	GameState.set_menu_open(true)
+	_name_edit.grab_focus()
+	var text: String = await name_done
+	_name_box.visible = false
+	GameState.set_menu_open(false)
+	return text
+
+
+func submit_name(text: String = "") -> void:
+	if _name_box.visible:
+		name_done.emit(text if text != "" else _name_edit.text)
+
+
+func _build_name_box(root: Control) -> void:
+	_name_box = Control.new()
+	_name_box.size = Vector2(640, 360)
+	_name_box.visible = false
+	root.add_child(_name_box)
+	var dim := ColorRect.new()
+	dim.color = Color(0.1, 0.08, 0.08, 0.5)
+	dim.size = Vector2(640, 360)
+	_name_box.add_child(dim)
+	UI.icon(_name_box, "ui_note", Vector2(190, 110), Vector2(260, 130), Color.WHITE, false)
+	_name_title = UI.label(_name_box, "", Vector2(200, 134), Vector2(240, 16), 11)
+	_name_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_edit = LineEdit.new()
+	_name_edit.position = Vector2(240, 158)
+	_name_edit.size = Vector2(160, 24)
+	_name_edit.max_length = 8
+	_name_edit.placeholder_text = "이름 (8자까지)"
+	_name_edit.add_theme_font_size_override("font_size", 11)
+	for st in ["normal", "focus"]:
+		_name_edit.add_theme_stylebox_override(st, UI.box("ui_row"))
+	_name_edit.add_theme_color_override("font_color", UI.INK)
+	_name_edit.add_theme_color_override("font_placeholder_color", UI.INK_SOFT)
+	_name_edit.add_theme_color_override("caret_color", UI.INK)
+	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_edit.text_submitted.connect(func(_t: String) -> void: submit_name())
+	_name_box.add_child(_name_edit)
+	UI.button(_name_box, "이 이름으로", Vector2(270, 192), Vector2(100, 22), submit_name)
 
 
 ## 능력치 화면 (C 키): 레벨마다 받은 포인트를 필압·끈기·손끝·눈썰미에 넣는다
@@ -572,6 +657,21 @@ func _process(_delta: float) -> void:
 		_mp_bar.size.x = HP_FILL_W * clampf(float(p.get("mp")) / float(maxi(mmx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
 	_night.color.a = 0.42 * GameState.night_amount()
+	var fx: Array = []
+	for bk in GameState.buffs:
+		var left := int(float(GameState.buffs[bk]))
+		fx.append("%s %d:%02d" % [Items.BUFF_NAMES[bk], left / 60, left % 60])
+	_buff_label.text = "효과: " + ",  ".join(fx) if not fx.is_empty() else ""
+	var boss: Node = null
+	for b in get_tree().get_nodes_in_group("boss"):
+		if is_instance_valid(b) and not b.is_queued_for_deletion():
+			boss = b
+	_boss_back.visible = boss != null
+	_boss_bar.visible = boss != null
+	_boss_name.visible = boss != null
+	if boss:
+		_boss_name.text = str(boss.get("display_name"))
+		_boss_bar.size.x = 198.0 * clampf(float(boss.get("hp")) / float(maxi(1, int(boss.get("max_hp")))), 0.0, 1.0)
 	_clock_label.text = GameState.clock_text()
 	_day_label.text = "%d일째  피로 %d" % [GameState.day, GameState.fatigue]
 	_refresh_quickbar()
@@ -706,7 +806,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_menu("friends")
 			get_viewport().set_input_as_handled()
 			return
-		for mk in ["build", "storage", "board"]:
+		for mk in ["build", "storage", "board", "farm", "cook", "resident", "furnish", "portal"]:
 			if is_menu_open(mk) and kc == KEY_ESCAPE:
 				toggle_menu(mk)
 				get_viewport().set_input_as_handled()

@@ -33,9 +33,15 @@ SHEETS = {
     "24_skill_fx": (4, 2, [
         ("fx_slash", 240), ("fx_circle", 288), ("fx_dot", 96), ("fx_hatch", 150),
         ("fx_press", 192), ("fx_erase", 150), ("fx_hit", 96), ("fx_star", 240)]),
+    "26_food": (4, 3, [("food_%d" % i, 64) for i in range(12)]),
+    "27_crops": (4, 4, [("crop_%d" % i, 64) for i in range(8)] + [("icon_seed", 64), ("forage_0", 64), ("forage_1", 64), ("forage_2", 64),
+                         ("forage_3", 64), ("icon_bread", 64), ("icon_water", 64), ("icon_heart", 64)]),
+    "28_dishes": (4, 3, [("dish_%d" % i, 64) for i in range(8)] + [("bld_farm", 210), ("bld_diner", 210), ("crop_sprout", 48), ("deco_balloon", 72)]),
+    "29_furniture": (4, 3, [("furn_%d" % i, 120) for i in range(12)]),
+    "30_bosses": (3, 1, [("boss_%d" % i, 300) for i in range(3)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
-FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62)}
+FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):

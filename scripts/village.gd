@@ -18,6 +18,8 @@ const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
 const VillagerScript := preload("res://scripts/villager.gd")
 const ShopkeeperScript := preload("res://scripts/shopkeeper.gd")
+const SpotScript := preload("res://scripts/pickup_spot.gd")
+const FISH_SPOT := Vector2(930, 600)   # 다리 아래쪽 강가
 const SHOP_POS := Vector2(250, 452)
 
 const BG_SIZE := Vector2(1672, 941)
@@ -144,12 +146,24 @@ func _ready() -> void:
 			ms.modulate.a = 0.85
 
 	# 주민
-	for v in VILLAGERS:
+	var vids := ["baker", "elder", "kid"]
+	for vi in VILLAGERS.size():
+		var v: Array = VILLAGERS[vi]
+		if int(GameState.villager(str(vids[vi]))["q"]) == 3:
+			continue      # 내 마을로 이사 갔다
 		var vn: Node2D = VillagerScript.new()
+		vn.set("vid", vids[vi])
 		vn.set("sprite_name", v[0])
 		vn.set("lines", v[2])
 		vn.position = bg(v[1])
 		actors.add_child(vn)
+
+	# 강가의 낚시 자리
+	var fish_spot: Node2D = SpotScript.new()
+	fish_spot.set("mode", "fish")
+	fish_spot.set("key", "ch1")
+	fish_spot.position = bg(FISH_SPOT)
+	actors.add_child(fish_spot)
 
 	# 몬스터
 	for sp in MONSTER_SPAWNS:

@@ -16,6 +16,9 @@ var _star: Texture2D
 var _key: Texture2D
 var _t := 0.0
 var _asked := -10.0
+var _extra: Array = []          # 주민이나 작물 그림
+var _extra_state := "?"
+const Items := preload("res://scripts/items.gd")
 var _height := 20.0
 
 
@@ -45,11 +48,10 @@ func _ready() -> void:
 		add_child(shape)
 	if str(info["kind"]) == "building":
 		add_to_group("interactable")
-	# 주민 집 앞에는 주민이 서 있다
-	if str(info.get("use", "")) == "villager":
-		var vt := Art.tex("villager_1" if id.ends_with("_a") else "villager_2")
-		if vt:
-			Art.make_sprite(self, vt, Vector2(w * 0.5 + 6.0, 6))
+	# 주민 집 앞에는 그 집에 사는 주민이 서 있다. 밭에는 자라는 작물이 보인다.
+	if str(info.get("use", "")) == "villager" or str(info.get("use", "")) == "farm":
+		GameState.changed.connect(_refresh_extra)
+		_refresh_extra()
 	add_to_group("home_object")
 
 
@@ -63,7 +65,9 @@ func interact() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
 	match str(info.get("use", "")):
 		"sleep":
-			# 실수로 하루를 넘기지 않게 3초 안에 한 번 더 눌러야 잔다
+			# 집 안으로 들어간다 (침대에서 잔다). 맵을 옮길 수 없는 곳(테스트)에서는 여기서 바로 잔다.
+			if GameState.goto_map("home_room", ""):
+				return
 			if _t - _asked > 3.0:
 				_asked = _t
 				GameState.notify("잠을 자면 다음 날 아침이 돼요. 한 번 더 F 를 누르면 자요.")
@@ -93,21 +97,60 @@ func interact() -> void:
 			if hud:
 				hud.call("start_fishing", fine)
 		"villager":
-			_talk_villager()
+			var who := GameState.resident_of(GameState.house_key({"x": position.x, "y": position.y}))
+			if who == "":
+				GameState.notify("빈 집이에요. 1장 마을 사람의 부탁을 들어주면 이사 와요.")
+			elif hud:
+				hud.call("open_menu", "resident", who)
+		"farm":
+			if hud:
+				hud.call("open_menu", "farm", GameState.house_key({"x": position.x, "y": position.y}))
+		"cook":
+			if hud:
+				hud.call("open_menu", "cook", "")
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
 
 
-## 주민 집: 사는 주민이 하루에 한 번 선물을 준다
-func _talk_villager() -> void:
-	var gift := GameState.villager_gift("%d_%d" % [roundi(position.x), roundi(position.y)], fine)
-	var lines: Array = ["여기 살게 해 줘서 고마워. 네가 그린 마을, 마음에 들어."]
-	if gift != "":
-		lines.append("이거, 오늘 주운 거야. 받아. (%s)" % gift)
+## 주민 집의 주민, 밭의 작물 그림을 지금 상태에 맞춘다
+func _refresh_extra() -> void:
+	var key := GameState.house_key({"x": position.x, "y": position.y})
+	var want := ""
+	if str(info.get("use", "")) == "villager":
+		var who := GameState.resident_of(key)
+		want = str(Data.VILLAGERS[who]["sprite"]) if who != "" else ""
 	else:
-		lines.append("오늘은 줄 게 없네. 내일 또 와.")
-	await GameState.say("□□이", lines, "")
-	GameState.save_game()
+		for p in GameState.farm_plots(key):
+			want += "%s%d%s," % [str(p["seed"]), int(p["grown"]), "w" if bool(p["watered"]) else ""]
+	if want == _extra_state:
+		return
+	_extra_state = want
+	for c in _extra:
+		(c as Node).queue_free()
+	_extra = []
+	var w := float(info["w"])
+	if str(info.get("use", "")) == "villager":
+		var vt := Art.tex(want) if want != "" else null
+		if vt:
+			_extra.append(Art.make_sprite(self, vt, Vector2(w * 0.5 + 6.0, 6)))
+		return
+	# 밭: 3 × 2 칸에 새싹 또는 다 자란 작물
+	var plots := GameState.farm_plots(key)
+	for i in plots.size():
+		var p: Dictionary = plots[i]
+		if str(p["seed"]) == "":
+			continue
+		var ripe := GameState.plot_ripe(p)
+		var tex := Art.tex(str(Items.CONSUMABLES[str(Items.CROPS[str(p["seed"])][0])][1]) if ripe else "crop_sprout")
+		if tex == null:
+			continue
+		var s := Sprite2D.new()
+		s.texture = tex
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		s.scale = Vector2.ONE * (12.0 / tex.get_width())
+		s.position = Vector2(-w * 0.26 + (i % 3) * w * 0.26, -_height * 0.5 + (i / 3) * _height * 0.3)
+		add_child(s)
+		_extra.append(s)
 
 
 func _draw() -> void:

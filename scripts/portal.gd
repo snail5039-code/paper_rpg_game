@@ -42,6 +42,11 @@ func interact() -> void:
 	if locked or target_map == "":
 		GameState.notify("아직 열리지 않은 페이지다.")
 		return
+	# 대장을 잡아 다음 단계가 열렸으면 들어가기 전에 난이도를 고른다
+	var hud := get_tree().get_first_node_in_group("hud")
+	if GameState.max_difficulty > 0 and hud:
+		hud.call("open_menu", "portal", target_map + "|" + spawn_tag)
+		return
 	if not GameState.goto_map(target_map, spawn_tag):
 		GameState.notify("%s (으)로 가는 문" % title)
 

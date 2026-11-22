@@ -28,6 +28,8 @@ const MAP_SCENES := {
 	"ch1_crossroad": "res://scenes/field.tscn",
 	"ch1_gridwoods": "res://scenes/field.tscn",
 	"ch1_erasedroad": "res://scenes/field.tscn",
+	"ch1_bossroom": "res://scenes/field.tscn",
+	"home_room": "res://scenes/room.tscn",
 }
 
 ## 1페이지(튜토리얼) 진행 순서
@@ -82,6 +84,17 @@ var board_day: int = 0            # 게시판 부탁을 뽑은 날
 var board_quests: Array = []      # {"sp", "need", "have", "claimed"}
 var gift_days: Dictionary = {}    # 주민 집(자리) → 마지막으로 선물을 받은 날
 var tips_seen: Dictionary = {}    # 한 번씩만 띄우는 설명 (id → true)
+var buffs: Dictionary = {}        # 요리 효과 (종류 → 남은 초)
+var farms: Dictionary = {}        # 밭(자리) → 칸 6개 {"seed", "grown", "watered"}
+var foraged: Dictionary = {"day": 0, "taken": []}   # 오늘 채집한 자리
+var furniture: Dictionary = {}    # 가진 가구 (id → 개수, 방에 놓은 것은 빼고)
+var room_items: Array = []        # 내 집 안에 놓은 가구 {"id", "x", "y"}
+var villagers: Dictionary = {}    # 주민 (id → {"q", "name", "house", "aff", "talk_day", "gift_day", "progress", "q_day", "told"})
+var balloons: Array = []          # 잡은 풍선이 있던 화면
+var difficulty: int = 0           # 사냥터 난이도 단계 (0 흐릿한 ~ 3 빈)
+var max_difficulty: int = 0       # 고를 수 있는 가장 높은 단계 (대장을 잡으면 다음 단계가 열린다)
+var field_boss: Dictionary = {"day": 0, "map": "", "dead": false}
+var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 var quick_slots: Array = ["bandage", "milk"]   # 1, 2 번 키에 넣은 소모품
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
@@ -148,10 +161,11 @@ func goto_map(map: String, tag: String = "") -> bool:
 		return false
 	# 사냥터 화면에 들어갈 때마다 피로도가 든다
 	if Data.FIELDS.has(map):
-		if fatigue < FATIGUE_PER_FIELD:
-			notify("너무 피곤해서 더 갈 수 없어요. 내 집에서 자거나 아침을 기다려요.")
+		var tired := int(Data.FIELDS[map].get("fatigue", FATIGUE_PER_FIELD))
+		if fatigue < tired:
+			notify("너무 피곤해서 더 갈 수 없어요. 내 집에서 자거나 아침을 기다려요. (피로도 %d 필요)" % tired)
 			return false
-		fatigue -= FATIGUE_PER_FIELD
+		fatigue -= tired
 	current_map = map
 	if not visited.has(map):
 		visited.append(map)
@@ -178,6 +192,8 @@ func exp_needed(lv: int = -1) -> int:
 
 
 func add_exp(amount: int) -> void:
+	if has_buff("exp"):
+		amount = ceili(amount * 1.1)
 	_friend_exp(amount)
 	if level >= MAX_LEVEL:
 		return
@@ -220,11 +236,11 @@ func max_mp() -> int:
 ## 공격력 = (도구 공격력 + 필압 × 2 + 옵션) × 연필 깎기
 func attack_power() -> int:
 	var base := (gear("atk") if equipped.has("tool") else 6) + stat("pressure") * 2
-	return roundi(base * (1.0 + 0.03 * skill_rank("sharpen")))
+	return roundi(base * (1.0 + 0.03 * skill_rank("sharpen")) * (1.1 if has_buff("atk") else 1.0))
 
 
 func defense() -> int:
-	return stat("grit") + gear("def")
+	return ceili((stat("grit") + gear("def")) * (1.1 if has_buff("def") else 1.0))
 
 
 func crit_chance() -> float:
@@ -639,6 +655,7 @@ func advance_clock(real_sec: float) -> void:
 func _new_day() -> void:
 	day += 1
 	fatigue = FATIGUE_MAX
+	_grow_farms()
 	notify("아침이 밝았어요. %d일째. 피로가 풀렸어요." % day)
 	changed.emit()
 
@@ -688,6 +705,11 @@ func _process(delta: float) -> void:
 	# 대화, 창, 컷신 중에는 시간이 흐르지 않는다
 	if not get_tree().paused and is_instance_valid(player_ref):
 		advance_clock(delta)
+		for k in buffs.keys():
+			buffs[k] = float(buffs[k]) - delta
+			if float(buffs[k]) <= 0.0:
+				buffs.erase(k)
+				notify("%s 효과가 끝났어요." % Items.BUFF_NAMES[k])
 
 
 # ---------- 내 마을의 건물 기능 ----------
@@ -771,11 +793,307 @@ func board_claim(i: int) -> bool:
 	return true
 
 
-## 낚시: 물고기 하나를 가방에 넣고 id 를 돌려준다. 밤에는 큰 물고기가 더 잘 잡힌다.
-func catch_fish() -> String:
-	var id := "fish_big" if randf() < (0.45 if is_night() else 0.15) else "fish_small"
+## 낚시: 그 낚시터(place: "home", "ch1")의 물고기 하나를 가방에 넣고 id 를 돌려준다.
+##  낮과 밤에 낚이는 것이 다르고, 12% 로 드문 것(쪽지, 장화, 종이학)이 올라온다.
+func catch_fish(place: String = "home") -> String:
+	var t: Array = Items.FISH.get(place, Items.FISH["home"])
+	var night := is_night()
+	var pool: Array = t[3 if night else 2] if randf() < 0.12 else t[1 if night else 0]
+	var id := str(pool[randi() % pool.size()])
 	add_consumable(id)
 	return id
+
+
+# ---------- 요리 효과 ----------
+
+func has_buff(kind: String) -> bool:
+	return float(buffs.get(kind, 0.0)) > 0.0
+
+
+func add_buff(kind: String, seconds: float) -> void:
+	buffs[kind] = maxf(float(buffs.get(kind, 0.0)), seconds)
+	changed.emit()
+
+
+func drop_mult() -> float:
+	return 1.1 if has_buff("drop") else 1.0
+
+
+## 식당에서 요리한다. 정성 식당은 25% 로 하나를 더 만든다.
+func can_cook(dish: String) -> bool:
+	if not Items.DISHES.has(dish):
+		return false
+	var need: Dictionary = Items.DISHES[dish]
+	for id in need:
+		if consumable_count(str(id)) < int(need[id]):
+			return false
+	return true
+
+
+func cook(dish: String) -> bool:
+	if not can_cook(dish):
+		return false
+	var need: Dictionary = Items.DISHES[dish]
+	for id in need:
+		consumables[str(id)] = consumable_count(str(id)) - int(need[id])
+	add_consumable(dish, 2 if has_fine("bld_diner") and randf() < 0.25 else 1)
+	return true
+
+
+## 먹거리를 문방구에 판다 (값의 절반)
+func sell_goods(id: String) -> int:
+	if consumable_count(id) <= 0:
+		return 0
+	var got := maxi(1, int(Items.CONSUMABLES[id][2]) / 2)
+	consumables[id] = consumable_count(id) - 1
+	coins += got
+	changed.emit()
+	return got
+
+
+# ---------- 농사 ----------
+
+## 밭 하나의 칸들 (없으면 빈 칸 6개를 만든다)
+func farm_plots(key: String) -> Array:
+	if not farms.has(key):
+		var plots: Array = []
+		for i in Items.FARM_PLOTS:
+			plots.append({"seed": "", "grown": 0, "watered": false})
+		farms[key] = plots
+	return farms[key]
+
+
+func plant(key: String, i: int, seed: String) -> bool:
+	var plots := farm_plots(key)
+	if i < 0 or i >= plots.size() or str(plots[i]["seed"]) != "" or not Items.CROPS.has(seed) or consumable_count(seed) <= 0:
+		return false
+	consumables[seed] = consumable_count(seed) - 1
+	plots[i] = {"seed": seed, "grown": 0, "watered": false}
+	changed.emit()
+	return true
+
+
+## 심은 칸 전부에 물을 준다. 돌려주는 것: 물을 준 칸 수
+func water(key: String) -> int:
+	var n := 0
+	for p in farm_plots(key):
+		if str(p["seed"]) != "" and not bool(p["watered"]) and not plot_ripe(p):
+			p["watered"] = true
+			n += 1
+	if n > 0:
+		changed.emit()
+	return n
+
+
+func plot_ripe(p: Dictionary) -> bool:
+	return str(p["seed"]) != "" and int(p["grown"]) >= int(Items.CROPS[str(p["seed"])][1])
+
+
+## 다 자란 칸을 거둔다. 정성 밭은 하나를 더 준다. 돌려주는 것: 거둔 것의 id ("" 은 못 거둠)
+func harvest(key: String, i: int) -> String:
+	var plots := farm_plots(key)
+	if i < 0 or i >= plots.size() or not plot_ripe(plots[i]):
+		return ""
+	var crop := str(Items.CROPS[str(plots[i]["seed"])][0])
+	plots[i] = {"seed": "", "grown": 0, "watered": false}
+	add_consumable(crop, 2 if has_fine("bld_farm") else 1)
+	return crop
+
+
+## 날이 바뀌면 물을 준 칸이 하루만큼 자란다
+func _grow_farms() -> void:
+	for key in farms:
+		for p in farms[key]:
+			if str(p["seed"]) != "" and bool(p["watered"]):
+				p["grown"] = int(p["grown"]) + 1
+			p["watered"] = false
+
+
+# ---------- 채집 ----------
+
+## 사냥터의 채집 자리 (하루에 한 번). 돌려주는 것: 얻은 것의 id ("" 은 오늘 이미 가져감)
+func take_forage(key: String) -> String:
+	if int(foraged.get("day", 0)) != day:
+		foraged = {"day": day, "taken": []}
+	if (foraged["taken"] as Array).has(key):
+		return ""
+	(foraged["taken"] as Array).append(key)
+	var id := str(Items.FORAGE[hash(key) % Items.FORAGE.size()])
+	add_consumable(id)
+	return id
+
+
+func forage_left(key: String) -> bool:
+	return int(foraged.get("day", 0)) != day or not (foraged["taken"] as Array).has(key)
+
+
+# ---------- 가구 ----------
+
+func furniture_count(id: String) -> int:
+	return int(furniture.get(id, 0))
+
+
+func add_furniture(id: String) -> void:
+	furniture[id] = furniture_count(id) + 1
+	changed.emit()
+
+
+func buy_furniture(id: String) -> bool:
+	var cost := int(Items.FURNITURE[id][1])
+	if cost <= 0 or coins < cost:
+		return false
+	coins -= cost
+	add_furniture(id)
+	return true
+
+
+# ---------- 주민 ----------
+
+## 주민의 상태. q: 0 아직 부탁을 듣지 않음, 1 부탁을 들음, 2 부탁을 들어줌 (집을 기다림), 3 내 마을에 삶
+func villager(id: String) -> Dictionary:
+	if not villagers.has(id):
+		villagers[id] = {"q": 0, "name": "", "house": "", "aff": 0, "talk_day": 0, "gift_day": 0, "progress": 0, "q_day": 0, "told": 0}
+	return villagers[id]
+
+
+func hearts(id: String) -> int:
+	var n := 0
+	for need in Data.HEART_NEED:
+		if int(villager(id)["aff"]) >= int(need):
+			n += 1
+	return n
+
+
+func add_aff(id: String, amount: int) -> void:
+	var v := villager(id)
+	var before := hearts(id)
+	v["aff"] = int(v["aff"]) + amount
+	if hearts(id) > before:
+		notify("%s 와(과) 더 가까워졌어요. (하트 %d개)" % [villager_name(id), hearts(id)])
+		if hearts(id) == 2:
+			# 하트 2개: 가구 하나를 선물로 받는다
+			var ids: Array = Items.FURNITURE.keys()
+			var fid := str(ids[(hash(id) + 3) % ids.size()])
+			add_furniture(fid)
+			notify("%s 을(를) 선물로 받았어요. (가구)" % Items.FURNITURE[fid][0])
+	changed.emit()
+
+
+func villager_name(id: String) -> String:
+	var v := villager(id)
+	return str(v["name"]) if str(v["name"]) != "" else str(Data.VILLAGERS[id]["title"])
+
+
+## 비어 있는 주민 집의 자리 ("" 은 없음)
+func free_house() -> String:
+	for o in home_objects:
+		if str(Data.BUILDS[str(o["id"])].get("use", "")) != "villager":
+			continue
+		var key := house_key(o)
+		if resident_of(key) == "":
+			return key
+	return ""
+
+
+static func house_key(o: Dictionary) -> String:
+	return "%d_%d" % [roundi(float(o["x"])), roundi(float(o["y"]))]
+
+
+## 그 집에 사는 주민의 id ("" 은 빈 집)
+func resident_of(key: String) -> String:
+	for id in villagers:
+		if int(villagers[id]["q"]) == 3 and str(villagers[id]["house"]) == key:
+			return str(id)
+	return ""
+
+
+## 부탁을 들어준 주민이 이사 온다. 빈 집이 있어야 한다.
+func move_in(id: String, new_name: String) -> bool:
+	var v := villager(id)
+	var key := free_house()
+	if int(v["q"]) != 2 or key == "":
+		return false
+	v["q"] = 3
+	v["house"] = key
+	v["name"] = new_name.strip_edges().left(8) if new_name.strip_edges() != "" else str(Data.VILLAGERS[id]["title"])
+	add_aff(id, 5)   # 부탁을 들어준 몫
+	save_game()
+	return true
+
+
+## 하루 한 번 말 걸기 (+1). 오늘 처음이면 true.
+func villager_talk(id: String) -> bool:
+	var v := villager(id)
+	if int(v["talk_day"]) == day:
+		return false
+	v["talk_day"] = day
+	add_aff(id, 1)
+	return true
+
+
+## 좋아하는 것을 선물한다 (+3). 하루에 한 번.
+func villager_give(id: String) -> bool:
+	var v := villager(id)
+	var like := str(Data.VILLAGERS[id]["like"])
+	if int(v.get("give_day", 0)) == day or consumable_count(like) <= 0:
+		return false
+	consumables[like] = consumable_count(like) - 1
+	v["give_day"] = day
+	add_aff(id, 3)
+	return true
+
+
+## 하트 1개부터 하루 한 번 주는 것. 돌려주는 것: 받은 것의 id ("" 은 없음)
+func villager_daily(id: String) -> String:
+	var v := villager(id)
+	if hearts(id) < 1 or int(v["gift_day"]) == day:
+		return ""
+	v["gift_day"] = day
+	var gift := str(Data.VILLAGERS[id]["gift"])
+	add_consumable(gift, 2 if _house_fine(str(v["house"])) else 1)
+	return gift
+
+
+func _house_fine(key: String) -> bool:
+	for o in home_objects:
+		if house_key(o) == key:
+			return bool(o.get("fine", false))
+	return false
+
+
+# ---------- 난이도와 보스 ----------
+
+func diff() -> Dictionary:
+	return Data.DIFFICULTY[clampi(difficulty, 0, Data.DIFFICULTY.size() - 1)]
+
+
+func set_difficulty(d: int) -> bool:
+	if d < 0 or d > max_difficulty or d >= Data.DIFFICULTY.size():
+		return false
+	difficulty = d
+	changed.emit()
+	return true
+
+
+## 오늘의 필드 보스가 나오는 화면 (날이 바뀌면 다시 뽑는다)
+func field_boss_map() -> String:
+	if int(field_boss.get("day", 0)) != day:
+		field_boss = {"day": day, "map": str(Data.FIELD_BOSS_MAPS[randi() % Data.FIELD_BOSS_MAPS.size()]), "dead": false}
+	return "" if bool(field_boss["dead"]) else str(field_boss["map"])
+
+
+## 보스를 물리쳤다. 대장을 잡으면 다음 난이도 단계가 열린다.
+func on_boss_killed(kind: String) -> void:
+	bosses_beaten[kind] = int(bosses_beaten.get(kind, 0)) + 1
+	var role := str(Data.MONSTERS[kind].get("boss", ""))
+	if role == "field":
+		field_boss["dead"] = true
+		add_consumable("coating")
+		notify("필드 보스를 물리쳤어요! 코팅지를 얻었어요.")
+	elif role == "boss" and difficulty == max_difficulty and max_difficulty < Data.DIFFICULTY.size() - 1:
+		max_difficulty += 1
+		notify("대장을 물리쳤어요! \"%s\" 단계가 열렸어요. (내 마을의 문에서 고른다)" % Data.DIFFICULTY[max_difficulty]["name"])
+	changed.emit()
 
 
 ## 주민 집의 주민에게 말을 건다. 하루에 한 번 선물을 준다 (재료 하나 또는 동전). 돌려주는 것: 선물 설명 ("" 은 오늘 이미 받음)
@@ -996,6 +1314,17 @@ func save_game() -> bool:
 		"board_quests": board_quests,
 		"gift_days": gift_days,
 		"tips_seen": tips_seen,
+		"buffs": buffs,
+		"farms": farms,
+		"foraged": foraged,
+		"furniture": furniture,
+		"room_items": room_items,
+		"villagers": villagers,
+		"balloons": balloons,
+		"difficulty": difficulty,
+		"max_difficulty": max_difficulty,
+		"field_boss": field_boss,
+		"bosses_beaten": bosses_beaten,
 		"quick_slots": quick_slots,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
@@ -1064,6 +1393,49 @@ func load_game() -> bool:
 				board_quests.append({"sp": str(bq["sp"]), "need": int(bq.get("need", 3)), "have": int(bq.get("have", 0)), "claimed": bool(bq.get("claimed", false))})
 	gift_days = data["gift_days"] if typeof(data.get("gift_days")) == TYPE_DICTIONARY else {}
 	tips_seen = data["tips_seen"] if typeof(data.get("tips_seen")) == TYPE_DICTIONARY else {}
+	buffs = {}
+	if typeof(data.get("buffs")) == TYPE_DICTIONARY:
+		for bk in data["buffs"]:
+			if Items.BUFF_NAMES.has(str(bk)):
+				buffs[str(bk)] = float(data["buffs"][bk])
+	farms = {}
+	if typeof(data.get("farms")) == TYPE_DICTIONARY:
+		for fk in data["farms"]:
+			var plots: Array = []
+			for pl in data["farms"][fk]:
+				var sd := str(pl.get("seed", ""))
+				plots.append({"seed": sd if Items.CROPS.has(sd) else "", "grown": int(pl.get("grown", 0)), "watered": bool(pl.get("watered", false))})
+			if plots.size() == Items.FARM_PLOTS:
+				farms[str(fk)] = plots
+	var fg: Variant = data.get("foraged")
+	foraged = {"day": int(fg.get("day", 0)), "taken": fg.get("taken", [])} if typeof(fg) == TYPE_DICTIONARY and typeof(fg.get("taken")) == TYPE_ARRAY else {"day": 0, "taken": []}
+	furniture = {}
+	if typeof(data.get("furniture")) == TYPE_DICTIONARY:
+		for uk in data["furniture"]:
+			if Items.FURNITURE.has(str(uk)):
+				furniture[str(uk)] = int(data["furniture"][uk])
+	room_items = []
+	if typeof(data.get("room_items")) == TYPE_ARRAY:
+		for ri in data["room_items"]:
+			if typeof(ri) == TYPE_DICTIONARY and Items.FURNITURE.has(str(ri.get("id", ""))):
+				room_items.append({"id": str(ri["id"]), "x": float(ri.get("x", 0)), "y": float(ri.get("y", 0))})
+	villagers = {}
+	if typeof(data.get("villagers")) == TYPE_DICTIONARY:
+		for vk in data["villagers"]:
+			if Data.VILLAGERS.has(str(vk)) and typeof(data["villagers"][vk]) == TYPE_DICTIONARY:
+				var src: Dictionary = data["villagers"][vk]
+				var v := villager(str(vk))
+				for field in v.keys():
+					if src.has(field):
+						v[field] = str(src[field]) if typeof(v[field]) == TYPE_STRING else int(src[field])
+				if src.has("give_day"):
+					v["give_day"] = int(src["give_day"])
+	balloons = data["balloons"] if typeof(data.get("balloons")) == TYPE_ARRAY else []
+	max_difficulty = clampi(int(data.get("max_difficulty", 0)), 0, Data.DIFFICULTY.size() - 1)
+	difficulty = clampi(int(data.get("difficulty", 0)), 0, max_difficulty)
+	var fb: Variant = data.get("field_boss")
+	field_boss = {"day": int(fb.get("day", 0)), "map": str(fb.get("map", "")), "dead": bool(fb.get("dead", false))} if typeof(fb) == TYPE_DICTIONARY else {"day": 0, "map": "", "dead": false}
+	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
 	var qs: Variant = data.get("quick_slots", [])
 	if typeof(qs) == TYPE_ARRAY and (qs as Array).size() == 2 and Items.CONSUMABLES.has(str(qs[0])) and Items.CONSUMABLES.has(str(qs[1])):
 		quick_slots = [str(qs[0]), str(qs[1])]
@@ -1143,6 +1515,17 @@ func reset_game() -> void:
 	gift_days = {}
 	tips_seen = {}
 	quick_slots = ["bandage", "milk"]
+	buffs = {}
+	farms = {}
+	foraged = {"day": 0, "taken": []}
+	furniture = {}
+	room_items = []
+	villagers = {}
+	balloons = []
+	difficulty = 0
+	max_difficulty = 0
+	field_boss = {"day": 0, "map": "", "dead": false}
+	bosses_beaten = {}
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false
