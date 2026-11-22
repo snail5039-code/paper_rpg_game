@@ -75,6 +75,8 @@ func start(fine: bool = false, where: String = "home", at: Vector2 = Vector2.INF
 	if is_active():
 		return
 	window = 1.0 if fine else 0.7
+	if where == "home":
+		window += (GameState.build_lv("bld_fishing") - 3) * 0.1      # 낚시터의 단계: 입질 시간이 0.1초씩
 	_zone_half = 0.21 if fine else 0.17
 	place = where
 	visible = true

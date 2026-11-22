@@ -26,6 +26,13 @@ func check(ok: bool, text: String) -> void:
 	print("  %s  %s" % ["PASS" if ok else "FAIL", text])
 
 
+## 방금 지은 건물은 1단계(초가집)다. 기능의 기준값을 재는 시험에서는 3단계로 맞추고, 지을 때 받은 효과도 지운다.
+func lv3() -> void:
+	for o in GameState.home_objects:
+		o["lv"] = 3
+	GameState.buffs = {}
+
+
 func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
@@ -244,6 +251,7 @@ func _run() -> void:
 	check(str(home.get("placing")) == "bld_house" and not bool(hhud.call("is_menu_open", "build")), "고르면 창이 닫히고 놓을 자리를 고름")
 	check(not bool(home.call("can_place", "bld_house", Vector2(10, 300))), "마을 밖에는 놓을 수 없음")
 	check(bool(await home.call("place_at", Vector2(800, 420), 0.9)), "내 집을 지음")
+	lv3()
 	check((home.get("objects") as Array).size() == 1 and bool(GameState.home_objects[0]["fine"]) and GameState.pencil_lead == 445, "잘 따라 그리면 정성 건물, 연필심을 냄")
 	check(not bool(home.call("can_place", "bld_shop", Vector2(810, 422))), "다른 건물과 겹치게는 놓을 수 없음")
 	home.call("start_placing", "bld_shop")
@@ -253,6 +261,7 @@ func _run() -> void:
 		and GameState.pencil_lead == lead_before and GameState.coins == coins_before, "점선을 제대로 안 따라 그리면 지어지지 않고 값도 안 듦")
 	home.call("start_placing", str(home.get("placing")) if str(home.get("placing")) != "" else "bld_shop")
 	check(bool(await home.call("place_at", Vector2(960, 420), 0.6)) and not bool(GameState.home_objects[1]["fine"]), "절반 넘게 따라 그리면 지어지지만 정성은 아님")
+	lv3()
 	home.call("start_placing", "deco_tree_round")
 	var coins0 := GameState.coins
 	check(bool(await home.call("place_at", Vector2(700, 440))) and bool(await home.call("place_at", Vector2(1060, 440))), "소품은 바로 놓이고 이어서 놓을 수 있음")
@@ -344,6 +353,93 @@ func _run() -> void:
 	GameState.companion = -1
 	await frames(2)
 
+	print("[건물 단계]")
+	GameState.pencil_lead = 5000
+	GameState.coins = 50000
+	var up_i := 0
+	for oi in GameState.home_objects.size():
+		if str(GameState.home_objects[oi]["id"]) == "bld_house":
+			up_i = oi
+	GameState.home_objects[up_i]["lv"] = 1
+	GameState.buffs = {}
+	check(Data.build_sprite("bld_house", 1) == "bld_house_l1" and Data.build_sprite("bld_house", 3) == "bld_house" and Data.build_sprite("bld_house", 5) == "bld_house_l5",
+		"단계마다 건물 그림이 다름 (초가집, 나무집, 저택)")
+	var art_all := true
+	for bid2 in ["bld_house", "bld_shop", "bld_craft", "bld_storage", "bld_board", "bld_fishing", "bld_villager_a", "bld_villager_b", "bld_farm", "bld_diner"]:
+		for blv in [1, 2, 4, 5]:
+			if not ResourceLoader.exists("res://assets/sprites/%s_l%d.png" % [bid2, blv]):
+				art_all = false
+				print("    그림 없음: %s_l%d" % [bid2, blv])
+	check(art_all, "건물 10종 모두 1·2·4·5단계 그림이 있음")
+	GameState.sleep()
+	check(GameState.fatigue == 90 + (10 if bool(GameState.home_objects[up_i]["fine"]) else 0), "초가집에서 자면 피로가 덜 풀림 (%d)" % GameState.fatigue)
+	var cost1: Dictionary = Data.upgrade_cost("bld_house", 1)
+	var lead0 := GameState.pencil_lead
+	check(not bool(await home.call("upgrade_at", up_i, 0.3)) and int(GameState.home_objects[up_i]["lv"]) == 1 and GameState.pencil_lead == lead0,
+		"점선을 제대로 안 따라 그리면 올라가지 않고 값도 안 듦")
+	check(bool(await home.call("upgrade_at", up_i, 0.75)) and int(GameState.home_objects[up_i]["lv"]) == 2 and GameState.pencil_lead == lead0 - int(cost1["lead"]),
+		"따라 그리면 2단계 흙집이 되고 값을 냄")
+	check(not bool(GameState.home_objects[up_i]["fine"]) and GameState.has_buff("def") and float(GameState.buffs["def"]) <= 300.0,
+		"70% 넘게 그리면 5분 동안 효과를 받음 (정성은 아님)")
+	check(int((home.get("objects")[up_i] as Node).get("lv")) == 2, "마을의 건물 그림도 새 단계로 바뀜")
+	GameState.buffs = {}
+	for step in 3:
+		await home.call("upgrade_at", up_i, 0.95)
+	check(int(GameState.home_objects[up_i]["lv"]) == 5 and bool(GameState.home_objects[up_i]["fine"]) and float(GameState.buffs.get("def", 0.0)) > 500.0,
+		"5단계 저택까지 올림. 잘 그리면 정성 건물이 되고 10분 동안 효과")
+	check(not bool(await home.call("upgrade_at", up_i, 0.95)) and int(GameState.home_objects[up_i]["lv"]) == 5, "5단계가 끝")
+	GameState.sleep()
+	check(GameState.fatigue == 120, "정성 저택에서 자면 피로도 120")
+	var big: Node = (home.get("objects")[up_i] as Node)
+	check(big.get("_sprite") != null and float(big.get("_height")) > 70.0, "저택은 그림이 더 큼")
+	# 방: 단계에 따라 넓어지고 가구를 더 놓는다
+	var room_scene: PackedScene = load("res://scenes/room.tscn")
+	GameState.home_objects[up_i]["lv"] = 1
+	GameState.room_ctx = {"key": GameState.house_key(GameState.home_objects[up_i]), "id": "bld_house"}
+	var small_room: Node2D = room_scene.instantiate()
+	add_child(small_room)
+	await frames(3)
+	check(int(small_room.call("furn_cap")) == 3 and float(small_room.get("k")) < 0.7 and (small_room.get("FLOOR") as Rect2).size.x < 340.0,
+		"초가집의 방은 좁고 가구를 3개까지")
+	await shot("life_30_room_lv1.png")
+	small_room.queue_free()
+	await frames(2)
+	GameState.home_objects[up_i]["lv"] = 5
+	var big_room: Node2D = room_scene.instantiate()
+	add_child(big_room)
+	await frames(3)
+	check(int(big_room.call("furn_cap")) == 16 and is_equal_approx(float(big_room.get("k")), 1.0), "저택의 방은 넓고 가구를 16개까지")
+	await shot("life_31_room_lv5.png")
+	big_room.queue_free()
+	await frames(2)
+	# 다른 건물 안: 문방구에는 계산대가 있고 거기서 가게 창이 열린다
+	GameState.room_ctx = {"key": "", "id": "bld_shop"}
+	var shop_room: Node2D = room_scene.instantiate()
+	add_child(shop_room)
+	await frames(3)
+	check(str(shop_room.get("use")) == "shop" and str(shop_room.get("bld_id")) == "bld_shop", "문방구 안으로 들어감")
+	shop_room.call("use_fixture")
+	await frames(3)
+	check(bool((shop_room.get("hud") as Node).call("is_menu_open", "shop")), "계산대에서 가게 창이 열림")
+	(shop_room.get("hud") as Node).call("toggle_menu", "shop")
+	await frames(2)
+	check(not bool(shop_room.call("can_place", shop_room.get("FIX_POS") + Vector2(0, -40))), "계산대 위에는 가구를 놓을 수 없음")
+	GameState.furniture["furn_0"] = 1
+	shop_room.call("_on_chosen", "furn_0")
+	check(bool(shop_room.call("place_at", Vector2(200, 260))) and (GameState.rooms.get("", []) as Array).size() == 1 and GameState.room_items.size() == 0,
+		"문방구 안에 놓은 가구는 내 집과 따로 저장됨")
+	await shot("life_32_room_shop.png")
+	shop_room.call("remove_at", Vector2(200, 252))
+	shop_room.queue_free()
+	await frames(2)
+	GameState.rooms = {}
+	GameState.room_ctx = {}
+	GameState.player_ref = home.get("player")     # 방을 띄우면서 바뀐 주인공을 내 마을의 주인공으로 되돌린다
+	GameState.buffs = {}
+	lv3()
+	GameState.pencil_lead = 500
+	GameState.coins = 3000
+
 	print("[건물 기능]")
 	GameState.pencil_lead = 500
 	GameState.coins = 3000
@@ -352,6 +448,7 @@ func _run() -> void:
 	for bid in spots:
 		home.call("start_placing", bid)
 		check(bool(await home.call("place_at", spots[bid], 0.95)), "%s 을(를) 정성으로 지음" % Data.BUILDS[bid]["name"])
+		lv3()
 	var objs: Array = home.get("objects")
 	var by_id := {}
 	for o in objs:
@@ -458,6 +555,7 @@ func _run() -> void:
 	print("[농사]")
 	home.call("start_placing", "bld_farm")
 	check(bool(await home.call("place_at", Vector2(560, 600), 0.95)), "밭을 정성으로 지음")
+	lv3()
 	var farm_key := "560_600"
 	GameState.consumables["s_radish"] = 2
 	GameState.consumables["s_carrot"] = 1

@@ -221,7 +221,8 @@ func finish() -> void:
 		if better is Image:
 			img = better
 	var art := Art.save_drawn(Pixel.upscale(img))
-	var q := minf(1.0, quality + (0.1 if GameState.has_fine("bld_craft") else 0.0))   # 정성 조합대: +10%
+	# 조합대의 단계: 3단계 기준으로 한 단계마다 3%. 정성 조합대: +10%
+	var q := clampf(quality + (GameState.build_lv("bld_craft") - 3) * 0.03 + (0.1 if GameState.has_fine("bld_craft") else 0.0), 0.0, 1.0)
 	GameState.craft(recipe, q, art)
 	Sound.play("craft")
 	var msg := "%s 을(를) 만들었어요. (비슷한 정도 %d%%" % [recipe[0], roundi(q * 100.0)]

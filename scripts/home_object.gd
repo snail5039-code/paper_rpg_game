@@ -9,6 +9,7 @@ const RANGE := 44.0
 
 var id := "deco_bush"
 var fine := false
+var lv := 3                 # 건물 단계 (1 초가집 ~ 5 저택). 3단계가 기준 그림이다.
 var ghost := false          # 놓을 자리를 고르는 중인 흐린 그림 (부딪히지 않는다)
 var info: Dictionary
 var _sprite: Sprite2D
@@ -27,13 +28,18 @@ func _ready() -> void:
 	_star = Art.tex("fx_hit")
 	_key = Art.tex("key_f")
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	var tex := Art.tex(id)
+	var is_building := str(info["kind"]) == "building"
+	var tex := Art.tex(Data.build_sprite(id, lv) if is_building else id)
 	var w := float(info["w"])
 	if tex:
 		_sprite = Art.make_sprite(self, tex, Vector2(0, 4))
-		_sprite.scale = Vector2.ONE * (w / tex.get_width())
+		# 단계마다 그림의 크기가 다르다: 3단계 그림을 기준으로 같은 배율을 쓴다 (초가집은 작고 저택은 크다)
+		var base := Art.tex(id)
+		var k := w / (base.get_width() if base else tex.get_width())
+		_sprite.scale = Vector2.ONE * k
+		w = tex.get_width() * k
 		_sprite.show_behind_parent = true
-		_height = tex.get_height() * w / tex.get_width()
+		_height = tex.get_height() * k
 	if ghost:
 		modulate = Color(1, 1, 1, 0.55)
 		collision_layer = 0
@@ -63,11 +69,11 @@ func _process(delta: float) -> void:
 
 func interact() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
+	# 지붕 있는 건물은 안으로 들어간다. 맵을 옮길 수 없는 곳(테스트)에서는 아래에서 바로 쓴다.
+	if Data.ROOMS.has(id) and GameState.enter_room(GameState.house_key({"x": position.x, "y": position.y}), id):
+		return
 	match str(info.get("use", "")):
 		"sleep":
-			# 집 안으로 들어간다 (침대에서 잔다). 맵을 옮길 수 없는 곳(테스트)에서는 여기서 바로 잔다.
-			if GameState.goto_map("home_room", ""):
-				return
 			if _t - _asked > 3.0:
 				_asked = _t
 				GameState.notify("잠을 자면 다음 날 아침이 돼요. 한 번 더 F 를 누르면 자요.")

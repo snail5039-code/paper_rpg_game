@@ -111,12 +111,14 @@ var save_dir: String = "user://"   # 캐릭터 칸, 공유 자료, 설정 파일
 const TITLE_SCENE := "res://scenes/title.tscn"
 ## 모든 캐릭터가 같이 쓰는 것 (내 마을, 창고, 밭, 가구, 주민). 캐릭터 칸으로 할 때는 shared.json 에 따로 저장한다.
 const SHARED_KEYS := ["home_cells", "home_doodles", "home_intro_seen", "home_sheets", "home_objects", "storage",
-	"farms", "furniture", "room_items", "villagers", "gift_days", "balloons"]
+	"farms", "furniture", "room_items", "rooms", "villagers", "gift_days", "balloons"]
 var buffs: Dictionary = {}        # 요리 효과 (종류 → 남은 초)
 var farms: Dictionary = {}        # 밭(자리) → 칸 6개 {"seed", "grown", "watered"}
 var foraged: Dictionary = {"day": 0, "taken": []}   # 오늘 채집한 자리
 var furniture: Dictionary = {}    # 가진 가구 (id → 개수, 방에 놓은 것은 빼고)
 var room_items: Array = []        # 내 집 안에 놓은 가구 {"id", "x", "y"}
+var rooms: Dictionary = {}        # 다른 건물 안에 놓은 가구: 건물 자리(house_key) → [{"id", "x", "y"}, ...]
+var room_ctx: Dictionary = {}     # 지금 들어와 있는 건물 {"key": 자리, "id": 건물 종류}
 var villagers: Dictionary = {}    # 주민 (id → {"q", "name", "house", "aff", "talk_day", "gift_day", "progress", "q_day", "told"})
 var balloons: Array = []          # 잡은 풍선이 있던 화면
 var difficulty: int = 0           # 사냥터 난이도 단계 (0 흐릿한 ~ 3 빈)
@@ -631,7 +633,9 @@ func add_consumable(id: String, amount: int = 1, force: bool = false) -> bool:
 ## 문방구 값. 내 마을에 정성 문방구가 있으면 10% 싸다.
 func price_of(entry: Variant) -> int:
 	var base := int(Items.CONSUMABLES[entry][2]) if typeof(entry) == TYPE_STRING else int((entry as Array)[3])
-	return maxi(1, roundi(base * 0.9)) if has_fine("bld_shop") else base
+	# 내 마을 문방구의 단계: 1단계 10% 비쌈 ~ 5단계 10% 쌈. 정성 문방구는 10% 더 싸다.
+	var rate := 1.0 - (build_lv("bld_shop") - 3) * 0.05 - (0.1 if has_fine("bld_shop") else 0.0)
+	return maxi(1, roundi(base * rate))
 
 
 func buy(entry: Variant) -> bool:
@@ -929,8 +933,8 @@ func sleep() -> void:
 	lesson_note("sleep")
 	clock = DAY_START
 	_new_day()
-	if has_fine("bld_house"):
-		fatigue = FATIGUE_MAX + 10
+	# 내 집의 단계: 초가집에서 자면 90, 저택은 110. 정성 집은 +10.
+	fatigue = FATIGUE_MAX + (build_lv("bld_house") - 3) * 5 + (10 if has_fine("bld_house") else 0)
 	save_game()
 
 
@@ -975,6 +979,79 @@ func has_built(id: String) -> bool:
 ## 정성으로 지은 건물이 있는지. 정성 건물은 기능이 조금 좋다:
 ##  내 집: 자고 나면 피로도 110 / 문방구: 값 10% 할인 / 조합대: 그려 만들 때 비슷한 정도 +10%
 ##  창고: 72칸 / 게시판: 보상 +20% / 낚시터: 입질 받는 시간 1초 / 주민 집: 선물 2배
+# ---------- 건물 단계 ----------
+
+## 그 종류의 건물 가운데 가장 높은 단계 (없으면 0)
+func build_level(id: String) -> int:
+	var best := 0
+	for o in home_objects:
+		if str(o["id"]) == id:
+			best = maxi(best, int(o.get("lv", 3)))
+	return best
+
+
+## 기능을 따질 때 쓰는 단계: 그 건물이 없으면 3단계(기준)로 친다
+func build_lv(id: String) -> int:
+	var lv := build_level(id)
+	return lv if lv > 0 else 3
+
+
+## 그 자리(house_key)에 지은 건물 (없으면 빈 것)
+func object_at(key: String) -> Dictionary:
+	for o in home_objects:
+		if house_key(o) == key:
+			return o
+	return {}
+
+
+## 건물을 한 단계 올린다 (값을 낸다). fine: 이번에 잘 따라 그렸는지.
+func upgrade_object(i: int, fine: bool) -> bool:
+	if i < 0 or i >= home_objects.size():
+		return false
+	var o: Dictionary = home_objects[i]
+	var lv := int(o.get("lv", 3))
+	if lv >= Data.BUILD_MAX_LV or not Data.BUILDS.has(str(o["id"])) or str(Data.BUILDS[str(o["id"])]["kind"]) != "building":
+		return false
+	if not pay(Data.upgrade_cost(str(o["id"]), lv)):
+		return false
+	o["lv"] = lv + 1
+	o["fine"] = fine
+	changed.emit()
+	save_game()
+	return true
+
+
+## 잘 그려서 짓거나 올렸을 때 한동안 받는 효과. 85% 이상이면 10분, 70% 이상이면 5분. 돌려주는 것: 알림에 덧붙일 글
+func build_buff(id: String, score: float) -> String:
+	if score < 0.7 or not Data.BUILD_BUFF.has(id):
+		return ""
+	var kind := str(Data.BUILD_BUFF[id])
+	var minutes := 10 if score >= 0.85 else 5
+	add_buff(kind, minutes * 60.0)
+	return "  잘 그려서 %d분 동안 %s!" % [minutes, Items.BUFF_NAMES[kind]]
+
+
+## 건물 안에 놓은 가구 목록 (내 집은 모든 내 집이 같이 쓴다)
+func room_list(key: String, id: String) -> Array:
+	if id == "bld_house":
+		return room_items
+	if not rooms.has(key):
+		rooms[key] = []
+	return rooms[key]
+
+
+## 건물 안으로 들어간다. 맵을 옮길 수 없는 곳(테스트)에서는 false.
+func enter_room(key: String, id: String) -> bool:
+	if not Data.ROOMS.has(id):
+		return false
+	var before := room_ctx
+	room_ctx = {"key": key, "id": id}
+	if goto_map("home_room", ""):
+		return true
+	room_ctx = before
+	return false
+
+
 func has_fine(id: String) -> bool:
 	for o in home_objects:
 		if str(o["id"]) == id and bool(o.get("fine", false)):
@@ -983,7 +1060,7 @@ func has_fine(id: String) -> bool:
 
 
 func storage_size() -> int:
-	return STORAGE_SIZE + (12 if has_fine("bld_storage") else 0)
+	return int(Data.STORAGE_BY_LV[build_lv("bld_storage") - 1]) + (12 if has_fine("bld_storage") else 0)
 
 
 func store_item(i: int) -> bool:
@@ -1019,7 +1096,7 @@ func board_refresh() -> void:
 
 func board_reward(q: Dictionary, what: String) -> int:
 	var base := int(q["need"]) * (12 if what == "coins" else 6)
-	return roundi(base * 1.2) if has_fine("bld_board") else base
+	return roundi(base * (1.0 + (build_lv("bld_board") - 3) * 0.1 + (0.2 if has_fine("bld_board") else 0.0)))
 
 
 ## 몬스터를 물리칠 때마다 부른다
@@ -1090,7 +1167,9 @@ func cook(dish: String) -> bool:
 	var need: Dictionary = Items.DISHES[dish]
 	for id in need:
 		consumables[str(id)] = consumable_count(str(id)) - int(need[id])
-	add_consumable(dish, 2 if has_fine("bld_diner") and randf() < 0.25 else 1)
+	# 식당의 단계: 4단계 10%, 5단계 20% 로 하나 더. 정성 식당은 +25%.
+	var extra := maxf(0.0, (build_lv("bld_diner") - 3) * 0.1) + (0.25 if has_fine("bld_diner") else 0.0)
+	add_consumable(dish, 2 if randf() < extra else 1)
 	lesson_note("cook")
 	return true
 
@@ -1111,11 +1190,14 @@ func sell_goods(id: String) -> int:
 ## 밭 하나의 칸들 (없으면 빈 칸 6개를 만든다)
 func farm_plots(key: String) -> Array:
 	if not farms.has(key):
-		var plots: Array = []
-		for i in Items.FARM_PLOTS:
-			plots.append({"seed": "", "grown": 0, "watered": false})
-		farms[key] = plots
-	return farms[key]
+		farms[key] = []
+	# 밭의 단계만큼 칸이 있다 (1단계 2칸 ~ 5단계 10칸). 단계가 오르면 칸이 늘어난다.
+	var o := object_at(key)
+	var want := int(Data.FARM_PLOTS_BY_LV[clampi(int(o.get("lv", 3)), 1, 5) - 1]) if not o.is_empty() else Items.FARM_PLOTS
+	var plots: Array = farms[key]
+	while plots.size() < want:
+		plots.append({"seed": "", "grown": 0, "watered": false})
+	return plots
 
 
 func plant(key: String, i: int, seed: String) -> bool:
@@ -1315,7 +1397,9 @@ func villager_daily(id: String) -> String:
 		return ""
 	v["gift_day"] = day
 	var gift := str(Data.VILLAGERS[id]["gift"])
-	add_consumable(gift, 2 if _house_fine(str(v["house"])) else 1, true)
+	# 주민 집의 단계: 4단계부터 선물이 하나 더. 정성 집은 두 배.
+	var n := 1 + (1 if int(object_at(str(v["house"])).get("lv", 3)) >= 4 else 0)
+	add_consumable(gift, n * (2 if _house_fine(str(v["house"])) else 1), true)
 	return gift
 
 
@@ -1592,6 +1676,8 @@ func save_game() -> bool:
 		"foraged": foraged,
 		"furniture": furniture,
 		"room_items": room_items,
+		"rooms": rooms,
+		"room_ctx": room_ctx,
 		"villagers": villagers,
 		"balloons": balloons,
 		"difficulty": difficulty,
@@ -1704,7 +1790,7 @@ func load_game() -> bool:
 			for pl in data["farms"][fk]:
 				var sd := str(pl.get("seed", ""))
 				plots.append({"seed": sd if Items.CROPS.has(sd) else "", "grown": int(pl.get("grown", 0)), "watered": bool(pl.get("watered", false))})
-			if plots.size() == Items.FARM_PLOTS:
+			if plots.size() <= 10:
 				farms[str(fk)] = plots
 	var fg: Variant = data.get("foraged")
 	foraged = {"day": int(fg.get("day", 0)), "taken": fg.get("taken", [])} if typeof(fg) == TYPE_DICTIONARY and typeof(fg.get("taken")) == TYPE_ARRAY else {"day": 0, "taken": []}
@@ -1713,6 +1799,16 @@ func load_game() -> bool:
 		for uk in data["furniture"]:
 			if Items.FURNITURE.has(str(uk)):
 				furniture[str(uk)] = int(data["furniture"][uk])
+	rooms = {}
+	if typeof(data.get("rooms")) == TYPE_DICTIONARY:
+		for rk in data["rooms"]:
+			var list: Array = []
+			if typeof(data["rooms"][rk]) == TYPE_ARRAY:
+				for it in data["rooms"][rk]:
+					if typeof(it) == TYPE_DICTIONARY and Items.FURNITURE.has(str(it.get("id", ""))):
+						list.append({"id": str(it["id"]), "x": float(it.get("x", 0)), "y": float(it.get("y", 0))})
+			rooms[str(rk)] = list
+	room_ctx = data["room_ctx"] if typeof(data.get("room_ctx")) == TYPE_DICTIONARY else {}
 	room_items = []
 	if typeof(data.get("room_items")) == TYPE_ARRAY:
 		for ri in data["room_items"]:
@@ -1745,7 +1841,9 @@ func load_game() -> bool:
 	if typeof(data.get("home_objects")) == TYPE_ARRAY:
 		for o in data["home_objects"]:
 			if typeof(o) == TYPE_DICTIONARY and Data.BUILDS.has(str(o.get("id", ""))):
-				home_objects.append({"id": str(o["id"]), "x": float(o.get("x", 0)), "y": float(o.get("y", 0)), "fine": bool(o.get("fine", false))})
+				# 단계가 적혀 있지 않은 예전 건물은 3단계(지금까지의 그림)로 본다
+				home_objects.append({"id": str(o["id"]), "x": float(o.get("x", 0)), "y": float(o.get("y", 0)), "fine": bool(o.get("fine", false)),
+					"lv": clampi(int(o.get("lv", 3)), 1, Data.BUILD_MAX_LV)})
 	if typeof(data.get("custom_icons")) == TYPE_DICTIONARY:
 		custom_icons = data["custom_icons"]
 	var slots: Variant = data.get("skill_slots", [])
@@ -1823,6 +1921,8 @@ func _reset_state() -> void:
 	foraged = {"day": 0, "taken": []}
 	furniture = {}
 	room_items = []
+	rooms = {}
+	room_ctx = {}
 	villagers = {}
 	balloons = []
 	difficulty = 0

@@ -262,6 +262,38 @@ const VILLAGERS := {
 }
 const HEART_NEED := [10, 30, 60, 100, 150]
 ## 날아간 풍선이 걸려 있는 곳 (화면, bg px)
+# ---------- 건물 단계 (내 마을) ----------
+## 건물은 5단계까지 올린다. 새로 지으면 1단계(초가집). 그림은 3단계가 <id>.png, 나머지는 <id>_l<단계>.png.
+const BUILD_MAX_LV := 5
+const BUILD_LV_NAMES := ["초가집", "흙집", "나무집", "벽돌집", "저택"]
+## 안으로 들어갈 수 있는 건물 → 방의 배경 그림
+const ROOMS := {
+	"bld_house": "bg_room", "bld_shop": "bg_room_shop", "bld_craft": "bg_room_craft", "bld_storage": "bg_room_storage",
+	"bld_diner": "bg_room_diner", "bld_villager_a": "bg_room_villager", "bld_villager_b": "bg_room_villager",
+}
+const ROOM_FURN_CAP := [3, 5, 8, 12, 16]            # 단계마다 방에 놓을 수 있는 가구 수
+const ROOM_SCALE := [0.62, 0.72, 0.82, 0.91, 1.0]   # 단계마다 방의 크기 (5단계가 화면 가득)
+## 점선을 잘 따라 그려서 짓거나 올리면 한동안 받는 효과 (건물마다 다르다)
+const BUILD_BUFF := {
+	"bld_house": "def", "bld_shop": "drop", "bld_craft": "atk", "bld_storage": "drop", "bld_board": "exp",
+	"bld_fishing": "mpregen", "bld_villager_a": "exp", "bld_villager_b": "exp", "bld_farm": "mpregen", "bld_diner": "atk",
+}
+const FARM_PLOTS_BY_LV := [2, 4, 6, 8, 10]
+const STORAGE_BY_LV := [36, 48, 60, 72, 84]
+
+
+## lv 단계의 건물을 다음 단계로 올리는 값 (지을 때 값의 몇 배 + 동전)
+static func upgrade_cost(id: String, lv: int) -> Dictionary:
+	var base: Dictionary = BUILDS[id]["cost"]
+	return {"lead": int(base.get("lead", 0)) * (lv + 1), "coins": int(base.get("coins", 0)) * (lv + 1) + 60 * lv}
+
+
+## 그 단계의 건물 그림 이름 (그림이 아직 없으면 3단계 그림)
+static func build_sprite(id: String, lv: int) -> String:
+	var name := id if lv == 3 else "%s_l%d" % [id, lv]
+	return name if ResourceLoader.exists("res://assets/sprites/%s.png" % name) else id
+
+
 const BALLOONS := {"ch1_meadow": Vector2(1300, 620), "ch1_crossroad": Vector2(420, 330), "ch1_gridwoods": Vector2(1000, 470)}
 
 ## 난이도 단계: 이름, 권장 레벨, 몬스터 HP·공격·경험치 배율, 떨어지는 장비 등급 (가장 낮은 것, 가장 높은 것)

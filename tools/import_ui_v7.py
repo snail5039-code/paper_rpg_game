@@ -27,6 +27,8 @@ OUT = os.path.join(ROOT, "assets", "sprites")
 # 시트 이름: (칸 수 가로, 세로, [(저장 이름, 긴 변 크기)] 왼쪽 위부터)
 HAT_SCALE = 0.26     # 원본(가로 약 1620) 의 모자가 주인공 머리(약 64 텍셀)에 맞는 배율
 TOOL_SCALE = 0.17    # 원본(가로 1536) 의 긴 연필이 주인공 그림 텍셀의 두 배 크기(약 72)가 되는 배율. 게임에서 절반으로 줄여 그린다
+BLD_SCALE = -0.5     # 음수: 가로 1774 인 원본을 기준으로 한 배율 (원본 크기가 달라도 같은 크기가 된다)
+BLD_SCALE_2ROW = -0.66   # 두 줄로 받은 시트는 건물이 작게 그려져 있어서 조금 덜 줄인다
 SHEETS = {
     "23_ui_kit": (4, 3, [
         ("ui_row", 300), ("ui_btn_sq", 72), ("ui_btn_sq_on", 72), ("ui_close", 60),
@@ -55,11 +57,25 @@ SHEETS = {
     "51_tut_mon_b": (3, 2, [("tm_9", 96), ("tm_10", 96), ("tm_11", 96), ("tm_12", 96), ("tm_13", 180), ("tm_spare", 96)]),
     "52_tut_npc_a": (4, 2, [("tnpc_%d" % i, 130) for i in range(1, 9)]),
     "52_tut_npc_b": (3, 2, [("tnpc_%d" % i, 130) for i in range(9, 14)] + [("tnpc_spare", 130)]),
+    # 건물 단계 그림: 1·2·4·5단계 (3단계는 원래 그림 bld_<이름>.png). 크기가 서로 맞게 모두 같은 배율로 줄인다.
+    "60_bld_house": (4, 1, [("bld_house_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    "60_bld_shop": (4, 1, [("bld_shop_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    "60_bld_craft": (4, 1, [("bld_craft_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    "60_bld_storage": (4, 1, [("bld_storage_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    "60_bld_board": (4, 1, [("bld_board_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    "60_bld_fishing": (4, 1, [("bld_fishing_l%d" % lv, BLD_SCALE) for lv in (1, 2, 4, 5)]),
+    # 두 건물을 한 장에 받은 것: 윗줄과 아랫줄
+    "60_bld_villager": (4, 2, [("bld_villager_%s_l%d" % (ab, lv), BLD_SCALE_2ROW) for ab in ("a", "b") for lv in (1, 2, 4, 5)]),
+    "60_bld_farmdiner": (4, 2, [("bld_%s_l%d" % (nm, lv), BLD_SCALE_2ROW) for nm in ("farm", "diner") for lv in (1, 2, 4, 5)]),
     # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
     "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
-FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0)}
+FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0),
+        # 건물 안 방 배경 (내 집의 방과 같은 크기와 배치)
+        "61_room_shop": ("bg_room_shop", 1280, 1.0), "61_room_craft": ("bg_room_craft", 1280, 1.0),
+        "61_room_storage": ("bg_room_storage", 1280, 1.0), "61_room_diner": ("bg_room_diner", 1280, 1.0),
+        "61_room_villager": ("bg_room_villager", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):
@@ -77,6 +93,39 @@ def cell_images(rgba, cols, rows):
     return {k: Image.fromarray(rgba[b[1]:b[3], b[0]:b[2]], "RGBA") for k, b in boxes.items()}
 
 
+def gap_images(rgba, cols, rows):
+    """칸 크기가 고르지 않은 시트용: 줄마다 조각을 왼쪽부터 늘어놓고, 가장 넓은 틈에서 끊어 cols 개로 나눈다."""
+    h, w = rgba.shape[:2]
+    lab, _n = ndimage.label(rgba[..., 3] > 0, structure=np.ones((3, 3)))
+    out = {}
+    for r in range(rows):
+        parts = []
+        for sl in ndimage.find_objects(lab):
+            cy = (sl[0].start + sl[0].stop) / 2
+            if min(rows - 1, int(cy // (h / rows))) == r:
+                parts.append([sl[1].start, sl[0].start, sl[1].stop, sl[0].stop])
+        parts.sort()
+        if not parts:
+            continue
+        # 겹치거나 붙은 조각을 먼저 합친다
+        groups = [parts[0][:]]
+        for b in parts[1:]:
+            g = groups[-1]
+            if b[0] <= g[2]:
+                g[0], g[1], g[2], g[3] = min(g[0], b[0]), min(g[1], b[1]), max(g[2], b[2]), max(g[3], b[3])
+            else:
+                groups.append(b[:])
+        # 묶음이 cols 개가 될 때까지 가장 좁은 틈부터 합친다
+        while len(groups) > cols:
+            gaps = [groups[i + 1][0] - groups[i][2] for i in range(len(groups) - 1)]
+            i = int(np.argmin(gaps))
+            a, b = groups[i], groups.pop(i + 1)
+            a[0], a[1], a[2], a[3] = min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])
+        for c, g in enumerate(groups):
+            out[(r, c)] = Image.fromarray(rgba[g[1]:g[3], g[0]:g[2]], "RGBA")
+    return out
+
+
 def main():
     os.makedirs(MID, exist_ok=True)
     count = 0
@@ -91,7 +140,7 @@ def main():
             continue
         rgba = post.drop_specks(rgba, min_area=30)
         Image.fromarray(rgba, "RGBA").save(os.path.join(MID, name + ".png"))
-        cells = cell_images(rgba, cols, rows)
+        cells = gap_images(rgba, cols, rows) if name.startswith("60_bld_") else cell_images(rgba, cols, rows)
         for i, (out_name, size) in enumerate(parts):
             k = (i // cols, i % cols)
             if k not in cells:
@@ -105,6 +154,8 @@ def main():
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
             s = size if size <= 1.0 else size / max(im.size)
+            if size < 0:
+                s = -size * 1774.0 / rgba.shape[1]
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             im.save(os.path.join(OUT, out_name + ".png"))
             count += 1

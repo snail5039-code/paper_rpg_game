@@ -655,15 +655,29 @@ func _refresh_build() -> void:
 		else:
 			_row(box, "icon_paper_thick", "종이 붙이기 (%d장)  ←  %s" % [GameState.home_sheets, GameState.cost_text(cost)],
 				[["넓히기", _choose.bind("expand"), GameState.can_afford(cost)]])
+	# 지은 건물 올리기 (5단계까지: 초가집 → 흙집 → 나무집 → 벽돌집 → 저택)
+	if tab == 0:
+		for i in GameState.home_objects.size():
+			var o: Dictionary = GameState.home_objects[i]
+			var oid := str(o["id"])
+			if str(Data.BUILDS[oid]["kind"]) != "building":
+				continue
+			var lv := int(o.get("lv", 3))
+			if lv >= Data.BUILD_MAX_LV:
+				_row(box, Data.build_sprite(oid, lv), "%s  %d단계 %s (가장 높은 단계)" % [Data.BUILDS[oid]["name"], lv, Data.BUILD_LV_NAMES[lv - 1]], [])
+			else:
+				var up := Data.upgrade_cost(oid, lv)
+				_row(box, Data.build_sprite(oid, lv), "%s %d단계 → %d단계 %s  ←  %s" % [Data.BUILDS[oid]["name"], lv, lv + 1, Data.BUILD_LV_NAMES[lv], GameState.cost_text(up)],
+					[["올리기", _choose.bind("up:%d" % i), GameState.can_afford(up)]])
 	for id in Data.BUILDS:
 		var b: Dictionary = Data.BUILDS[id]
 		if (str(b["kind"]) == "building") != (tab == 0):
 			continue
-		_row(box, str(id), "%s  ←  %s" % [b["name"], GameState.cost_text(b["cost"])],
-			[["고르기", _choose.bind(str(id)), GameState.can_afford(b["cost"])]])
+		_row(box, Data.build_sprite(str(id), 1) if tab == 0 else str(id), "%s  ←  %s" % [b["name"], GameState.cost_text(b["cost"])],
+			[["짓기" if tab == 0 else "고르기", _choose.bind(str(id)), GameState.can_afford(b["cost"])]])
 	_row(box, "tool_eraser", "치우기 (누른 것을 치우고 동전의 절반을 돌려받는다)", [["고르기", _choose.bind(""), true]])
 	if _message == "":
-		_info.text = "연필심 %d   동전 %d\n건물은 자리를 고른 뒤 점선을 따라 그려서 지어요. 잘 그리면 정성 건물이 돼요." % [GameState.pencil_lead, GameState.coins]
+		_info.text = "연필심 %d   동전 %d\n건물은 초가집으로 지어서 5단계까지 올려요. 점선을 잘 따라 그리면 정성 건물이 되고 한동안 힘이 나요." % [GameState.pencil_lead, GameState.coins]
 
 
 func _choose(id: String) -> void:

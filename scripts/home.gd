@@ -100,11 +100,15 @@ func _ready() -> void:
 	player = PlayerScene.instantiate()
 	player.set("spawn_point", SPAWN)
 	if GameState.spawn_tag == "from_room":
-		# 내 집에서 나왔다: 집 앞에 선다
+		# 건물에서 나왔다: 그 건물 앞에 선다
 		player.position = SPAWN
-		for o in GameState.home_objects:
-			if str(o["id"]) == "bld_house":
-				player.position = Vector2(float(o["x"]), float(o["y"]) + 22.0)
+		var came := GameState.object_at(str(GameState.room_ctx.get("key", "")))
+		if not came.is_empty():
+			player.position = Vector2(float(came["x"]), float(came["y"]) + 22.0)
+		else:
+			for o in GameState.home_objects:
+				if str(o["id"]) == "bld_house":
+					player.position = Vector2(float(o["x"]), float(o["y"]) + 22.0)
 	elif GameState.spawn_tag == "from_ch1":
 		player.position = portal_pos(0) + Vector2(-60, 10)
 	elif GameState.has_saved_position:
@@ -462,6 +466,7 @@ func _spawn_object(o: Dictionary) -> Node2D:
 	var node: Node2D = ObjectScript.new()
 	node.set("id", str(o["id"]))
 	node.set("fine", bool(o.get("fine", false)))
+	node.set("lv", int(o.get("lv", 3)))
 	node.position = Vector2(float(o["x"]), float(o["y"]))
 	actors.add_child(node)
 	objects.append(node)
@@ -474,6 +479,9 @@ func _on_build_chosen(id: String) -> void:
 		hud.call("toggle_menu", "build")
 	if id == "expand":
 		expand()
+	elif id.begins_with("up:"):
+		stop_placing()
+		upgrade_at(int(id.trim_prefix("up:")))
 	elif id == "":
 		stop_placing()
 		removing = true
@@ -566,15 +574,63 @@ func place_at(pos: Vector2, score: float = -2.0) -> bool:
 		fine = score >= FINE_SCORE
 	if not GameState.pay(info["cost"]):
 		return false
-	var o := {"id": id, "x": snappedf(pos.x, 0.1), "y": snappedf(pos.y, 0.1), "fine": fine}
+	# 새로 지은 건물은 1단계(초가집)에서 시작한다
+	var o := {"id": id, "x": snappedf(pos.x, 0.1), "y": snappedf(pos.y, 0.1), "fine": fine, "lv": 1}
 	GameState.home_objects.append(o)
 	_spawn_object(o)
 	GameState.save_game()
 	if str(info["kind"]) == "building":
-		GameState.notify("%s 을(를) 지었어요!%s" % [info["name"], "  정성이 가득해요. (%d%%)" % roundi(score * 100.0) if fine else ""])
+		GameState.notify("%s 을(를) 지었어요! (1단계 %s)%s%s" % [info["name"], Data.BUILD_LV_NAMES[0],
+			"  정성이 가득해요. (%d%%)" % roundi(score * 100.0) if fine else "", GameState.build_buff(id, score)])
 		stop_placing()
 	elif not GameState.can_afford(info["cost"]):
 		stop_placing()
+	return true
+
+
+## i 번째 건물을 한 단계 올린다: 새 모양의 점선을 따라 그린다. score 를 주면 그리기를 건너뛴다 (테스트).
+func upgrade_at(i: int, score: float = -2.0) -> bool:
+	if i < 0 or i >= GameState.home_objects.size():
+		return false
+	var o: Dictionary = GameState.home_objects[i]
+	var id := str(o["id"])
+	var lv := int(o.get("lv", 3))
+	if lv >= Data.BUILD_MAX_LV:
+		GameState.notify("더 올릴 수 없어요. (가장 높은 단계)")
+		return false
+	var cost := Data.upgrade_cost(id, lv)
+	if not GameState.can_afford(cost):
+		GameState.notify("값이 모자라요. (%s)" % GameState.cost_text(cost))
+		return false
+	var info: Dictionary = Data.BUILDS[id]
+	if score <= -2.0:
+		var panel: Control = hud.call("trace_panel")
+		panel.call("start", "%s 올리기: %s" % [info["name"], Data.BUILD_LV_NAMES[lv]], TracePanel.house(Rect2(245, 170, 150, 100)), 8.0,
+			Art.tex(Data.build_sprite(id, lv + 1)), Rect2(220, 80, 200, 200), Color(1, 1, 1, 0.3))
+		score = await panel.finished
+		if score >= 0.0 and float(panel.get("accuracy")) < BUILD_SCORE:
+			score = minf(score, BUILD_SCORE - 0.01)
+	if score < 0.0:
+		return false
+	if score < BUILD_SCORE:
+		Sound.play("fail")
+		GameState.notify("점선을 제대로 따라 그리지 않았어요. (%d%%, %d%% 는 넘어야 해요) 점선 위로 다시 그려 보세요!" % [roundi(score * 100.0), roundi(BUILD_SCORE * 100.0)])
+		return false
+	var fine := score >= FINE_SCORE
+	if not GameState.upgrade_object(i, fine):
+		return false
+	# 그림을 새 단계로 바꾼다
+	(objects[i] as Node).queue_free()
+	var node: Node2D = ObjectScript.new()
+	node.set("id", id)
+	node.set("fine", fine)
+	node.set("lv", lv + 1)
+	node.position = Vector2(float(o["x"]), float(o["y"]))
+	actors.add_child(node)
+	objects[i] = node
+	Sound.play("craft")
+	GameState.notify("%s 이(가) %d단계 %s 이(가) 됐어요!%s%s" % [info["name"], lv + 1, Data.BUILD_LV_NAMES[lv],
+		"  정성이 가득해요. (%d%%)" % roundi(score * 100.0) if fine else "", GameState.build_buff(id, score)])
 	return true
 
 
