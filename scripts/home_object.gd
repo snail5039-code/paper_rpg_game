@@ -15,6 +15,7 @@ var _sprite: Sprite2D
 var _star: Texture2D
 var _key: Texture2D
 var _t := 0.0
+var _asked := -10.0
 var _height := 20.0
 
 
@@ -62,6 +63,12 @@ func interact() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
 	match str(info.get("use", "")):
 		"sleep":
+			# 실수로 하루를 넘기지 않게 3초 안에 한 번 더 눌러야 잔다
+			if _t - _asked > 3.0:
+				_asked = _t
+				GameState.notify("잠을 자면 다음 날 아침이 돼요. 한 번 더 F 를 누르면 자요.")
+				return
+			_asked = -10.0
 			GameState.sleep()
 			var p := GameState.player_ref
 			if is_instance_valid(p):

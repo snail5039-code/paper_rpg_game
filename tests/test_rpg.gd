@@ -292,7 +292,7 @@ func _run() -> void:
 	await frames(3)
 	await shot("rpg_2_bag.png")
 	hud.call("toggle_menu", "skills")
-	check(not bool(hud.call("is_menu_open", "skills")), "창이 열려 있으면 다른 창은 열리지 않음")
+	check(bool(hud.call("is_menu_open", "skills")) and not bool(hud.call("is_menu_open", "bag")), "창이 열린 채로 다른 창의 키를 누르면 그 창으로 바뀜")
 	hud.call("toggle_menu", "bag")
 	hud.call("toggle_menu", "skills")
 	await frames(3)

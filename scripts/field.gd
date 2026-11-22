@@ -102,7 +102,13 @@ func _ready() -> void:
 	hud.name = "HUD"
 	hud.set("quest_text_override", "1장 · %s" % cfg["name"])
 	add_child(hud)
-	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "M 지도"]])
+	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "I 가방  K 스킬  M 지도"]])
+	_tips.call_deferred()
+
+
+func _tips() -> void:
+	await get_tree().create_timer(0.6, false).timeout
+	GameState.tip("fatigue", "사냥터 화면에 들어갈 때마다 피로도가 2 줄어요. 아침 6시가 되거나 내 집에서 자면 가득 차요.")
 
 
 # ---------- 충돌 ----------

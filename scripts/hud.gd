@@ -33,6 +33,10 @@ var _trace: Control            # 따라 그리기 화면 (포획, 건물 짓기)
 var _fishing: Control          # 낚시 화면
 var _night: ColorRect          # 밤에 화면을 어둡게 덮는 막
 var _clock_label: Label
+var _board_label: Label        # 게시판 부탁 진행도
+var _toast_queue: Array = []   # 차례를 기다리는 알림
+var _friend_slot: Array = []   # 친구 스킬 칸 [틀, 얼굴, 가림막, 글]
+var _friend_sp := ""
 var _day_label: Label
 var _ult_slot: Array = []      # [틀, 아이콘, 가림막, 글]
 var _coin_label: Label
@@ -66,6 +70,11 @@ func _ready() -> void:
 	root.add_child(_night)
 	_clock_label = _label(root, Vector2(548, 6), 11)
 	_day_label = _label(root, Vector2(548, 20), 9)
+	var help := _label(root, Vector2(548, 32), 8)
+	help.text = "Esc 도움말"
+	help.modulate.a = 0.8
+	_board_label = _label(root, Vector2(10, 84), 9)
+	_board_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
 
 	_build_bars(root)
 	_quest_label = _label(root, Vector2(10, 68), 13)
@@ -77,7 +86,7 @@ func _ready() -> void:
 	_hint_box.add_theme_constant_override("separation", 5)
 	root.add_child(_hint_box)
 
-	_toast = _label(root, Vector2(0, 80), 15)
+	_toast = _label(root, Vector2(0, 104), 13)
 	_toast.size = Vector2(640, 24)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
@@ -180,7 +189,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board"]:
+	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -203,6 +212,20 @@ func _build_quickbar(root: Control) -> void:
 	var ukey := _label(root, upos + Vector2(1, -5), 9)
 	ukey.text = "V"
 	_ult_slot = [frame, uicon, ushade, ukey]
+	# 친구 스킬 칸 (G): 같이 다니는 친구가 있을 때만 보인다
+	var fpos := Vector2(384, 296)
+	var fframe := _tex_rect(root, "hud_slot_skill", fpos, Vector2(30, 30))
+	var ficon := _tex_rect(root, "", fpos + Vector2(5, 5), Vector2(20, 20))
+	ficon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var fshade := ColorRect.new()
+	fshade.color = Color(0.15, 0.12, 0.15, 0.6)
+	fshade.position = fpos + Vector2(4, 4)
+	fshade.size = Vector2(22, 0)
+	fshade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(fshade)
+	var fkey := _label(root, fpos + Vector2(1, -5), 9)
+	fkey.text = "G"
+	_friend_slot = [fframe, ficon, fshade, fkey]
 	var keys := ["1", "2", "Q", "E", "R"]
 	for i in 5:
 		var pos := Vector2(462 + i * 34 + (8 if i >= 2 else 0), 296)
@@ -236,6 +259,18 @@ func ultimate() -> Control:
 
 func _refresh_quickbar() -> void:
 	var p := GameState.player_ref
+	# 친구 스킬 칸
+	var f := GameState.companion_friend()
+	for n in _friend_slot:
+		(n as Control).visible = not f.is_empty()
+	if not f.is_empty():
+		if _friend_sp != str(f["sp"]):
+			_friend_sp = str(f["sp"])
+			var fm: Control = _menus["friends"]
+			(_friend_slot[1] as TextureRect).texture = fm.call("_friend_tex", _friend_sp)
+		var comp := get_tree().get_first_node_in_group("companion")
+		var fcd := float(comp.get("skill_cd")) if comp else 0.0
+		(_friend_slot[2] as ColorRect).size.y = 22.0 * clampf(fcd / 10.0, 0.0, 1.0)
 	# 필살기 칸: 배운 뒤에만 보인다. 게이지가 차오르고, 가득 차면 반짝인다.
 	var has_ult := GameState.skill_rank("ult") > 0
 	for n in _ult_slot:
@@ -252,7 +287,7 @@ func _refresh_quickbar() -> void:
 		var num: Label = q[2]
 		shade.size.y = 0
 		if i < 2:
-			var id := str(Items.QUICK_SLOTS[i])
+			var id := str(GameState.quick_slots[i])
 			var n := GameState.consumable_count(id)
 			_set_icon(icon, GameState.consumable_icon(id))
 			icon.modulate = Color(1, 1, 1, 1.0 if n > 0 else 0.3)
@@ -281,9 +316,24 @@ func _set_icon(icon: TextureRect, tex_name: String) -> void:
 
 
 ## 창 하나를 열거나 닫는다. 다른 창이 열려 있거나 대화·컷신 중에는 열지 않는다.
+## 다른 창을 모두 닫는다 (새 창을 열기 전에). 따라 그리기처럼 끊으면 안 되는 화면이 떠 있으면 false.
+func _close_others() -> bool:
+	if bool(_trace.get("active")) or bool(_ult.call("is_active")) or bool(_fishing.call("is_active")):
+		return false
+	for k in _menus:
+		var m: Control = _menus[k]
+		if m.visible:
+			if bool(m.call("is_drawing")):
+				return false
+			m.visible = false
+	_stats.visible = false
+	_map.visible = false
+	return true
+
+
 func toggle_menu(k: String) -> void:
 	var m: Control = _menus[k]
-	if not m.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
+	if not m.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or not _close_others()):
 		return
 	m.visible = not m.visible
 	GameState.set_menu_open(m.visible)
@@ -395,7 +445,7 @@ func _add_stat(index: int) -> void:
 
 
 func toggle_stats() -> void:
-	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
+	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or not _close_others()):
 		return
 	_stats.visible = not _stats.visible
 	GameState.set_menu_open(_stats.visible)
@@ -447,7 +497,7 @@ func _build_map(root: Control) -> void:
 
 
 func toggle_map() -> void:
-	if not _map.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _any_window_open()):
+	if not _map.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or not _close_others()):
 		return
 	_map.visible = not _map.visible
 	GameState.set_menu_open(_map.visible)
@@ -532,10 +582,23 @@ func _refresh() -> void:
 	var need := GameState.BRIDGE_COST
 	_lead_label.text = "× %d" % GameState.pencil_lead
 	_coin_label.text = "동전 %d" % GameState.coins
+	_coin_label.position.x = 114.0 + ThemeDB.fallback_font.get_string_size(_lead_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 12.0
+	var lines: Array = []
+	if GameState.board_day == GameState.day:
+		for q in GameState.board_quests:
+			if not bool(q["claimed"]):
+				var done := int(q["have"]) >= int(q["need"])
+				lines.append("%s %d/%d%s" % [GameState.Data.FRIENDS[str(q["sp"])]["name"], mini(int(q["have"]), int(q["need"])), int(q["need"]), " 완료!" if done else ""])
+	_board_label.text = "게시판: " + ",  ".join(lines) if not lines.is_empty() else ""
 	_level_label.text = "필력 %d" % GameState.level
 	var full := GameState.level >= GameState.MAX_LEVEL
 	_exp_clip.size.x = EXP_FILL_W * (1.0 if full else clampf(float(GameState.exp) / float(GameState.exp_needed()), 0.0, 1.0))
-	_points_badge.text = "C  +%d" % GameState.stat_points if GameState.stat_points > 0 else ""
+	var badges: Array = []
+	if GameState.stat_points > 0:
+		badges.append("C +%d" % GameState.stat_points)
+	if GameState.skill_points > 0:
+		badges.append("K +%d" % GameState.skill_points)
+	_points_badge.text = "  ".join(badges)
 	if _stats.visible:
 		_refresh_stats()
 	var q := GameState.quest
@@ -585,14 +648,25 @@ func set_hints(items: Array) -> void:
 		_hint_box.add_child(l)
 
 
+## 알림은 겹치지 않게 차례로 보여 준다 (밀린 것이 있으면 조금 빨리 넘긴다)
 func show_toast(text: String) -> void:
-	_toast.text = text
-	if _toast_tween:
-		_toast_tween.kill()
+	if _toast_queue.size() >= 4 or (_toast.text == text and _toast.modulate.a > 0.5):
+		return
+	_toast_queue.append(text)
+	if _toast_tween == null or not _toast_tween.is_running():
+		_next_toast()
+
+
+func _next_toast() -> void:
+	if _toast_queue.is_empty():
+		return
+	_toast.text = str(_toast_queue.pop_front())
 	_toast.modulate.a = 1.0
 	_toast_tween = create_tween()
-	_toast_tween.tween_interval(2.2)
-	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.5)
+	_toast_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_toast_tween.tween_interval(2.4 if _toast_queue.is_empty() else 1.6)
+	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.4)
+	_toast_tween.tween_callback(_next_toast)
 
 
 # ---------- 대화 ----------
@@ -637,6 +711,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				toggle_menu(mk)
 				get_viewport().set_input_as_handled()
 				return
+		# 아무 창도 없을 때 Esc (또는 언제든 F1): 도움말
+		var free := not GameState.dialogue_open and not GameState.cutscene and not GameState.draw_mode
+		if free and ((kc == KEY_ESCAPE and (is_menu_open("pause") or not _any_window_open())) or kc == KEY_F1):
+			toggle_menu("pause")
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code: int = event.physical_keycode
 		if code == KEY_M or (_map.visible and code == KEY_ESCAPE):

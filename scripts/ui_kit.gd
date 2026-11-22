@@ -91,9 +91,9 @@ static func text_width(text: String, font_size: int = 9) -> float:
 static func label(parent: Control, text: String, pos: Vector2, size: Vector2, font_size: int) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.clip_text = true     # 크기보다 먼저: 긴 글이 단추 밑으로 넘치지 않게
 	l.position = pos
 	l.size = size
-	l.clip_text = true
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", INK)

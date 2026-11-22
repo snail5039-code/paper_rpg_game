@@ -81,6 +81,8 @@ const STORAGE_SIZE := 60
 var board_day: int = 0            # 게시판 부탁을 뽑은 날
 var board_quests: Array = []      # {"sp", "need", "have", "claimed"}
 var gift_days: Dictionary = {}    # 주민 집(자리) → 마지막으로 선물을 받은 날
+var tips_seen: Dictionary = {}    # 한 번씩만 띄우는 설명 (id → true)
+var quick_slots: Array = ["bandage", "milk"]   # 1, 2 번 키에 넣은 소모품
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
@@ -187,6 +189,7 @@ func add_exp(amount: int) -> void:
 		skill_points += 1
 		leveled_up.emit(level)
 		notify("레벨 업!  필력 %d" % level)
+		tip("skillpoint", "스킬 포인트가 생겼어요. K 를 눌러 스킬을 배워 보세요.")
 	if level >= MAX_LEVEL:
 		exp = 0
 	changed.emit()
@@ -495,6 +498,7 @@ func add_friend(sp: String) -> bool:
 	if not Data.FRIENDS.has(sp) or friends.size() >= FRIEND_MAX:
 		return false
 	friends.append({"sp": sp, "lv": 1, "exp": 0, "stars": 0})
+	tip("friend", "친구는 옆에서 같이 싸워요. P: 친구 창, G: 친구 스킬")
 	if companion < 0:
 		companion = friends.size() - 1
 	changed.emit()
@@ -628,6 +632,8 @@ func advance_clock(real_sec: float) -> void:
 		before -= 1440.0
 	if before < DAY_START and clock >= DAY_START:
 		_new_day()
+	if not night and is_night():
+		tip("night", "밤이 됐어요. 밤에는 몬스터가 더 세지고 큰 물고기가 잘 잡혀요.")
 
 
 func _new_day() -> void:
@@ -749,6 +755,7 @@ func on_kill(kind: String) -> void:
 	for q in board_quests:
 		if board_day == day and str(q["sp"]) == sp and not bool(q["claimed"]):
 			q["have"] = int(q["have"]) + 1
+			changed.emit()
 
 
 func board_claim(i: int) -> bool:
@@ -848,6 +855,8 @@ func learn_skill(id: String) -> bool:
 		return false
 	skill_points -= 1
 	skill_ranks[id] = skill_rank(id) + 1
+	if id == "ult":
+		tip("ult", "필살기: 적을 맞히면 게이지가 차요. 가득 차면 V 키!")
 	# 처음 배운 쓰는 스킬은 빈 칸에 자동으로 넣는다
 	if str(info["kind"]) == "active" and not skill_slots.has(id):
 		var empty := skill_slots.find("")
@@ -895,6 +904,25 @@ func set_menu_open(on: bool) -> void:
 
 func notify(text: String) -> void:
 	message.emit(text)
+
+
+## 처음 겪을 때 한 번만 띄우는 설명
+func tip(id: String, text: String) -> void:
+	if tips_seen.has(id):
+		return
+	tips_seen[id] = true
+	notify(text)
+
+
+## 1, 2 번 키에 소모품을 넣는다
+func set_quick_slot(slot: int, id: String) -> void:
+	if slot < 0 or slot >= quick_slots.size() or not Items.CONSUMABLES.has(id):
+		return
+	var other := 1 - slot
+	if str(quick_slots[other]) == id:
+		quick_slots[other] = quick_slots[slot]
+	quick_slots[slot] = id
+	changed.emit()
 
 
 # ---------- 대화 / 연필 모드 / 컷신 (게임 일시정지) ----------
@@ -967,6 +995,8 @@ func save_game() -> bool:
 		"board_day": board_day,
 		"board_quests": board_quests,
 		"gift_days": gift_days,
+		"tips_seen": tips_seen,
+		"quick_slots": quick_slots,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
 		"visited": visited,
@@ -1033,6 +1063,10 @@ func load_game() -> bool:
 			if typeof(bq) == TYPE_DICTIONARY and Data.FRIENDS.has(str(bq.get("sp", ""))):
 				board_quests.append({"sp": str(bq["sp"]), "need": int(bq.get("need", 3)), "have": int(bq.get("have", 0)), "claimed": bool(bq.get("claimed", false))})
 	gift_days = data["gift_days"] if typeof(data.get("gift_days")) == TYPE_DICTIONARY else {}
+	tips_seen = data["tips_seen"] if typeof(data.get("tips_seen")) == TYPE_DICTIONARY else {}
+	var qs: Variant = data.get("quick_slots", [])
+	if typeof(qs) == TYPE_ARRAY and (qs as Array).size() == 2 and Items.CONSUMABLES.has(str(qs[0])) and Items.CONSUMABLES.has(str(qs[1])):
+		quick_slots = [str(qs[0]), str(qs[1])]
 	home_sheets = int(data.get("home_sheets", 4))
 	if not Data.HOME_GRID.has(home_sheets):
 		home_sheets = 4
@@ -1107,6 +1141,8 @@ func reset_game() -> void:
 	board_day = 0
 	board_quests = []
 	gift_days = {}
+	tips_seen = {}
+	quick_slots = ["bandage", "milk"]
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false

@@ -22,11 +22,18 @@ func _ready() -> void:
 	size = Vector2(640, 360)
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dim := ColorRect.new()
+	dim.color = Color(0.1, 0.08, 0.08, 0.45)
+	dim.size = Vector2(640, 360)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dim)
 	UI.icon(self, "ui_note", Vector2(220, 120), Vector2(200, 110), Color.WHITE, false)
 	_label = UI.label(self, "", Vector2(232, 190), Vector2(176, 30), 10)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_mark = UI.label(self, "", Vector2(220, 138), Vector2(200, 44), 36)
+	_mark = UI.label(self, "", Vector2(220, 132), Vector2(200, 56), 48)
+	_mark.add_theme_color_override("font_outline_color", Color(1, 1, 1))
+	_mark.add_theme_constant_override("outline_size", 6)
 	_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_mark.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	_icon = UI.icon(self, "", Vector2(300, 140), Vector2(40, 40))
@@ -65,6 +72,9 @@ func _process(delta: float) -> void:
 			_t = 0.0
 			_mark.text = "!"
 			_label.text = "지금이에요! F"
+	elif phase == "bite" and _t < window:
+		_mark.scale = Vector2.ONE * (1.0 + 0.15 * sin(_t * 30.0))
+		_mark.pivot_offset = Vector2(100, 28)
 	elif phase == "bite" and _t >= window:
 		_result("")
 	elif phase == "result" and _t >= 1.3:

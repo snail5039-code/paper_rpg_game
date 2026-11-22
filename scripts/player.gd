@@ -166,9 +166,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif code == KEY_R:
 			used = use_skill_slot(2)
 		elif code == KEY_1:
-			used = use_consumable(str(Items.QUICK_SLOTS[0]))
+			used = use_consumable(str(GameState.quick_slots[0]))
 		elif code == KEY_2:
-			used = use_consumable(str(Items.QUICK_SLOTS[1]))
+			used = use_consumable(str(GameState.quick_slots[1]))
 		elif code == KEY_V:
 			used = use_ultimate()
 		if used:
@@ -363,6 +363,8 @@ func try_interact() -> bool:
 	for n in get_tree().get_nodes_in_group("interactable"):
 		var node := n as Node2D
 		var d := node.global_position.distance_to(global_position)
+		if node.is_in_group("fallen"):
+			d += 14.0   # 사람이나 건물이 가까이 있으면 그쪽이 먼저다
 		if d <= best_d:
 			best = node
 			best_d = d

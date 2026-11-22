@@ -260,6 +260,7 @@ func _run() -> void:
 	hp.global_position = Vector2(880, 470)
 	await frames(30)
 	await shot("life_7_village.png")
+	check(not bool(home.call("remove_at", Vector2(1060, 432))) and (home.get("objects") as Array).size() == 9, "치우기는 한 번 누르면 묻기만 함")
 	check(bool(home.call("remove_at", Vector2(1060, 432))) and (home.get("objects") as Array).size() == 8 and GameState.coins == coins0 - 40 - 25 + 10, "치우면 동전의 절반을 돌려받음")
 
 	print("[내 집에서 자기]")
@@ -269,10 +270,74 @@ func _run() -> void:
 	hp.set("hp", 5)
 	hp.global_position = Vector2(800, 440)
 	await frames(4)
-	check(bool(hp.call("try_interact")), "내 집에 F 로 들어감")
+	check(bool(hp.call("try_interact")) and GameState.day == d0, "내 집에 F 를 한 번 누르면 묻기만 함")
+	await frames(2)
+	check(bool(hp.call("try_interact")), "한 번 더 누르면 잠")
 	await frames(2)
 	check(GameState.day == d0 + 1 and GameState.fatigue == 110 and GameState.clock >= 360.0 and GameState.clock < 365.0, "자면 다음 날 아침 6시, 피로가 풀림 (정성 집이라 110)")
 	check(int(hp.get("hp")) == int(hp.get("max_hp")), "HP 가 가득 참")
+
+	print("[놓을 수 없는 까닭]")
+	check(str(home.call("place_error", "bld_shop", Vector2(10, 300))).contains("가장자리"), "마을 밖이면 그렇게 알려 줌")
+	check(str(home.call("place_error", "bld_shop", Vector2(805, 421))).contains("겹쳐"), "겹치면 그렇게 알려 줌")
+	var keep_coins := GameState.coins
+	GameState.coins = 0
+	check(str(home.call("place_error", "bld_shop", Vector2(300, 300))).contains("모자라"), "값이 모자라면 그렇게 알려 줌")
+	GameState.coins = keep_coins
+
+	print("[안내와 확인]")
+	GameState.tips_seen = {}
+	var shown: Array = []
+	var on_msg := func(t: String) -> void: shown.append(t)
+	GameState.message.connect(on_msg)
+	GameState.tip("x", "처음")
+	GameState.tip("x", "처음")
+	GameState.message.disconnect(on_msg)
+	check(shown.size() == 1, "처음 겪는 설명은 한 번만 나옴")
+	GameState.set_quick_slot(0, "fish_small")
+	check(str(GameState.quick_slots[0]) == "fish_small", "1 번 키에 다른 소모품을 넣을 수 있음")
+	GameState.set_quick_slot(1, "fish_small")
+	check(str(GameState.quick_slots[1]) == "fish_small" and str(GameState.quick_slots[0]) == "milk", "같은 것을 다른 키에 넣으면 서로 바뀜")
+	GameState.quick_slots = ["bandage", "milk"]
+	GameState.friends = [{"sp": "dots", "lv": 1, "exp": 0, "stars": 0}, {"sp": "slime", "lv": 1, "exp": 0, "stars": 0}]
+	hhud.call("toggle_menu", "friends")
+	await frames(2)
+	var fm: Control = hhud.call("menu", "friends")
+	fm.call("_release", 1)
+	check(GameState.friends.size() == 2, "보내기는 한 번 누르면 묻기만 함")
+	fm.call("_release", 1)
+	check(GameState.friends.size() == 1, "한 번 더 누르면 보냄")
+	hhud.call("toggle_menu", "pause")
+	await frames(3)
+	check(bool(hhud.call("is_menu_open", "pause")) and not bool(hhud.call("is_menu_open", "friends")), "도움말 창이 열리고 친구 창은 닫힘")
+	await shot("life_12_help.png")
+	(hhud.call("menu", "pause") as Control).call("_set_tab", 1)
+	await frames(3)
+	await shot("life_13_help_game.png")
+	hhud.call("toggle_menu", "pause")
+	hhud.call("toggle_menu", "skills")
+	await frames(2)
+	(hhud.call("menu", "skills") as Control).call("_show_skill", "press")
+	await frames(2)
+	check(str((hhud.call("menu", "skills") as Control).get("_message")).contains("방어를 무시"), "배우기 전에도 스킬 설명을 볼 수 있음")
+	await shot("life_14_skill_desc.png")
+	hhud.call("toggle_menu", "skills")
+	GameState.inventory = [GameState.Items.make("tool", 0, 2, 1)]
+	hhud.call("toggle_menu", "bag")
+	await frames(2)
+	var bag: Control = hhud.call("menu", "bag")
+	bag.call("_select", 0)
+	await frames(2)
+	await shot("life_15_bag_compare.png")
+	bag.call("_disassemble_selected")
+	check(GameState.inventory.size() == 1, "좋은 장비 분해는 한 번 누르면 묻기만 함")
+	bag.call("_select", 0)
+	bag.call("_select", 0)
+	check(GameState.inventory.size() <= 1 and str((GameState.equipped["tool"] as Dictionary)["tier"]) == "2", "고른 장비를 한 번 더 누르면 바로 입음")
+	hhud.call("toggle_menu", "bag")
+	GameState.friends = []
+	GameState.companion = -1
+	await frames(2)
 
 	print("[건물 기능]")
 	GameState.pencil_lead = 500

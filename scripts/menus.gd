@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": []}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장"]}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -29,6 +29,7 @@ var _info: Label
 var _tab_buttons: Array = []
 var _fixed: Array = []         # 다시 그려도 남기는 단추 (닫기)
 var _message := ""
+var _pending := ""             # 한 번 더 눌러야 하는 행동 (확인 대기)
 var _page := 0                # 가방 쪽 (한 쪽에 24칸)
 var _canvas: Control          # 직접 그려서 만들기 화면
 const PAGE := 24
@@ -80,12 +81,14 @@ func open() -> void:
 	if is_instance_valid(_canvas):
 		_canvas.queue_free()
 	selected = -1
+	_pending = ""
 	_message = ""
 	refresh()
 
 
 func _set_tab(i: int) -> void:
 	tab = i
+	_pending = ""
 	selected = -1
 	_message = ""
 	refresh()
@@ -148,6 +151,7 @@ func refresh() -> void:
 		"build": _refresh_build()
 		"storage": _refresh_storage()
 		"board": _refresh_board()
+		"pause": _refresh_pause()
 
 
 # ---------- 가방 ----------
@@ -163,8 +167,10 @@ func _refresh_bag() -> void:
 			if n > 0:
 				var info: Array = Items.CONSUMABLES[id]
 				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]],
-					[["쓰기", _use.bind(str(id)), str(info[4]) != ""]] if str(info[4]) != "" else [])
-		_info.text = "1 번 키: 반창고    2 번 키: 우유"
+					[["쓰기", _use.bind(str(id)), true], ["1", GameState.set_quick_slot.bind(0, str(id)), str(GameState.quick_slots[0]) != str(id)],
+						["2", GameState.set_quick_slot.bind(1, str(id)), str(GameState.quick_slots[1]) != str(id)]] if str(info[4]) != "" else [])
+		_info.text = "1 번 키: %s    2 번 키: %s\n1, 2 단추를 누르면 그 키에 넣어요." % [
+			Items.CONSUMABLES[str(GameState.quick_slots[0])][0], Items.CONSUMABLES[str(GameState.quick_slots[1])][0]]
 		return
 	# 입은 장비 6칸 (2 × 3)
 	for i in Items.SLOTS.size():
@@ -212,6 +218,8 @@ func _refresh_bag() -> void:
 		return
 	_info.text = Items.describe(item3).replace("\n", "   ")
 	if selected >= 0:
+		_info.text += _compare(item3)
+	if selected >= 0:
 		_button(_win, "입기", Vector2(226, 218), Vector2(40, 20), _equip_selected)
 		_button(_win, "분해", Vector2(270, 218), Vector2(40, 20), _disassemble_selected)
 	else:
@@ -243,7 +251,36 @@ func _expand(with: String) -> void:
 	refresh()
 
 
+## 되돌릴 수 없는 행동은 같은 단추를 한 번 더 눌러야 한다. 두 번째에 true 를 돌려준다.
+func _sure(key: String, text: String) -> bool:
+	if _pending == key:
+		_pending = ""
+		return true
+	_pending = key
+	_message = text + "  한 번 더 누르면 진행해요."
+	refresh()
+	return false
+
+
+## 아낄 만한 장비인지 (등급이 있거나, 강화했거나, 직접 그린 것)
+func _precious(item: Dictionary) -> bool:
+	return int(item["tier"]) >= 1 or int(item.get("plus", 0)) > 0 or str(item.get("art", "")) != ""
+
+
+## 지금 입은 같은 부위 장비와 기본 능력을 견준 글
+func _compare(item: Dictionary) -> String:
+	var slot := str(item["slot"])
+	if not GameState.equipped.has(slot):
+		return "   (그 자리는 비어 있음)"
+	var d := Items.main_value(item) - Items.main_value(GameState.equipped[slot])
+	return "   (입은 것보다 %s%d)" % ["+" if d >= 0 else "", d]
+
+
 func _select(i: int) -> void:
+	if i >= 0 and i == selected and kind == "bag":
+		_equip_selected()      # 고른 장비를 한 번 더 누르면 바로 입는다
+		return
+	_pending = ""
 	selected = i
 	_message = ""
 	_clear_action_buttons()
@@ -277,6 +314,9 @@ func _equip_selected() -> void:
 
 
 func _disassemble_selected() -> void:
+	var it := _selected_item()
+	if not it.is_empty() and _precious(it) and not _sure("dis%d" % selected, "%s 을(를) 분해하면 되돌릴 수 없어요." % Items.item_name(it)):
+		return
 	var i := selected
 	selected = -1
 	_clear_action_buttons()
@@ -313,8 +353,10 @@ func _refresh_skills() -> void:
 				buttons.append([str(Items.SKILL_KEYS[s]), GameState.set_skill_slot.bind(s, str(id)), not here])
 		buttons.append(["+", _learn.bind(str(id)), GameState.skill_points > 0 and not locked and rank < int(info["max"])])
 		_row(box, str(info["icon"]), text, buttons, Color(1, 1, 1, 0.35) if locked else Color.WHITE)
+		# 줄의 이름 쪽을 누르면 설명이 나온다 (배우기 전에도 볼 수 있다)
+		_hit(box.get_child(box.get_child_count() - 1) as Control, Vector2.ZERO, Vector2(150, 24), _show_skill.bind(str(id)))
 	if _message == "":
-		_info.text = "스킬 포인트 %d   (레벨마다 1점)   + 로 배우고, Q·E·R 을 눌러 칸에 넣어요." % GameState.skill_points
+		_info.text = "스킬 포인트 %d (레벨마다 1점)   이름을 누르면 설명이 나와요.\n+ 로 배우고, Q·E·R 을 눌러 칸에 넣어요." % GameState.skill_points
 
 
 func _learn(id: String) -> void:
@@ -386,6 +428,9 @@ func _buy(entry: Variant) -> void:
 
 
 func _sell(i: int) -> void:
+	var it: Dictionary = GameState.inventory[i]
+	if _precious(it) and not _sure("sell%d" % i, "%s 을(를) 팔면 되돌릴 수 없어요." % Items.item_name(it)):
+		return
 	_message = "동전 %d개를 받았어요." % GameState.sell_item(i)
 	refresh()
 
@@ -464,6 +509,8 @@ func _merge(i: int, cross: bool) -> void:
 
 
 func _release(i: int) -> void:
+	if not _sure("rel%d" % i, "%s 을(를) 보내면 다시 만날 수 없어요." % GameState.friend_name(GameState.friends[i])):
+		return
 	_message = "%s 을(를) 공책으로 돌려보냈어요." % GameState.friend_name(GameState.friends[i])
 	GameState.release_friend(i)
 	refresh()
@@ -546,3 +593,59 @@ func _refresh_board() -> void:
 func _claim(i: int) -> void:
 	_message = "보상을 받았어요!" if GameState.board_claim(i) else "아직 다 하지 못했어요."
 	refresh()
+
+
+func _show_skill(id: String) -> void:
+	var info: Dictionary = Items.SKILLS[id]
+	_message = "%s: %s  (필력 %d 부터, 최대 %d단계)" % [info["name"], info["desc"], int(info["level"]), int(info["max"])]
+	refresh()
+
+
+# ---------- 도움말 (Esc) ----------
+
+const HELP_KEYS := [
+	["W A S D", "이동"], ["마우스 왼쪽", "공격 (3연타)"], ["Space", "회피"], ["F", "말 걸기 · 들어가기"],
+	["Q  E  R", "스킬"], ["V", "필살기"], ["1  2", "소모품"], ["G", "친구 스킬"],
+	["I", "가방"], ["K", "스킬 배우기"], ["C", "능력치"], ["P", "친구"],
+	["M", "지도"], ["Tab", "연필 (낙서)"], ["B", "내 마을: 칠하기"], ["N", "내 마을: 짓기"],
+]
+const HELP_GAME := [
+	"피로도: 사냥터 화면마다 2 줄어요. 아침 6시나 내 집에서 자면 가득 차요.",
+	"시간: 하루는 90분 (낮 60, 밤 30). 밤에는 몬스터가 세지고 큰 물고기가 잘 잡혀요.",
+	"다시 그리기: 도화지(문방구)가 있으면 쓰러진 몬스터에게 F. 따라 그리면 친구가 돼요.",
+	"쓰러지면: 연필심의 10%를 잃고 내 마을로 돌아가요.",
+	"만들기: 문방구에서 견본을 따라 그려요. 비슷할수록 좋은 물건이 나와요.",
+]
+
+
+func _refresh_pause() -> void:
+	if tab == 0:
+		for i in HELP_KEYS.size():
+			var pos := Vector2((i % 2) * 150, (i / 2) * 16)
+			var k := _label(_body, str(HELP_KEYS[i][0]), pos, Vector2(52, 14), 9)
+			k.add_theme_color_override("font_color", Color(0.75, 0.35, 0.3))
+			_label(_body, str(HELP_KEYS[i][1]), pos + Vector2(54, 0), Vector2(94, 14), 9)
+		_info.text = "창이 열린 채로 다른 창의 키를 누르면 바로 바뀌어요."
+	elif tab == 1:
+		var t := _label(_body, "\n".join(HELP_GAME), Vector2.ZERO, _body.size + Vector2(0, 40), 9)
+		t.clip_text = false
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_info.text = ""
+	else:
+		_label(_body, "게임은 맵을 옮길 때와 잠잘 때 저절로 저장돼요.", Vector2(0, 6), Vector2(300, 14), 9)
+		_button(_body, "지금 저장하기", Vector2(60, 34), Vector2(180, 24), _save_now)
+		_button(_body, "저장하고 게임 끝내기", Vector2(60, 66), Vector2(180, 24), _quit)
+		if _message == "":
+			_info.text = "%d일째  %s   피로도 %d" % [GameState.day, GameState.clock_text(), GameState.fatigue]
+
+
+func _save_now() -> void:
+	_message = "저장했어요." if GameState.save_game() else "저장하지 못했어요."
+	refresh()
+
+
+func _quit() -> void:
+	if not _sure("quit", "게임을 끝낼까요?"):
+		return
+	GameState.save_game()
+	get_tree().quit()

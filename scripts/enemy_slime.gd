@@ -235,7 +235,10 @@ func _die() -> void:
 		gear.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
 		get_parent().add_child(gear)
 	# 도화지가 있으면 다시 그려 줄 수 있게 흐린 자국을 남긴다
+	if not GameState.has_paper() and GameState.level >= 2:
+		GameState.tip("capture", "도화지가 있으면 쓰러진 몬스터를 다시 그려 친구로 만들 수 있어요. (문방구에서 팔아요)")
 	if GameState.has_paper() and Data.FRIENDS.has(Data.species_of(kind)):
+		GameState.tip("capture_how", "흐린 자국에 다가가 F: 도화지에 다시 그려 주면 친구가 돼요.")
 		var fallen: Node2D = FallenScript.new()
 		fallen.set("kind", kind)
 		fallen.global_position = global_position

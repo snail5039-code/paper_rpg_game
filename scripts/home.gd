@@ -47,6 +47,7 @@ var objects: Array = []          # 지은 것들 (home_object.gd 노드). GameSt
 var placing := ""                # 놓을 자리를 고르는 중인 것의 id
 var removing := false            # 치우기 모드
 var _ghost: Node2D
+var _remove_mark: Node2D          # 치우려고 한 번 누른 것 (빨갛게 보인다)
 var _cam: Camera2D
 var _walls: StaticBody2D
 var actors: Node2D
@@ -143,6 +144,8 @@ func _ready() -> void:
 
 	if not GameState.home_intro_seen:
 		_first_visit.call_deferred()
+	else:
+		GameState.tip.call_deferred("build", "N 키: 건물과 소품을 짓고, 종이를 붙여 마을을 넓힐 수 있어요.")
 
 
 func _first_visit() -> void:
@@ -153,6 +156,7 @@ func _first_visit() -> void:
 		"여기라면 내가 새로 그릴 수 있을지도 몰라.",
 	], "player")
 	GameState.notify("B 키로 크레용을 꺼내 바닥을 칠할 수 있어요.")
+	GameState.tip("build", "N 키: 건물과 소품을 짓고, 종이를 붙여 마을을 넓힐 수 있어요.")
 	GameState.home_intro_seen = true
 	GameState.save_game()
 
@@ -480,37 +484,49 @@ func start_placing(id: String) -> void:
 func stop_placing() -> void:
 	placing = ""
 	removing = false
+	if is_instance_valid(_remove_mark):
+		_remove_mark.modulate = Color.WHITE
+	_remove_mark = null
 	if is_instance_valid(_ghost):
 		_ghost.queue_free()
 	_ghost = null
 
 
-## 놓을 수 있는 자리인지: 마을 안이고, 물 위가 아니고, 다른 것과 겹치지 않고, 값을 낼 수 있어야 한다
 func can_place(id: String, pos: Vector2) -> bool:
+	return place_error(id, pos) == ""
+
+
+## 놓을 수 없는 까닭 (놓을 수 있으면 빈 글): 마을 밖, 물 위, 다른 것과 겹침, 값이 모자람
+func place_error(id: String, pos: Vector2) -> String:
 	if not Data.BUILDS.has(id):
-		return false
+		return "지을 수 없는 것이에요."
 	var info: Dictionary = Data.BUILDS[id]
 	var half := float(info["w"]) * 0.5
 	if pos.x < half + 8 or pos.x > size.x - half - 8 or pos.y < 60 or pos.y > size.y - 12:
-		return false
+		return "마을 가장자리 밖이에요. 조금 안쪽에 놓아 주세요."
 	if get_cell(cell_at(pos)) == Ground.WATER and not bool(info.get("walk", false)):
-		return false
+		return "물 위에는 놓을 수 없어요."
 	for o in objects:
 		var other := o as Node2D
 		var gap := half + float((other.get("info") as Dictionary)["w"]) * 0.5
 		if absf(other.position.x - pos.x) < gap * 0.8 and absf(other.position.y - pos.y) < 14.0:
-			return false
+			return "다른 것과 겹쳐요."
 	for p in portals:
 		if (p as Node2D).position.distance_to(pos) < half + 30.0:
-			return false
-	return GameState.can_afford(info["cost"])
+			return "문 앞은 비워 둬야 해요."
+	if not GameState.can_afford(info["cost"]):
+		return "값이 모자라요. (%s)" % GameState.cost_text(info["cost"])
+	return ""
 
 
 ## pos 에 지금 고른 것을 놓는다. 건물은 점선을 따라 그린 뒤에 지어진다. score 를 주면 그리기를 건너뛴다 (테스트).
 func place_at(pos: Vector2, score: float = -2.0) -> bool:
 	var id := placing
-	if id == "" or not can_place(id, pos):
-		GameState.notify("여기에는 놓을 수 없어요.")
+	if id == "":
+		return false
+	var why := place_error(id, pos)
+	if why != "":
+		GameState.notify(why)
 		return false
 	var info: Dictionary = Data.BUILDS[id]
 	var fine := false
@@ -541,8 +557,9 @@ func place_at(pos: Vector2, score: float = -2.0) -> bool:
 	return true
 
 
-## pos 에서 가장 가까운 것을 치운다. 동전은 절반을 돌려받는다.
-func remove_at(pos: Vector2) -> bool:
+## pos 에서 가장 가까운 것을 치운다. 값의 절반을 돌려받는다.
+## 실수로 치우지 않게, 같은 것을 한 번 더 눌러야 치워진다 (sure 를 주면 바로).
+func remove_at(pos: Vector2, sure: bool = false) -> bool:
 	var best := -1
 	var best_d := 26.0
 	for i in objects.size():
@@ -553,6 +570,15 @@ func remove_at(pos: Vector2) -> bool:
 	if best < 0:
 		return false
 	var info: Dictionary = (objects[best] as Node2D).get("info")
+	if not sure and not is_same(_remove_mark, objects[best]):
+		if is_instance_valid(_remove_mark):
+			_remove_mark.modulate = Color.WHITE
+		_remove_mark = objects[best]
+		_remove_mark.modulate = Color(1.0, 0.55, 0.55)
+		GameState.notify("%s: 한 번 더 누르면 치워요. (값의 절반을 돌려받아요)" % info["name"])
+		return false
+	_remove_mark = null
+	GameState.pencil_lead += int(info["cost"].get("lead", 0)) / 2
 	GameState.add_coins(int(info["cost"].get("coins", 0)) / 2)
 	(objects[best] as Node2D).queue_free()
 	objects.remove_at(best)
