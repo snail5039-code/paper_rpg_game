@@ -17,6 +17,9 @@ var _stats_points: Label
 var _stats_derived: Label
 var _stat_rows: Array = []
 var _mp_bar: ColorRect
+var _map: Control
+var _map_boxes: Dictionary = {}
+var _map_here: Label
 var _points_badge: Label
 var _bag_slots: Array = []
 var _bag_info: Label
@@ -61,6 +64,7 @@ func _ready() -> void:
 
 	_build_bag(root)
 	_build_stats(root)
+	_build_map(root)
 	_build_dialogue(root)
 
 	GameState.changed.connect(_refresh)
@@ -281,7 +285,7 @@ func _add_stat(index: int) -> void:
 
 
 func toggle_stats() -> void:
-	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible):
+	if not _stats.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible or _map.visible):
 		return
 	_stats.visible = not _stats.visible
 	GameState.set_menu_open(_stats.visible)
@@ -303,8 +307,72 @@ func _refresh_stats() -> void:
 		roundi(GameState.crit_chance() * 100.0), GameState.exp, GameState.exp_needed()]
 
 
+## 지도 (M 키): 1장의 화면 배치와 지금 있는 곳
+func _build_map(root: Control) -> void:
+	_map = Control.new()
+	_map.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map.visible = false
+	root.add_child(_map)
+	var dim := ColorRect.new()
+	dim.color = Color(0.1, 0.08, 0.08, 0.45)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map.add_child(dim)
+	var win := _tex_rect(_map, "ui_window", Vector2(110, 46), Vector2(420, 268))
+	var title := _dark_label(win, Vector2(0, 14), Vector2(420, 24), 17)
+	title.text = "지도 · 1장"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
+
+	# 화면 사이를 잇는 선
+	var cell := Vector2(86, 48)
+	var origin := Vector2(70, 56)
+	for pair in [["ch1", "ch1_crossroad"], ["ch1_meadow", "ch1_crossroad"], ["ch1_crossroad", "ch1_gridwoods"], ["ch1_crossroad", "ch1_erasedroad"]]:
+		var a := origin + Vector2(Data.CH1_LAYOUT[pair[0]]) * (cell + Vector2(12, 12)) + cell * 0.5
+		var b := origin + Vector2(Data.CH1_LAYOUT[pair[1]]) * (cell + Vector2(12, 12)) + cell * 0.5
+		var line := ColorRect.new()
+		line.color = Color(0.55, 0.45, 0.38)
+		line.position = Vector2(minf(a.x, b.x) - 1.5, minf(a.y, b.y) - 1.5)
+		line.size = Vector2(absf(a.x - b.x) + 3, absf(a.y - b.y) + 3)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		win.add_child(line)
+	for id in Data.CH1_LAYOUT:
+		var box := ColorRect.new()
+		box.position = origin + Vector2(Data.CH1_LAYOUT[id]) * (cell + Vector2(12, 12))
+		box.size = cell
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		win.add_child(box)
+		var l := _dark_label(box, Vector2(0, 15), cell - Vector2(0, 15), 11)
+		l.text = str(Data.MAP_NAMES[id])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_map_boxes[id] = box
+	_map_here = _dark_label(win, Vector2(0, 222), Vector2(420, 16), 12)
+	_map_here.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
+	foot.text = "M  닫기"
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+
+
+func toggle_map() -> void:
+	if not _map.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _bag.visible or _stats.visible):
+		return
+	_map.visible = not _map.visible
+	GameState.set_menu_open(_map.visible)
+	if _map.visible:
+		for id in _map_boxes:
+			var here: bool = id == GameState.current_map
+			(_map_boxes[id] as ColorRect).color = Color(1.0, 0.82, 0.45) if here else Color(0.93, 0.87, 0.74)
+		_map_here.text = "지금 있는 곳: %s" % Data.MAP_NAMES.get(GameState.current_map, "?")
+
+
+func is_map_open() -> bool:
+	return _map.visible
+
+
 func toggle_bag() -> void:
-	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _stats.visible):
+	if not _bag.visible and (GameState.dialogue_open or GameState.cutscene or GameState.draw_mode or _stats.visible or _map.visible):
 		return
 	_bag.visible = not _bag.visible
 	GameState.set_menu_open(_bag.visible)
@@ -478,6 +546,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code: int = event.physical_keycode
+		if code == KEY_M or (_map.visible and code == KEY_ESCAPE):
+			toggle_map()
+			get_viewport().set_input_as_handled()
+			return
 		if code == KEY_C or (_stats.visible and code == KEY_ESCAPE):
 			toggle_stats()
 			get_viewport().set_input_as_handled()

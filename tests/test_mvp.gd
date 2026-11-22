@@ -232,7 +232,7 @@ func _run() -> void:
 	var kinds := {}
 	for e in get_tree().get_nodes_in_group("enemies"):
 		kinds[str(e.get("kind"))] = true
-	check(kinds.size() >= 8, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
+	check(kinds.size() >= 3, "마을에 몬스터가 여러 종류 있음 (%d종)" % kinds.size())
 	player.set("hp", player.get("max_hp"))
 
 	print("[슬라임 AI: 일정 거리 안에서만 공격]")

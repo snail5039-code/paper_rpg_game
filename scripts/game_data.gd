@@ -67,3 +67,61 @@ const MONSTERS := {
 		"radius": 12.0, "exp": 10, "def": 2, "drops": [10, 0.8, 11, 0.25], "lunge_time": 0.5, "lunge_speed": 160.0,
 	},
 }
+
+
+## 1장의 화면 배치 (지도용). 칸 좌표: x 는 왼쪽→오른쪽, y 는 위→아래.
+##          [마을]
+##  [들판]─[갈림길]─[모눈 숲]
+##         [지워진 길]
+const CH1_LAYOUT := {
+	"ch1": Vector2i(1, 0), "ch1_meadow": Vector2i(0, 1), "ch1_crossroad": Vector2i(1, 1),
+	"ch1_gridwoods": Vector2i(2, 1), "ch1_erasedroad": Vector2i(1, 2),
+}
+const MAP_NAMES := {
+	"home": "내 마을", "ch1": "공책 마을", "ch1_meadow": "들판", "ch1_crossroad": "갈림길",
+	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길",
+}
+
+## 사냥터 화면 (scripts/field.gd). 위치는 bg px (배경 1672×941).
+##  gates   : 문이 있는 변 → 넘어갈 화면
+##  solids  : 화면 안의 막힌 곳 (연못, 우물, 줄지어 선 나무)
+##  monsters: [종류, 위치]
+const FIELDS := {
+	"ch1_crossroad": {
+		"name": "갈림길", "bg": "bg_ch1_crossroad",
+		"gates": {"top": "ch1", "bottom": "ch1_erasedroad", "left": "ch1_meadow", "right": "ch1_gridwoods"},
+		"solids": [Rect2(672, 300, 90, 120), Rect2(915, 300, 140, 130)],
+		"monsters": [["dots_faded", Vector2(350, 650)], ["dots_faded", Vector2(1250, 300)], ["squiggle_faded", Vector2(1200, 650)]],
+	},
+	"ch1_meadow": {
+		"name": "들판", "bg": "bg_ch1_meadow",
+		"gates": {"right": "ch1_crossroad"},
+		"solids": [Rect2(185, 170, 250, 215)],
+		"monsters": [
+			["slime_faded", Vector2(560, 300)], ["slime_faded", Vector2(700, 650)], ["slime_faded", Vector2(1000, 250)],
+			["grass_faded", Vector2(400, 600)], ["grass_faded", Vector2(900, 700)], ["grass_faded", Vector2(1250, 300)],
+			["dots_faded", Vector2(620, 480)], ["dots_faded", Vector2(1150, 640)],
+		],
+	},
+	"ch1_gridwoods": {
+		"name": "모눈 숲", "bg": "bg_ch1_gridwoods",
+		"gates": {"left": "ch1_crossroad"},
+		"solids": [Rect2(108, 112, 1456, 228), Rect2(108, 610, 1456, 208)],
+		"monsters": [
+			["spider_faded", Vector2(500, 420)], ["spider_faded", Vector2(900, 520)], ["spider_faded", Vector2(1300, 430)],
+			["squiggle_faded", Vector2(700, 400)], ["squiggle_faded", Vector2(1100, 540)],
+			["spider_erased", Vector2(1450, 520)], ["squiggle_erased", Vector2(1420, 400)],
+		],
+	},
+	"ch1_erasedroad": {
+		"name": "지워진 길", "bg": "bg_ch1_erasedroad",
+		"gates": {"top": "ch1_crossroad"},
+		"solids": [],
+		"monsters": [
+			["bug_faded", Vector2(400, 300)], ["bug_faded", Vector2(1250, 300)], ["bug_faded", Vector2(350, 600)],
+			["bug_erased", Vector2(600, 680)], ["bug_erased", Vector2(1200, 680)],
+			["slime_erased", Vector2(500, 450)], ["slime_erased", Vector2(1150, 450)],
+			["dots_erased", Vector2(300, 740)], ["grass_erased", Vector2(1350, 720)],
+		],
+	},
+}

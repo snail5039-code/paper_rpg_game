@@ -21,6 +21,10 @@ const STAT_DESCS := ["공격력 +2", "최대 HP +8, 방어 +1", "치명타 확�
 const MAP_SCENES := {
 	"ch1": "res://scenes/main.tscn",
 	"home": "res://scenes/home.tscn",
+	"ch1_meadow": "res://scenes/field.tscn",
+	"ch1_crossroad": "res://scenes/field.tscn",
+	"ch1_gridwoods": "res://scenes/field.tscn",
+	"ch1_erasedroad": "res://scenes/field.tscn",
 }
 
 ## 1페이지(튜토리얼) 진행 순서

@@ -29,14 +29,17 @@ const PLAYER_SPAWN := Vector2(290, 515)
 const NPC_POS := Vector2(880, 438)
 const GOAL_POS := Vector2(1502, 486)
 const RETURN_SPAWN := Vector2(1380, 540)
+## 아래쪽 문: 갈림길로 이어진다 (bg px)
+const SOUTH_GATE_X := 805.0
+const SOUTH_GATE_ARRIVE := Vector2(805, 800)
+const EXIT_MARGIN := 34.0
 const SLIME_SPAWNS := [Vector2(300, 735), Vector2(520, 740), Vector2(760, 760)]
 ## 몬스터 배치: [종류, 위치]. 강 왼쪽은 조금 지워진 것, 다리 건너는 많이 지워진 것.
+## 마을에는 슬라임 위주로 조금만 둔다. 나머지 종은 아래쪽 문 너머의 사냥터 화면에 있다 (game_data.gd 의 FIELDS).
 const MONSTER_SPAWNS := [
-	["slime_faded", Vector2(300, 735)], ["slime_faded", Vector2(520, 740)], ["slime_erased", Vector2(760, 760)],
-	["squiggle_faded", Vector2(860, 620)], ["dots_faded", Vector2(170, 720)], ["grass_faded", Vector2(360, 620)],
-	["spider_faded", Vector2(700, 580)], ["bug_faded", Vector2(600, 660)],
-	["squiggle_erased", Vector2(1300, 300)], ["dots_erased", Vector2(1400, 640)], ["grass_erased", Vector2(1280, 720)],
-	["spider_erased", Vector2(1430, 240)], ["bug_erased", Vector2(1300, 600)],
+	["slime_faded", Vector2(300, 735)], ["slime_faded", Vector2(520, 740)], ["slime_faded", Vector2(620, 620)],
+	["dots_faded", Vector2(170, 720)],
+	["slime_erased", Vector2(1300, 300)], ["grass_erased", Vector2(1280, 720)],
 ]
 ## 흰 자국(완전히 지워진 것의 자리): [그림, 발 위치]
 const WHITE_MARKS := [
@@ -69,7 +72,9 @@ func _ready() -> void:
 	if get_tree().current_scene == self:
 		add_to_group("game_map")
 	# 배경
-	var bg_tex := Art.tex("bg")
+	var bg_tex := Art.tex("bg_ch1_village")   # 아래쪽 문이 열린 새 배경
+	if bg_tex == null:
+		bg_tex = Art.tex("bg")
 	if bg_tex:
 		var back := Sprite2D.new()
 		back.name = "Background"
@@ -151,6 +156,8 @@ func _ready() -> void:
 	player.position = GameState.saved_position if GameState.has_saved_position else bg(PLAYER_SPAWN)
 	if GameState.spawn_tag == "from_home":
 		player.position = bg(RETURN_SPAWN)   # 내 마을에서 돌아오면 빨간 문 앞
+	elif GameState.spawn_tag == "gate_bottom":
+		player.position = bg(SOUTH_GATE_ARRIVE)   # 갈림길에서 올라오면 아래쪽 문 앞
 	GameState.spawn_tag = ""
 	actors.add_child(player)
 
@@ -185,6 +192,31 @@ func _ready() -> void:
 	tutorial.set("goal", goal)
 	tutorial.set("drawing", drawing)
 	add_child(tutorial)
+
+
+# ---------- 아래쪽 문 ----------
+
+var last_exit := ""
+var _leaving := false
+var _gate_notice := 0.0
+
+
+func _physics_process(delta: float) -> void:
+	_gate_notice = maxf(0.0, _gate_notice - delta)
+	if _leaving or not is_instance_valid(player):
+		return
+	var p := player.global_position / WORLD_PER_BG
+	if p.y < BG_SIZE.y - EXIT_MARGIN:
+		return
+	if GameState.quest == GameState.Quest.NOT_STARTED:
+		# 이야기를 듣기 전에는 마을 밖으로 나가지 않는다
+		player.global_position.y = bg(Vector2(0, BG_SIZE.y - EXIT_MARGIN - 30)).y
+		if _gate_notice <= 0.0:
+			_gate_notice = 2.0
+			GameState.notify("먼저 마을 사람에게 이야기를 들어 보자.")
+		return
+	last_exit = "bottom"
+	_leaving = GameState.goto_map("ch1_crossroad", "gate_top")
 
 
 # ---------- 충돌 ----------

@@ -45,12 +45,37 @@ def by_width(img, world_w):
     return base.scaled(img, world_w * TEX / img.width)
 
 
+def open_village_south_gate():
+    """마을 충돌 마스크(mask_walk/mask_solid, 배경의 1/4 크기)에서 아래쪽 문 자리를 걸을 수 있게 뚫는다."""
+    x0, x1, y0, y1 = 765 // 4, 850 // 4, 780 // 4, 941 // 4
+    walk = Image.open(OUT + "mask_walk.png").convert("RGBA")
+    ref = None
+    for y in range(walk.height):   # 걸을 수 있는 칸의 색을 하나 찾는다
+        for x in range(walk.width):
+            if walk.getpixel((x, y))[3] > 128:
+                ref = walk.getpixel((x, y))
+                break
+        if ref:
+            break
+    for y in range(y0, min(y1 + 1, walk.height)):
+        for x in range(x0, x1):
+            walk.putpixel((x, y), ref)
+    walk.save(OUT + "mask_walk.png")
+    solid = Image.open(OUT + "mask_solid.png").convert("RGBA")
+    for y in range(y0, min(y1 + 1, solid.height)):
+        for x in range(x0, x1):
+            solid.putpixel((x, y), (0, 0, 0, 0))
+    solid.save(OUT + "mask_solid.png")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for src, dst in BACKGROUNDS.items():
         shutil.copyfile(SRC + src + ".png", OUT + dst + ".png")
     for src, dst in GROUNDS.items():
         Image.open(SRC + src + ".png").convert("RGB").save(OUT + dst + ".png")
+
+    open_village_south_gate()
 
     # 포탈 3칸: 열린 문, 잠긴 문, 방금 열린 문 (가로 30 월드)
     pcs = pieces("19_portal", 3, 1)

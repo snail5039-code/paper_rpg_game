@@ -22,7 +22,7 @@ func check(ok: bool, text: String) -> void:
 
 func frames(n: int) -> void:
 	for i in n:
-		await get_tree().process_frame
+		await get_tree().physics_frame
 
 
 func scene_name() -> String:
@@ -75,6 +75,31 @@ func _run() -> void:
 	check(d > 30.0 and d < 90.0, "빨간 문 앞에서 시작하고, 바로 다시 빨려 들어가지 않음 (거리 %.0f)" % d)
 	await frames(40)
 	check(scene_name() == "Village" and not GameState.cutscene, "가만히 있으면 1장에 머무름")
+
+	print("[1장 화면 사이 이동]")
+	GameState.quest = GameState.Quest.FIND_LEAD
+	p2.set("_invuln", 999.0)
+	p2.global_position = Vector2(805, 880) * (640.0 / 1672.0)
+	Input.action_press("move_down")
+	await frames(12)
+	Input.action_release("move_down")
+	await frames(30)
+	check(scene_name() == "Field" and GameState.current_map == "ch1_crossroad", "마을 아래쪽 문으로 나가면 갈림길 (%s)" % GameState.current_map)
+	var field := get_tree().current_scene
+	var p3: Node2D = field.get("player")
+	p3.set("_invuln", 999.0)
+	check(p3.global_position.y < 200.0 * (640.0 / 1672.0), "갈림길의 위쪽 문 앞에 섬")
+	p3.global_position = Vector2(1600, 470) * (640.0 / 1672.0)
+	Input.action_press("move_right")
+	await frames(30)
+	Input.action_release("move_right")
+	await frames(30)
+	check(GameState.current_map == "ch1_gridwoods", "갈림길 오른쪽 문으로 나가면 모눈 숲 (%s)" % GameState.current_map)
+	var p4: Node2D = get_tree().current_scene.get("player")
+	check(p4.global_position.x < 600.0 * (640.0 / 1672.0), "모눈 숲의 왼쪽 문 쪽에서 시작")
+	GameState.save_game()
+	GameState.current_map = "ch1"
+	check(GameState.load_game() and GameState.current_map == "ch1_gridwoods", "사냥터 화면에서도 지금 있는 맵이 저장됨")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])
