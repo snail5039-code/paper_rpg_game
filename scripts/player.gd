@@ -389,9 +389,11 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 		_die()
 
 
+## 쓰러지면 연필심의 10%를 잃고 내 마을로 돌아간다 (내 마을이 아직 없으면 이 맵의 입구로)
 func _die() -> void:
-	GameState.notify("쓰러졌다... 마을 입구에서 다시 시작!")
 	hp = max_hp
+	if GameState.on_player_death():
+		return
 	mp = max_mp
 	_knock = Vector2.ZERO
 	global_position = spawn_point

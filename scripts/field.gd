@@ -9,6 +9,7 @@ const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
+const Companion := preload("res://scripts/companion.gd")
 const MonsterScene := preload("res://scenes/enemy.tscn")
 
 const BG_SIZE := Vector2(1672, 941)
@@ -34,6 +35,7 @@ var cfg: Dictionary
 var actors: Node2D
 var player: CharacterBody2D
 var hud: CanvasLayer
+var companion: Node2D
 var last_exit := ""          # 마지막으로 나간 문 (테스트용)
 var _leaving := false
 
@@ -84,6 +86,7 @@ func _ready() -> void:
 	player.position = GameState.saved_position if GameState.has_saved_position and GameState.spawn_tag == "" else start
 	GameState.spawn_tag = ""
 	actors.add_child(player)
+	companion = Companion.attach(actors, player)
 
 	var cam := Camera2D.new()
 	cam.zoom = Vector2.ONE * CAMERA_ZOOM

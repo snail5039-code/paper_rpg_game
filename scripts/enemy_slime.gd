@@ -11,6 +11,7 @@ const PickupScript := preload("res://scripts/pickup.gd")
 const Fx := preload("res://scripts/fx_frames.gd")
 const Data := preload("res://scripts/game_data.gd")
 const Items := preload("res://scripts/items.gd")
+const FallenScript := preload("res://scripts/fallen.gd")
 const EQUIP_DROP_RATE := 0.05   # 장비가 떨어질 확률 ("흐릿한" 단계)
 
 ## 종류. add_child 하기 전에 정한다.
@@ -232,6 +233,12 @@ func _die() -> void:
 		gear.set("item", Items.random_drop(maxi(1, GameState.level), 1))
 		gear.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
 		get_parent().add_child(gear)
+	# 도화지가 있으면 다시 그려 줄 수 있게 흐린 자국을 남긴다
+	if GameState.has_paper() and Data.FRIENDS.has(Data.species_of(kind)):
+		var fallen: Node2D = FallenScript.new()
+		fallen.set("kind", kind)
+		fallen.global_position = global_position
+		get_parent().add_child(fallen)
 	var vanish := Art.tex("slime_vanish")
 	if vanish:
 		Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)

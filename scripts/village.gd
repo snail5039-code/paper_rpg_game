@@ -13,6 +13,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const GoalScript := preload("res://scripts/goal.gd")
 const TutorialScript := preload("res://scripts/tutorial.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
+const Companion := preload("res://scripts/companion.gd")
 const SlimeScene := preload("res://scenes/enemy.tscn")
 const NpcScene := preload("res://scenes/npc.tscn")
 const VillagerScript := preload("res://scripts/villager.gd")
@@ -60,6 +61,7 @@ var actors: Node2D
 var drawing: Node2D
 var player: CharacterBody2D
 var hud: CanvasLayer
+var companion: Node2D
 var goal: Node2D
 var tutorial: Node
 var bridge_sprite: Sprite2D
@@ -163,6 +165,7 @@ func _ready() -> void:
 		player.position = bg(SOUTH_GATE_ARRIVE)   # 갈림길에서 올라오면 아래쪽 문 앞
 	GameState.spawn_tag = ""
 	actors.add_child(player)
+	companion = Companion.attach(actors, player)
 
 	var cam := Camera2D.new()
 	cam.zoom = Vector2.ONE * CAMERA_ZOOM

@@ -9,6 +9,7 @@ signal dialogue_finished
 signal leveled_up(level: int)
 
 const Items := preload("res://scripts/items.gd")
+const Data := preload("res://scripts/game_data.gd")
 
 const SAVE_PATH := "user://save.json"
 const BRIDGE_COST := 3
@@ -62,6 +63,19 @@ const BAG_STEP := 6               # 한 번 늘릴 때마다
 const BAG_MAX := 60
 var bag_size: int = INVENTORY_SIZE
 var custom_icons: Dictionary = {} # 소모품 id → 내가 그린 아이콘 이름
+var friends: Array = []           # 친구 {"sp": 종, "lv": 레벨, "exp": 경험치, "stars": 별}
+var companion: int = -1           # 같이 다니는 친구 (friends 의 번호, -1 없음)
+const FRIEND_MAX := 30
+const FRIEND_EXP_SHARE := 0.3
+var clock: float = 480.0          # 게임 속 시각 (분, 0 ~ 1440). 08:00 에 시작
+var day: int = 1
+var fatigue: int = 100            # 피로도. 사냥터 화면에 들어갈 때마다 줄고, 아침 6시에 가득 찬다
+const FATIGUE_MAX := 100
+const FATIGUE_PER_FIELD := 2
+const DAY_START := 360.0          # 06:00
+const NIGHT_START := 1200.0       # 20:00
+var home_sheets: int = 4          # 내 마을 종이 장수 (4 → 16)
+var home_objects: Array = []      # 내 마을에 지은 것 {"id", "x", "y", "fine"}
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
@@ -125,6 +139,12 @@ func goto_map(map: String, tag: String = "") -> bool:
 	var scene := get_tree().current_scene
 	if scene == null or not scene.is_in_group("game_map"):
 		return false
+	# 사냥터 화면에 들어갈 때마다 피로도가 든다
+	if Data.FIELDS.has(map):
+		if fatigue < FATIGUE_PER_FIELD:
+			notify("너무 피곤해서 더 갈 수 없어요. 내 집에서 자거나 아침을 기다려요.")
+			return false
+		fatigue -= FATIGUE_PER_FIELD
 	current_map = map
 	if not visited.has(map):
 		visited.append(map)
@@ -151,6 +171,7 @@ func exp_needed(lv: int = -1) -> int:
 
 
 func add_exp(amount: int) -> void:
+	_friend_exp(amount)
 	if level >= MAX_LEVEL:
 		return
 	exp += amount
@@ -420,6 +441,283 @@ func craft(recipe: Array, quality: float = 0.0, art: String = "") -> bool:
 	return true
 
 
+# ---------- 친구 (포획, 동행, 합치기) ----------
+
+func has_paper() -> bool:
+	return consumable_count("paper") > 0 or consumable_count("paper_thick") > 0
+
+
+## 다시 그리기 성공률. score: 따라 그린 정확도(0~1). 60%면 40%, 90% 이상이면 80%.
+##  많이 지워진 모습은 -15%, 두꺼운 도화지는 +20%.
+func capture_chance(score: float, kind: String, thick: bool) -> float:
+	var c := 0.0
+	if score >= 0.9:
+		c = 0.8
+	elif score >= 0.6:
+		c = lerpf(0.4, 0.8, (score - 0.6) / 0.3)
+	else:
+		c = 0.4 * score / 0.6
+	if kind.ends_with("_erased"):
+		c -= 0.15
+	if thick:
+		c += 0.2
+	return clampf(c, 0.02, 0.95)
+
+
+## 도화지 한 장을 쓰고 다시 그리기를 굴린다. 돌려주는 것: "ok", "fail", "no_paper", "full"
+func try_capture(kind: String, score: float) -> String:
+	if friends.size() >= FRIEND_MAX:
+		return "full"
+	var thick := consumable_count("paper") <= 0
+	var id := "paper_thick" if thick else "paper"
+	if consumable_count(id) <= 0:
+		return "no_paper"
+	consumables[id] = consumable_count(id) - 1
+	var ok := randf() < capture_chance(score, kind, thick)
+	if ok:
+		add_friend(Data.species_of(kind))
+	changed.emit()
+	return "ok" if ok else "fail"
+
+
+func add_friend(sp: String) -> bool:
+	if not Data.FRIENDS.has(sp) or friends.size() >= FRIEND_MAX:
+		return false
+	friends.append({"sp": sp, "lv": 1, "exp": 0, "stars": 0})
+	if companion < 0:
+		companion = friends.size() - 1
+	changed.emit()
+	return true
+
+
+func friend_name(f: Dictionary) -> String:
+	return str(Data.FRIENDS[str(f["sp"])]["name"]) + "★".repeat(int(f["stars"]))
+
+
+## 친구의 공격력: (4 + 레벨 × 2) × 종의 힘 × (1 + 별 × 15%)
+func friend_attack(f: Dictionary) -> int:
+	return roundi((4 + int(f["lv"]) * 2) * float(Data.FRIENDS[str(f["sp"])]["power"]) * (1.0 + 0.15 * int(f["stars"])))
+
+
+func companion_friend() -> Dictionary:
+	return friends[companion] if companion >= 0 and companion < friends.size() else {}
+
+
+## 같이 다닐 친구를 고른다. 이미 같이 다니는 친구를 고르면 쉬게 한다.
+func set_companion(i: int) -> void:
+	companion = -1 if i == companion or i < 0 or i >= friends.size() else i
+	changed.emit()
+
+
+func release_friend(i: int) -> void:
+	if i < 0 or i >= friends.size():
+		return
+	_remove_friends([i])
+	changed.emit()
+
+
+## 친구들을 지우고 동행 번호를 맞춘다
+func _remove_friends(idx: Array) -> void:
+	var keep: Variant = friends[companion] if companion >= 0 and companion < friends.size() and not idx.has(companion) else null
+	idx.sort()
+	for k in range(idx.size() - 1, -1, -1):
+		friends.remove_at(int(idx[k]))
+	companion = -1
+	if keep != null:
+		for k in friends.size():
+			if is_same(friends[k], keep):
+				companion = k
+
+
+## 같은 종 합치기에 드는 마리 수: 별 n개 → n+1개에 n마리 (처음은 1마리)
+func merge_need(f: Dictionary) -> int:
+	return maxi(1, int(f["stars"]))
+
+
+## i 번 친구에게 같은 종의 다른 친구들을 합쳐 별을 하나 붙인다 (별이 적은 친구부터 쓴다)
+func merge_same(i: int) -> bool:
+	if i < 0 or i >= friends.size() or int(friends[i]["stars"]) >= 5:
+		return false
+	var f: Dictionary = friends[i]
+	var others: Array = []
+	for k in friends.size():
+		if k != i and str(friends[k]["sp"]) == str(f["sp"]):
+			others.append(k)
+	others.sort_custom(func(a: int, b: int) -> bool: return int(friends[a]["stars"]) < int(friends[b]["stars"]))
+	var need := merge_need(f)
+	if others.size() < need:
+		return false
+	f["stars"] = int(f["stars"]) + 1
+	_remove_friends(others.slice(0, need))
+	changed.emit()
+	return true
+
+
+## i 번 친구와 섞어 새 종을 만들 수 있는 친구의 번호 (없으면 -1). 둘 다 별 2개 이상.
+func cross_partner(i: int) -> int:
+	if i < 0 or i >= friends.size() or int(friends[i]["stars"]) < 2:
+		return -1
+	var sp := str(friends[i]["sp"])
+	for m in Data.MERGES:
+		var other := ""
+		if str(m[0]) == sp:
+			other = str(m[1])
+		elif str(m[1]) == sp:
+			other = str(m[0])
+		if other == "":
+			continue
+		for k in friends.size():
+			if k != i and str(friends[k]["sp"]) == other and int(friends[k]["stars"]) >= 2:
+				return k
+	return -1
+
+
+## 다른 종끼리 합쳐 새 종을 만든다. 레벨은 둘 중 높은 쪽을 잇는다.
+func merge_cross(i: int) -> bool:
+	var j := cross_partner(i)
+	if j < 0:
+		return false
+	var a := str(friends[i]["sp"])
+	var b := str(friends[j]["sp"])
+	var born := ""
+	for m in Data.MERGES:
+		if (str(m[0]) == a and str(m[1]) == b) or (str(m[0]) == b and str(m[1]) == a):
+			born = str(m[2])
+	var lv := maxi(int(friends[i]["lv"]), int(friends[j]["lv"]))
+	var was_companion := companion == i or companion == j
+	_remove_friends([i, j])
+	friends.append({"sp": born, "lv": lv, "exp": 0, "stars": 0})
+	if was_companion:
+		companion = friends.size() - 1
+	changed.emit()
+	return true
+
+
+## 같이 다니는 친구는 주인공이 얻는 경험치의 30%를 얻는다. 주인공 레벨을 넘지 못한다.
+func _friend_exp(amount: int) -> void:
+	var f := companion_friend()
+	if f.is_empty() or int(f["lv"]) >= level:
+		return
+	f["exp"] = int(f["exp"]) + maxi(1, roundi(amount * FRIEND_EXP_SHARE))
+	while int(f["lv"]) < level and int(f["exp"]) >= roundi(20.0 * pow(int(f["lv"]), 1.7)):
+		f["exp"] = int(f["exp"]) - roundi(20.0 * pow(int(f["lv"]), 1.7))
+		f["lv"] = int(f["lv"]) + 1
+		notify("%s 의 레벨이 올랐어요! (%d)" % [friend_name(f), int(f["lv"])])
+
+
+# ---------- 시간, 피로도, 쓰러짐 ----------
+
+## 하루는 90분: 낮(06~20시) 60분, 밤(20~06시) 30분. real_sec 만큼 실제 시간이 흘렀다.
+func advance_clock(real_sec: float) -> void:
+	var night := clock >= NIGHT_START or clock < DAY_START
+	var before := clock
+	clock += real_sec * ((600.0 / 1800.0) if night else (840.0 / 3600.0))
+	if clock >= 1440.0:
+		clock -= 1440.0
+		before -= 1440.0
+	if before < DAY_START and clock >= DAY_START:
+		_new_day()
+
+
+func _new_day() -> void:
+	day += 1
+	fatigue = FATIGUE_MAX
+	notify("아침이 밝았어요. %d일째. 피로가 풀렸어요." % day)
+	changed.emit()
+
+
+func is_night() -> bool:
+	return clock >= NIGHT_START or clock < DAY_START
+
+
+## 밤의 어두운 정도 (0 낮 ~ 1 한밤). 19~21시에 어두워지고 5~7시에 밝아진다.
+func night_amount() -> float:
+	if clock >= 1140.0:
+		return clampf((clock - 1140.0) / 120.0, 0.0, 1.0)
+	if clock <= 420.0:
+		return clampf((420.0 - clock) / 120.0, 0.0, 1.0)
+	return 0.0
+
+
+func clock_text() -> String:
+	return "%s %02d:%02d" % ["밤" if is_night() else "낮", int(clock / 60.0) % 24, int(clock) % 60 / 10 * 10]
+
+
+## 내 집에서 잔다: 다음 날 아침 6시로 넘어가고 피로가 풀린다
+func sleep() -> void:
+	clock = DAY_START
+	_new_day()
+	save_game()
+
+
+## 쓰러졌다: 연필심의 10%를 잃고, 내 마을이 열려 있으면 내 마을로 돌아간다.
+## 돌려주는 것: 내 마을로 옮겨 갔으면 true (false 면 그 맵의 입구에서 다시 시작)
+func on_player_death() -> bool:
+	var lost := pencil_lead / 10
+	pencil_lead -= lost
+	notify("쓰러졌다…  연필심 %d개를 잃었어요." % lost if lost > 0 else "쓰러졌다…")
+	changed.emit()
+	if visited.has("home") and current_map != "home":
+		var keep := fatigue
+		var moved := goto_map("home", "from_death")
+		fatigue = keep
+		return moved
+	return false
+
+
+func _process(delta: float) -> void:
+	# 대화, 창, 컷신 중에는 시간이 흐르지 않는다
+	if not get_tree().paused and is_instance_valid(player_ref):
+		advance_clock(delta)
+
+
+# ---------- 내 마을 짓기 ----------
+
+func can_afford(cost: Dictionary) -> bool:
+	return coins >= int(cost.get("coins", 0)) and pencil_lead >= int(cost.get("lead", 0))
+
+
+func pay(cost: Dictionary) -> bool:
+	if not can_afford(cost):
+		return false
+	coins -= int(cost.get("coins", 0))
+	pencil_lead -= int(cost.get("lead", 0))
+	changed.emit()
+	return true
+
+
+static func cost_text(cost: Dictionary) -> String:
+	var parts: Array = []
+	if int(cost.get("lead", 0)) > 0:
+		parts.append("연필심 %d" % int(cost["lead"]))
+	if int(cost.get("coins", 0)) > 0:
+		parts.append("동전 %d" % int(cost["coins"]))
+	return ", ".join(parts) if not parts.is_empty() else "공짜"
+
+
+func home_size() -> Vector2:
+	var g: Vector2i = Data.HOME_GRID.get(home_sheets, Vector2i(2, 2))
+	return Vector2(g.x * 640.0, g.y * 360.0)
+
+
+## 다음 넓히기 값. 다 넓혔으면 빈 Dictionary. (5번째 장: 연필심 50 + 동전 500, 한 번마다 1.5배)
+func home_expand_cost() -> Dictionary:
+	var step := Data.HOME_STEPS.find(home_sheets)
+	if step < 0 or step >= Data.HOME_STEPS.size() - 1:
+		return {}
+	var k := pow(1.5, step)
+	return {"lead": roundi(50 * k), "coins": roundi(500 * k)}
+
+
+func expand_home() -> bool:
+	var cost := home_expand_cost()
+	if cost.is_empty() or not pay(cost):
+		return false
+	home_sheets = int(Data.HOME_STEPS[Data.HOME_STEPS.find(home_sheets) + 1])
+	changed.emit()
+	return true
+
+
 # ---------- 스킬 ----------
 
 func skill_rank(id: String) -> int:
@@ -543,6 +841,13 @@ func save_game() -> bool:
 		"skill_ranks": skill_ranks,
 		"skill_slots": skill_slots,
 		"bag_size": bag_size,
+		"friends": friends,
+		"companion": companion,
+		"clock": clock,
+		"day": day,
+		"fatigue": fatigue,
+		"home_sheets": home_sheets,
+		"home_objects": home_objects,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
 		"visited": visited,
@@ -592,6 +897,23 @@ func load_game() -> bool:
 	if typeof(data.get("skill_ranks")) == TYPE_DICTIONARY:
 		skill_ranks = data["skill_ranks"]
 	bag_size = clampi(int(data.get("bag_size", INVENTORY_SIZE)), INVENTORY_SIZE, BAG_MAX)
+	friends = []
+	if typeof(data.get("friends")) == TYPE_ARRAY:
+		for fr in data["friends"]:
+			if typeof(fr) == TYPE_DICTIONARY and Data.FRIENDS.has(str(fr.get("sp", ""))):
+				friends.append({"sp": str(fr["sp"]), "lv": int(fr.get("lv", 1)), "exp": int(fr.get("exp", 0)), "stars": int(fr.get("stars", 0))})
+	companion = clampi(int(data.get("companion", -1)), -1, friends.size() - 1)
+	clock = clampf(float(data.get("clock", 480.0)), 0.0, 1439.0)
+	day = maxi(1, int(data.get("day", 1)))
+	fatigue = clampi(int(data.get("fatigue", FATIGUE_MAX)), 0, FATIGUE_MAX)
+	home_sheets = int(data.get("home_sheets", 4))
+	if not Data.HOME_GRID.has(home_sheets):
+		home_sheets = 4
+	home_objects = []
+	if typeof(data.get("home_objects")) == TYPE_ARRAY:
+		for o in data["home_objects"]:
+			if typeof(o) == TYPE_DICTIONARY and Data.BUILDS.has(str(o.get("id", ""))):
+				home_objects.append({"id": str(o["id"]), "x": float(o.get("x", 0)), "y": float(o.get("y", 0)), "fine": bool(o.get("fine", false))})
 	if typeof(data.get("custom_icons")) == TYPE_DICTIONARY:
 		custom_icons = data["custom_icons"]
 	var slots: Variant = data.get("skill_slots", [])
@@ -647,6 +969,13 @@ func reset_game() -> void:
 	skill_slots = ["", "", ""]
 	bag_size = INVENTORY_SIZE
 	custom_icons = {}
+	friends = []
+	companion = -1
+	clock = 480.0
+	day = 1
+	fatigue = FATIGUE_MAX
+	home_sheets = 4
+	home_objects = []
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false

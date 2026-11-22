@@ -6,6 +6,7 @@ const Data := preload("res://scripts/game_data.gd")
 const MapViewScript := preload("res://scripts/map_view.gd")
 const MenusScript := preload("res://scripts/menus.gd")
 const UltimateScript := preload("res://scripts/ultimate.gd")
+const TracePanelScript := preload("res://scripts/trace_panel.gd")
 const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
@@ -27,6 +28,10 @@ var _points_badge: Label
 var _menus: Dictionary = {}
 var _quick: Array = []
 var _ult: Control              # 필살기 화면
+var _trace: Control            # 따라 그리기 화면 (포획, 건물 짓기)
+var _night: ColorRect          # 밤에 화면을 어둡게 덮는 막
+var _clock_label: Label
+var _day_label: Label
 var _ult_slot: Array = []      # [틀, 아이콘, 가림막, 글]
 var _coin_label: Label
 var _lead_label: Label
@@ -52,6 +57,13 @@ func _ready() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+	_night = ColorRect.new()
+	_night.color = Color(0.08, 0.1, 0.32, 0.0)
+	_night.size = Vector2(640, 360)
+	_night.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_night)
+	_clock_label = _label(root, Vector2(548, 6), 11)
+	_day_label = _label(root, Vector2(548, 20), 9)
 
 	_build_bars(root)
 	_quest_label = _label(root, Vector2(10, 68), 13)
@@ -72,6 +84,8 @@ func _ready() -> void:
 	_build_menus(root)
 	_ult = UltimateScript.new()
 	root.add_child(_ult)
+	_trace = TracePanelScript.new()
+	root.add_child(_trace)
 	add_to_group("hud")
 	_build_stats(root)
 	_build_map(root)
@@ -97,7 +111,7 @@ func _style_label(l: Label, font_size: int) -> void:
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", Color(1, 1, 1))
 	l.add_theme_color_override("font_outline_color", Color(0.15, 0.15, 0.2))
-	l.add_theme_constant_override("outline_size", 5)
+	l.add_theme_constant_override("outline_size", 3)
 
 
 func _tex_rect(parent: Control, tex_name: String, pos: Vector2, size: Vector2) -> TextureRect:
@@ -162,7 +176,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop"]:
+	for k in ["bag", "skills", "shop", "friends", "build"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -281,12 +295,23 @@ func _any_window_open() -> bool:
 	for k in _menus:
 		if (_menus[k] as Control).visible:
 			return true
-	return _stats.visible or _map.visible
+	return _stats.visible or _map.visible or bool(_trace.get("active")) or bool(_ult.call("is_active"))
 
 
-func open_shop() -> void:
+## tab: 열 때 고를 탭 (0 사기, 1 팔기, 2 만들기, 3 강화)
+func open_shop(tab: int = -1) -> void:
 	if not is_menu_open("shop"):
 		toggle_menu("shop")
+	if tab >= 0 and is_menu_open("shop"):
+		(_menus["shop"] as Control).call("_set_tab", tab)
+
+
+func menu(k: String) -> Control:
+	return _menus[k]
+
+
+func trace_panel() -> Control:
+	return _trace
 
 
 ## 능력치 화면 (C 키): 레벨마다 받은 포인트를 필압·끈기·손끝·눈썰미에 넣는다
@@ -483,6 +508,9 @@ func _process(_delta: float) -> void:
 		var mmx: int = p.get("max_mp")
 		_mp_bar.size.x = HP_FILL_W * clampf(float(p.get("mp")) / float(maxi(mmx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
+	_night.color.a = 0.42 * GameState.night_amount()
+	_clock_label.text = GameState.clock_text()
+	_day_label.text = "%d일째  피로 %d" % [GameState.day, GameState.fatigue]
 	_refresh_quickbar()
 
 
@@ -585,6 +613,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if is_menu_open("shop") and kc == KEY_ESCAPE:
 			toggle_menu("shop")
+			get_viewport().set_input_as_handled()
+			return
+		if kc == KEY_P or (is_menu_open("friends") and kc == KEY_ESCAPE):
+			toggle_menu("friends")
+			get_viewport().set_input_as_handled()
+			return
+		if is_menu_open("build") and kc == KEY_ESCAPE:
+			toggle_menu("build")
 			get_viewport().set_input_as_handled()
 			return
 	if event is InputEventKey and event.pressed and not event.echo:

@@ -12,12 +12,13 @@ const UI := preload("res://scripts/ui_kit.gd")
 const CraftCanvas := preload("res://scripts/craft_canvas.gd")
 
 signal close_requested
+signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우기, "expand" 는 넓히기)
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"]}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -143,6 +144,8 @@ func refresh() -> void:
 		"bag": _refresh_bag()
 		"skills": _refresh_skills()
 		"shop": _refresh_shop()
+		"friends": _refresh_friends()
+		"build": _refresh_build()
 
 
 # ---------- 가방 ----------
@@ -406,3 +409,84 @@ func _enhance(item: Dictionary) -> void:
 		"broken": "실패… 장비가 지워졌어요.", "saved": "실패했지만 코팅지가 막아 줬어요."}
 	_message = str(texts.get(result, result))
 	refresh()
+
+
+# ---------- 친구 (P) ----------
+
+## 친구 종의 얼굴 그림 (띠 그림은 첫 칸만 잘라 쓴다)
+func _friend_tex(sp: String) -> Texture2D:
+	var l: Array = load("res://scripts/companion.gd").look(sp)
+	var tex: Texture2D = l[0]
+	if tex == null or int(l[1]) <= 1:
+		return tex
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(0, 0, tex.get_width() / float(l[1]), tex.get_height())
+	return at
+
+
+func _refresh_friends() -> void:
+	var box := _list()
+	if GameState.friends.is_empty():
+		_row(box, "icon_paper", "아직 친구가 없어요.", [])
+	for i in GameState.friends.size():
+		var f: Dictionary = GameState.friends[i]
+		var with := GameState.companion == i
+		var text := "%s  Lv %d  공격 %d%s" % [GameState.friend_name(f), int(f["lv"]), GameState.friend_attack(f), "  (동행)" if with else ""]
+		var same := 0
+		for o in GameState.friends:
+			if not is_same(o, f) and str(o["sp"]) == str(f["sp"]):
+				same += 1
+		var buttons: Array = [["쉬기" if with else "동행", GameState.set_companion.bind(i), true]]
+		buttons.append(["합치기", _merge.bind(i, false), int(f["stars"]) < 5 and same >= GameState.merge_need(f)])
+		if GameState.cross_partner(i) >= 0:
+			buttons.append(["섞기", _merge.bind(i, true), true])
+		buttons.append(["보내기", _release.bind(i), true])
+		_row(box, "", text, buttons)
+		var row := box.get_child(box.get_child_count() - 1) as Control
+		var face := UI.icon(row, "", Vector2(4, 2), Vector2(20, 20), Data.FRIENDS[str(f["sp"])].get("tint", Color.WHITE))
+		face.texture = _friend_tex(str(f["sp"]))
+	if _message == "":
+		_info.text = "친구 %d / %d   쓰러진 몬스터에게 F: 도화지에 다시 그려 주면 친구가 돼요.\n합치기: 같은 종끼리 별 +1 (능력 +15%%).  G 키: 친구 스킬" % [
+			GameState.friends.size(), GameState.FRIEND_MAX]
+
+
+func _merge(i: int, cross: bool) -> void:
+	var name := GameState.friend_name(GameState.friends[i])
+	if cross:
+		_message = "새 친구가 태어났어요!" if GameState.merge_cross(i) else "섞을 수 없어요."
+	else:
+		_message = "%s 에게 별이 하나 붙었어요." % name if GameState.merge_same(i) else "같은 종 친구가 모자라요."
+	refresh()
+
+
+func _release(i: int) -> void:
+	_message = "%s 을(를) 공책으로 돌려보냈어요." % GameState.friend_name(GameState.friends[i])
+	GameState.release_friend(i)
+	refresh()
+
+
+# ---------- 짓기 (내 마을, N) ----------
+
+func _refresh_build() -> void:
+	var box := _list()
+	if tab == 0:
+		var cost := GameState.home_expand_cost()
+		if cost.is_empty():
+			_row(box, "icon_paper", "종이를 다 이어 붙였어요. (16장)", [])
+		else:
+			_row(box, "icon_paper_thick", "종이 붙이기 (%d장)  ←  %s" % [GameState.home_sheets, GameState.cost_text(cost)],
+				[["넓히기", _choose.bind("expand"), GameState.can_afford(cost)]])
+	for id in Data.BUILDS:
+		var b: Dictionary = Data.BUILDS[id]
+		if (str(b["kind"]) == "building") != (tab == 0):
+			continue
+		_row(box, str(id), "%s  ←  %s" % [b["name"], GameState.cost_text(b["cost"])],
+			[["고르기", _choose.bind(str(id)), GameState.can_afford(b["cost"])]])
+	_row(box, "tool_eraser", "치우기 (누른 것을 치우고 동전의 절반을 돌려받는다)", [["고르기", _choose.bind(""), true]])
+	if _message == "":
+		_info.text = "연필심 %d   동전 %d\n건물은 자리를 고른 뒤 점선을 따라 그려서 지어요. 잘 그리면 정성 건물이 돼요." % [GameState.pencil_lead, GameState.coins]
+
+
+func _choose(id: String) -> void:
+	build_chosen.emit(id)

@@ -125,3 +125,63 @@ const FIELDS := {
 		],
 	},
 }
+
+
+## 친구 (다시 그려 준 몬스터). 종 → 이름, 그림으로 쓸 몬스터 종류, 힘 배율, 색, 스킬 이름
+##  아래 세 종은 합치기로만 나온다 (그림이 아직 없어서 색만 바꿔 쓴다).
+const FRIENDS := {
+	"slime": {"name": "낙서 슬라임", "kind": "slime_faded", "power": 1.0, "skill": "통통 박치기"},
+	"squiggle": {"name": "삐뚤선", "kind": "squiggle_faded", "power": 1.0, "skill": "휘감기"},
+	"dots": {"name": "점박이", "kind": "dots_faded", "power": 1.0, "skill": "점 뿌리기"},
+	"grass": {"name": "풀낙서", "kind": "grass_faded", "power": 1.0, "skill": "풀베기"},
+	"spider": {"name": "모눈 거미", "kind": "spider_faded", "power": 1.1, "skill": "모눈 덫"},
+	"bug": {"name": "지우개똥 벌레", "kind": "bug_faded", "power": 1.1, "skill": "가루 뿌리기"},
+	"grassmallang": {"name": "풀말랑", "kind": "slime_faded", "power": 1.6, "skill": "풀밭 깔기", "tint": Color(0.7, 1.0, 0.7)},
+	"linespider": {"name": "줄거미", "kind": "spider_faded", "power": 1.6, "skill": "줄 치기", "tint": Color(1.0, 0.85, 0.6)},
+	"snowflake": {"name": "눈송이", "kind": "dots_faded", "power": 1.6, "skill": "얼리기", "tint": Color(0.75, 0.9, 1.0)},
+}
+## 다른 종끼리 합치기: [재료, 재료, 새 종]. 둘 다 별 2개 이상이어야 한다.
+const MERGES := [["slime", "grass", "grassmallang"], ["squiggle", "spider", "linespider"], ["dots", "bug", "snowflake"]]
+
+
+## 몬스터 종류("slime_faded") → 친구 종("slime")
+static func species_of(kind: String) -> String:
+	return kind.split("_")[0]
+
+
+## 내 마을에 지을 수 있는 것. id 는 그림 이름(assets/sprites/<id>.png) 이다.
+##  w: 가로 크기(월드). use: 건물에 말을 걸었을 때 하는 일. cost: {"coins", "lead"}
+##  건물은 자리를 고른 뒤 점선을 따라 그려서 짓는다. 소품은 바로 놓인다.
+const BUILDS := {
+	"bld_house": {"name": "내 집", "w": 70, "kind": "building", "use": "sleep", "cost": {"lead": 5}},
+	"bld_shop": {"name": "문방구", "w": 70, "kind": "building", "use": "shop", "cost": {"lead": 15, "coins": 100}},
+	"bld_craft": {"name": "조합대", "w": 70, "kind": "building", "use": "craft", "cost": {"lead": 10, "coins": 50}},
+	"bld_storage": {"name": "창고", "w": 70, "kind": "building", "use": "", "cost": {"lead": 15, "coins": 100}},
+	"bld_board": {"name": "게시판", "w": 50, "kind": "building", "use": "", "cost": {"lead": 10, "coins": 80}},
+	"bld_fishing": {"name": "낚시터", "w": 70, "kind": "building", "use": "", "cost": {"lead": 20, "coins": 150}},
+	"bld_villager_a": {"name": "주민 집 (보라 지붕)", "w": 70, "kind": "building", "use": "", "cost": {"lead": 20, "coins": 120}},
+	"bld_villager_b": {"name": "주민 집 (초록 지붕)", "w": 70, "kind": "building", "use": "", "cost": {"lead": 20, "coins": 120}},
+	"deco_tree_round": {"name": "둥근 나무", "w": 30, "kind": "deco", "cost": {"coins": 20}},
+	"deco_tree_pine": {"name": "뾰족 나무", "w": 28, "kind": "deco", "cost": {"coins": 20}},
+	"deco_bush": {"name": "덤불", "w": 24, "kind": "deco", "cost": {"coins": 10}},
+	"deco_flower_red": {"name": "빨간 꽃", "w": 16, "kind": "deco", "cost": {"coins": 5}, "walk": true},
+	"deco_flower_yellow": {"name": "노란 꽃", "w": 16, "kind": "deco", "cost": {"coins": 5}, "walk": true},
+	"deco_fence_h": {"name": "울타리 (가로)", "w": 26, "kind": "deco", "cost": {"coins": 8}},
+	"deco_fence_v": {"name": "울타리 (세로)", "w": 9, "kind": "deco", "cost": {"coins": 8}},
+	"deco_rock": {"name": "바위", "w": 20, "kind": "deco", "cost": {"coins": 10}},
+	"deco_stump": {"name": "그루터기", "w": 20, "kind": "deco", "cost": {"coins": 10}},
+	"deco_grass": {"name": "풀포기", "w": 16, "kind": "deco", "cost": {"coins": 3}, "walk": true},
+	"deco_bench": {"name": "벤치", "w": 28, "kind": "deco", "cost": {"coins": 25}},
+	"deco_lamp": {"name": "가로등", "w": 12, "kind": "deco", "cost": {"coins": 30}},
+	"deco_mailbox": {"name": "우체통", "w": 16, "kind": "deco", "cost": {"coins": 25}},
+	"deco_well": {"name": "우물", "w": 26, "kind": "deco", "cost": {"coins": 40}},
+	"deco_signpost": {"name": "표지판", "w": 20, "kind": "deco", "cost": {"coins": 15}},
+	"deco_clothesline": {"name": "빨랫줄", "w": 36, "kind": "deco", "cost": {"coins": 20}},
+	"deco_pot": {"name": "화분", "w": 16, "kind": "deco", "cost": {"coins": 10}},
+	"deco_bridge": {"name": "널다리", "w": 34, "kind": "deco", "cost": {"coins": 20}, "walk": true},
+	"deco_stones": {"name": "징검돌", "w": 28, "kind": "deco", "cost": {"coins": 10}, "walk": true},
+	"deco_scarecrow": {"name": "허수아비", "w": 24, "kind": "deco", "cost": {"coins": 30}},
+}
+## 내 마을 넓히기: 종이 장수 → 가로 × 세로 (화면 한 장은 640 × 360)
+const HOME_STEPS := [4, 6, 9, 12, 16]
+const HOME_GRID := {4: Vector2i(2, 2), 6: Vector2i(3, 2), 9: Vector2i(3, 3), 12: Vector2i(4, 3), 16: Vector2i(4, 4)}
