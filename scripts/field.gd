@@ -157,7 +157,11 @@ func _build_collision() -> void:
 
 func _spawn_monster(kind: String, pos: Vector2) -> void:
 	var m: Node2D = MonsterScene.instantiate()
-	m.set("kind", kind)
+	# 밤에는 조금 지워진 몬스터 대신 많이 지워진(더 센) 모습이 나온다
+	var shown := kind
+	if GameState.is_night() and kind.ends_with("_faded") and Data.MONSTERS.has(kind.replace("_faded", "_erased")):
+		shown = kind.replace("_faded", "_erased")
+	m.set("kind", shown)
 	m.position = pos
 	m.connect("died", _on_monster_died.bind(kind))
 	actors.add_child(m)

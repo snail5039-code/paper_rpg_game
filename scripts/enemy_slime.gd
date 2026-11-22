@@ -226,6 +226,7 @@ func _die() -> void:
 			mat.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-6, 6))
 			get_parent().add_child(mat)
 	GameState.add_exp(exp_reward)
+	GameState.on_kill(kind)
 	GameState.add_coins(maxi(1, exp_reward / 2) + randi() % 2)
 	# 장비: 많이 지워진 모습은 조금 더 잘 준다
 	if randf() < EQUIP_DROP_RATE * (1.6 if kind.ends_with("_erased") else 1.0):

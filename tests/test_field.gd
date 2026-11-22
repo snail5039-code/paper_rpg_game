@@ -60,6 +60,8 @@ func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	_dir = args[0] if args.size() > 0 else ""
 	GameState.save_path = "user://test_field_save.json"
+	GameState.clock = 480.0
+	GameState.fatigue = 100
 	GameState.quest = GameState.Quest.FIND_LEAD
 	GameState.intro_seen = true
 

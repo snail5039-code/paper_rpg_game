@@ -7,6 +7,7 @@ const MapViewScript := preload("res://scripts/map_view.gd")
 const MenusScript := preload("res://scripts/menus.gd")
 const UltimateScript := preload("res://scripts/ultimate.gd")
 const TracePanelScript := preload("res://scripts/trace_panel.gd")
+const FishingScript := preload("res://scripts/fishing.gd")
 const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 106.0
 const EXP_FILL_W := 110.0
@@ -29,6 +30,7 @@ var _menus: Dictionary = {}
 var _quick: Array = []
 var _ult: Control              # 필살기 화면
 var _trace: Control            # 따라 그리기 화면 (포획, 건물 짓기)
+var _fishing: Control          # 낚시 화면
 var _night: ColorRect          # 밤에 화면을 어둡게 덮는 막
 var _clock_label: Label
 var _day_label: Label
@@ -86,6 +88,8 @@ func _ready() -> void:
 	root.add_child(_ult)
 	_trace = TracePanelScript.new()
 	root.add_child(_trace)
+	_fishing = FishingScript.new()
+	root.add_child(_fishing)
 	add_to_group("hud")
 	_build_stats(root)
 	_build_map(root)
@@ -176,7 +180,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop", "friends", "build"]:
+	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -295,7 +299,7 @@ func _any_window_open() -> bool:
 	for k in _menus:
 		if (_menus[k] as Control).visible:
 			return true
-	return _stats.visible or _map.visible or bool(_trace.get("active")) or bool(_ult.call("is_active"))
+	return _stats.visible or _map.visible or bool(_trace.get("active")) or bool(_ult.call("is_active")) or bool(_fishing.call("is_active"))
 
 
 ## tab: 열 때 고를 탭 (0 사기, 1 팔기, 2 만들기, 3 강화)
@@ -312,6 +316,15 @@ func menu(k: String) -> Control:
 
 func trace_panel() -> Control:
 	return _trace
+
+
+func fishing() -> Control:
+	return _fishing
+
+
+func start_fishing(fine: bool) -> void:
+	if not _any_window_open():
+		_fishing.call("start", fine)
 
 
 ## 능력치 화면 (C 키): 레벨마다 받은 포인트를 필압·끈기·손끝·눈썰미에 넣는다
@@ -619,10 +632,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_menu("friends")
 			get_viewport().set_input_as_handled()
 			return
-		if is_menu_open("build") and kc == KEY_ESCAPE:
-			toggle_menu("build")
-			get_viewport().set_input_as_handled()
-			return
+		for mk in ["build", "storage", "board"]:
+			if is_menu_open(mk) and kc == KEY_ESCAPE:
+				toggle_menu(mk)
+				get_viewport().set_input_as_handled()
+				return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var code: int = event.physical_keycode
 		if code == KEY_M or (_map.visible and code == KEY_ESCAPE):

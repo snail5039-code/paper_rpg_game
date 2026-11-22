@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화"], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": []}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -126,8 +126,8 @@ func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, t
 	var x := 280.0
 	for i in range(buttons.size() - 1, -1, -1):
 		var spec: Array = buttons[i]
-		var w := maxf(20.0, 10.0 + str(spec[0]).length() * 8.0)
-		x -= w + 2.0
+		var w := maxf(22.0, ceilf(UI.text_width(str(spec[0]))) + 14.0)
+		x -= w + 3.0
 		var b := _button(row, str(spec[0]), Vector2(x, 3), Vector2(w, 18), spec[1])
 		b.disabled = not bool(spec[2])
 	_label(row, text, Vector2(27, 5), Vector2(x - 29, 16), 9)
@@ -146,6 +146,8 @@ func refresh() -> void:
 		"shop": _refresh_shop()
 		"friends": _refresh_friends()
 		"build": _refresh_build()
+		"storage": _refresh_storage()
+		"board": _refresh_board()
 
 
 # ---------- 가방 ----------
@@ -160,7 +162,8 @@ func _refresh_bag() -> void:
 			var n := GameState.consumable_count(str(id))
 			if n > 0:
 				var info: Array = Items.CONSUMABLES[id]
-				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]], [])
+				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]],
+					[["쓰기", _use.bind(str(id)), str(info[4]) != ""]] if str(info[4]) != "" else [])
 		_info.text = "1 번 키: 반창고    2 번 키: 우유"
 		return
 	# 입은 장비 6칸 (2 × 3)
@@ -330,12 +333,12 @@ func _refresh_shop() -> void:
 			if typeof(entry) == TYPE_STRING:
 				var info: Array = Items.CONSUMABLES[entry]
 				_row(box, GameState.consumable_icon(str(entry)), "%s  (%d개 있음)  %s" % [info[0], GameState.consumable_count(str(entry)), info[3]],
-					[["%d" % int(info[2]), _buy.bind(entry), GameState.coins >= int(info[2])]])
+					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]])
 			else:
 				var arr: Array = entry
 				var sample := {"slot": arr[0], "shape": arr[1], "tier": arr[2], "level": 1, "plus": 0, "opts": []}
 				_row(box, Items.icon(sample), Items.item_name(sample) + "  " + Items.stat_text(str(Items.MAIN_STAT[str(arr[0])]), Items.main_value(sample)),
-					[["%d" % int(arr[3]), _buy.bind(entry), GameState.coins >= int(arr[3])]], Items.tier_color(sample))
+					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Items.tier_color(sample))
 	elif tab == 1:
 		for i in GameState.inventory.size():
 			var item: Dictionary = GameState.inventory[i]
@@ -490,3 +493,56 @@ func _refresh_build() -> void:
 
 func _choose(id: String) -> void:
 	build_chosen.emit(id)
+
+
+## 가방의 소모품을 쓴다 (HP·MP 회복)
+func _use(id: String) -> void:
+	var p := GameState.player_ref
+	if is_instance_valid(p) and bool(p.call("use_consumable", id)):
+		_message = "%s 을(를) 썼어요." % Items.CONSUMABLES[id][0]
+	else:
+		_message = "지금은 쓸 필요가 없어요."
+	refresh()
+
+
+# ---------- 창고 (내 마을의 창고 건물) ----------
+
+func _refresh_storage() -> void:
+	var box := _list()
+	var from: Array = GameState.inventory if tab == 0 else GameState.storage
+	for i in from.size():
+		var item: Dictionary = from[i]
+		_row(box, Items.icon(item), Items.item_name(item) + "  " + Items.stat_text(str(Items.MAIN_STAT[str(item["slot"])]), Items.main_value(item)),
+			[["넣기" if tab == 0 else "꺼내기", _move.bind(i), true]], Items.tier_color(item))
+	if from.is_empty():
+		_row(box, "", "가방에 넣을 장비가 없어요." if tab == 0 else "창고가 비어 있어요.", [])
+	if _message == "":
+		_info.text = "창고 %d / %d칸   가방 %d / %d칸\n창고는 모든 캐릭터가 같이 써요." % [
+			GameState.storage.size(), GameState.storage_size(), GameState.inventory.size(), GameState.bag_size]
+
+
+func _move(i: int) -> void:
+	var ok := GameState.store_item(i) if tab == 0 else GameState.take_item(i)
+	_message = "" if ok else ("창고가 가득 찼어요." if tab == 0 else "가방이 가득 찼어요.")
+	refresh()
+
+
+# ---------- 게시판 (하루 부탁 3개) ----------
+
+func _refresh_board() -> void:
+	var box := _list()
+	for i in GameState.board_quests.size():
+		var q: Dictionary = GameState.board_quests[i]
+		var name := str(Data.FRIENDS[str(q["sp"])]["name"])
+		var text := "%s 물리치기 %d/%d   동전 %d · 경험 %d" % [name, mini(int(q["have"]), int(q["need"])), int(q["need"]),
+			GameState.board_reward(q, "coins"), GameState.board_reward(q, "exp")]
+		var done := int(q["have"]) >= int(q["need"])
+		_row(box, "ui_stamp_0" if bool(q["claimed"]) else "ui_note", text,
+			[["받음" if bool(q["claimed"]) else "받기", _claim.bind(i), done and not bool(q["claimed"])]])
+	if _message == "":
+		_info.text = "%d일째의 부탁이에요. 날이 바뀌면 새 부탁 3개가 붙어요." % GameState.day
+
+
+func _claim(i: int) -> void:
+	_message = "보상을 받았어요!" if GameState.board_claim(i) else "아직 다 하지 못했어요."
+	refresh()

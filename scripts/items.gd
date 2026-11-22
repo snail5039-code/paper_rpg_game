@@ -43,6 +43,8 @@ const CONSUMABLES := {
 	"candy": ["사탕", "item_4", 6, "HP 를 12% 회복한다", "hp", 0.12],
 	"paper": ["도화지", "icon_paper", 30, "쓰러진 몬스터를 다시 그릴 때 쓴다", "", 0.0],
 	"paper_thick": ["두꺼운 도화지", "icon_paper_thick", 150, "다시 그리기 성공률이 20% 오른다", "", 0.0],
+	"fish_small": ["붕어 낙서", "fish_small", 8, "낚시터에서 낚는다. HP 를 20% 회복한다", "hp", 0.2],
+	"fish_big": ["잉어 낙서", "fish_big", 25, "낚시터에서 낚는다. HP 를 50% 회복한다", "hp", 0.5],
 	"coating": ["코팅지", "item_2", 300, "강화 실패 때 하락과 파괴를 한 번 막는다", "", 0.0],
 }
 const QUICK_SLOTS := ["bandage", "milk"]   # 1, 2 번 키

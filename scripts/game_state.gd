@@ -76,6 +76,11 @@ const DAY_START := 360.0          # 06:00
 const NIGHT_START := 1200.0       # 20:00
 var home_sheets: int = 4          # 내 마을 종이 장수 (4 → 16)
 var home_objects: Array = []      # 내 마을에 지은 것 {"id", "x", "y", "fine"}
+var storage: Array = []           # 창고 속 장비
+const STORAGE_SIZE := 60
+var board_day: int = 0            # 게시판 부탁을 뽑은 날
+var board_quests: Array = []      # {"sp", "need", "have", "claimed"}
+var gift_days: Dictionary = {}    # 주민 집(자리) → 마지막으로 선물을 받은 날
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
 var spawn_tag: String = ""       # 맵을 옮길 때 어디서 왔는지 (새 맵이 한 번 읽고 지운다)
@@ -362,18 +367,24 @@ func add_consumable(id: String, amount: int = 1) -> void:
 
 
 ## 문방구에서 사기. entry 는 Items.SHOP 의 한 줄.
+## 문방구 값. 내 마을에 정성 문방구가 있으면 10% 싸다.
+func price_of(entry: Variant) -> int:
+	var base := int(Items.CONSUMABLES[entry][2]) if typeof(entry) == TYPE_STRING else int((entry as Array)[3])
+	return maxi(1, roundi(base * 0.9)) if has_fine("bld_shop") else base
+
+
 func buy(entry: Variant) -> bool:
+	var cost := price_of(entry)
 	if typeof(entry) == TYPE_STRING:
-		var price := int(Items.CONSUMABLES[entry][2])
-		if coins < price:
+		if coins < cost:
 			return false
-		coins -= price
+		coins -= cost
 		add_consumable(str(entry))
 		return true
 	var arr: Array = entry
-	if coins < int(arr[3]) or inventory.size() >= bag_size:
+	if coins < cost or inventory.size() >= bag_size:
 		return false
-	coins -= int(arr[3])
+	coins -= cost
 	add_item(Items.make(str(arr[0]), int(arr[1]), int(arr[2]), 1))
 	return true
 
@@ -643,10 +654,12 @@ func clock_text() -> String:
 	return "%s %02d:%02d" % ["밤" if is_night() else "낮", int(clock / 60.0) % 24, int(clock) % 60 / 10 * 10]
 
 
-## 내 집에서 잔다: 다음 날 아침 6시로 넘어가고 피로가 풀린다
+## 내 집에서 잔다: 다음 날 아침 6시로 넘어가고 피로가 풀린다. 정성 집이면 피로도가 10 더 찬다.
 func sleep() -> void:
 	clock = DAY_START
 	_new_day()
+	if has_fine("bld_house"):
+		fatigue = FATIGUE_MAX + 10
 	save_game()
 
 
@@ -669,6 +682,108 @@ func _process(delta: float) -> void:
 	# 대화, 창, 컷신 중에는 시간이 흐르지 않는다
 	if not get_tree().paused and is_instance_valid(player_ref):
 		advance_clock(delta)
+
+
+# ---------- 내 마을의 건물 기능 ----------
+
+func has_built(id: String) -> bool:
+	for o in home_objects:
+		if str(o["id"]) == id:
+			return true
+	return false
+
+
+## 정성으로 지은 건물이 있는지. 정성 건물은 기능이 조금 좋다:
+##  내 집: 자고 나면 피로도 110 / 문방구: 값 10% 할인 / 조합대: 그려 만들 때 비슷한 정도 +10%
+##  창고: 72칸 / 게시판: 보상 +20% / 낚시터: 입질 받는 시간 1초 / 주민 집: 선물 2배
+func has_fine(id: String) -> bool:
+	for o in home_objects:
+		if str(o["id"]) == id and bool(o.get("fine", false)):
+			return true
+	return false
+
+
+func storage_size() -> int:
+	return STORAGE_SIZE + (12 if has_fine("bld_storage") else 0)
+
+
+func store_item(i: int) -> bool:
+	if i < 0 or i >= inventory.size() or storage.size() >= storage_size():
+		return false
+	storage.append(inventory[i])
+	inventory.remove_at(i)
+	changed.emit()
+	return true
+
+
+func take_item(i: int) -> bool:
+	if i < 0 or i >= storage.size() or inventory.size() >= bag_size:
+		return false
+	inventory.append(storage[i])
+	storage.remove_at(i)
+	changed.emit()
+	return true
+
+
+## 게시판: 날이 바뀌었으면 새 부탁 3개를 뽑는다 (몬스터 종 하나를 3~6마리)
+func board_refresh() -> void:
+	if board_day == day and board_quests.size() == 3:
+		return
+	board_day = day
+	board_quests = []
+	var kinds := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+	kinds.shuffle()
+	for i in 3:
+		board_quests.append({"sp": kinds[i], "need": 3 + randi() % 4, "have": 0, "claimed": false})
+	changed.emit()
+
+
+func board_reward(q: Dictionary, what: String) -> int:
+	var base := int(q["need"]) * (12 if what == "coins" else 6)
+	return roundi(base * 1.2) if has_fine("bld_board") else base
+
+
+## 몬스터를 물리칠 때마다 부른다
+func on_kill(kind: String) -> void:
+	var sp := Data.species_of(kind)
+	for q in board_quests:
+		if board_day == day and str(q["sp"]) == sp and not bool(q["claimed"]):
+			q["have"] = int(q["have"]) + 1
+
+
+func board_claim(i: int) -> bool:
+	if i < 0 or i >= board_quests.size():
+		return false
+	var q: Dictionary = board_quests[i]
+	if bool(q["claimed"]) or int(q["have"]) < int(q["need"]):
+		return false
+	q["claimed"] = true
+	coins += board_reward(q, "coins")
+	add_exp(board_reward(q, "exp"))
+	changed.emit()
+	return true
+
+
+## 낚시: 물고기 하나를 가방에 넣고 id 를 돌려준다. 밤에는 큰 물고기가 더 잘 잡힌다.
+func catch_fish() -> String:
+	var id := "fish_big" if randf() < (0.45 if is_night() else 0.15) else "fish_small"
+	add_consumable(id)
+	return id
+
+
+## 주민 집의 주민에게 말을 건다. 하루에 한 번 선물을 준다 (재료 하나 또는 동전). 돌려주는 것: 선물 설명 ("" 은 오늘 이미 받음)
+func villager_gift(key: String, fine: bool) -> String:
+	if int(gift_days.get(key, 0)) == day:
+		return ""
+	gift_days[key] = day
+	var n := 2 if fine else 1
+	if randf() < 0.5:
+		add_coins(10 * n)
+		return "동전 %d개" % (10 * n)
+	var mat := randi() % Data.MATERIALS.size()
+	materials[mat] = material_count(mat) + n
+	changed.emit()
+	return "%s %d개" % [Data.MATERIALS[mat], n]
 
 
 # ---------- 내 마을 짓기 ----------
@@ -848,6 +963,10 @@ func save_game() -> bool:
 		"fatigue": fatigue,
 		"home_sheets": home_sheets,
 		"home_objects": home_objects,
+		"storage": storage,
+		"board_day": board_day,
+		"board_quests": board_quests,
+		"gift_days": gift_days,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
 		"visited": visited,
@@ -905,7 +1024,15 @@ func load_game() -> bool:
 	companion = clampi(int(data.get("companion", -1)), -1, friends.size() - 1)
 	clock = clampf(float(data.get("clock", 480.0)), 0.0, 1439.0)
 	day = maxi(1, int(data.get("day", 1)))
-	fatigue = clampi(int(data.get("fatigue", FATIGUE_MAX)), 0, FATIGUE_MAX)
+	fatigue = clampi(int(data.get("fatigue", FATIGUE_MAX)), 0, FATIGUE_MAX + 10)
+	storage = data["storage"] if typeof(data.get("storage")) == TYPE_ARRAY else []
+	board_day = int(data.get("board_day", 0))
+	board_quests = []
+	if typeof(data.get("board_quests")) == TYPE_ARRAY:
+		for bq in data["board_quests"]:
+			if typeof(bq) == TYPE_DICTIONARY and Data.FRIENDS.has(str(bq.get("sp", ""))):
+				board_quests.append({"sp": str(bq["sp"]), "need": int(bq.get("need", 3)), "have": int(bq.get("have", 0)), "claimed": bool(bq.get("claimed", false))})
+	gift_days = data["gift_days"] if typeof(data.get("gift_days")) == TYPE_DICTIONARY else {}
 	home_sheets = int(data.get("home_sheets", 4))
 	if not Data.HOME_GRID.has(home_sheets):
 		home_sheets = 4
@@ -976,6 +1103,10 @@ func reset_game() -> void:
 	fatigue = FATIGUE_MAX
 	home_sheets = 4
 	home_objects = []
+	storage = []
+	board_day = 0
+	board_quests = []
+	gift_days = {}
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false

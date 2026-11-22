@@ -44,6 +44,11 @@ func _ready() -> void:
 		add_child(shape)
 	if str(info["kind"]) == "building":
 		add_to_group("interactable")
+	# 주민 집 앞에는 주민이 서 있다
+	if str(info.get("use", "")) == "villager":
+		var vt := Art.tex("villager_1" if id.ends_with("_a") else "villager_2")
+		if vt:
+			Art.make_sprite(self, vt, Vector2(w * 0.5 + 6.0, 6))
 	add_to_group("home_object")
 
 
@@ -70,8 +75,32 @@ func interact() -> void:
 		"craft":
 			if hud:
 				hud.call("open_shop", 2)
+		"storage":
+			if hud:
+				hud.call("toggle_menu", "storage")
+		"board":
+			GameState.board_refresh()
+			if hud:
+				hud.call("toggle_menu", "board")
+		"fishing":
+			if hud:
+				hud.call("start_fishing", fine)
+		"villager":
+			_talk_villager()
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
+
+
+## 주민 집: 사는 주민이 하루에 한 번 선물을 준다
+func _talk_villager() -> void:
+	var gift := GameState.villager_gift("%d_%d" % [roundi(position.x), roundi(position.y)], fine)
+	var lines: Array = ["여기 살게 해 줘서 고마워. 네가 그린 마을, 마음에 들어."]
+	if gift != "":
+		lines.append("이거, 오늘 주운 거야. 받아. (%s)" % gift)
+	else:
+		lines.append("오늘은 줄 게 없네. 내일 또 와.")
+	await GameState.say("□□이", lines, "")
+	GameState.save_game()
 
 
 func _draw() -> void:

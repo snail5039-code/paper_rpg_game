@@ -165,6 +165,18 @@ func _run() -> void:
 	await frames(3)
 	check(bool(hud.call("is_menu_open", "friends")), "친구 창(P)이 열림")
 	await shot("life_4_friends.png")
+	# 줄의 단추들이 서로 겹치지 않아야 한다
+	var overlap := false
+	for row in ((hud.call("menu", "friends") as Control).get("_body") as Control).get_child(0).get_child(0).get_children():
+		var rects: Array = []
+		for c in row.get_children():
+			if c is Button:
+				rects.append((c as Button).get_rect())
+		for i in rects.size():
+			for j in range(i + 1, rects.size()):
+				if (rects[i] as Rect2).intersects(rects[j]):
+					overlap = true
+	check(not overlap, "친구 창의 단추가 서로 겹치지 않음")
 	hud.call("toggle_menu", "friends")
 	await frames(2)
 
@@ -187,6 +199,16 @@ func _run() -> void:
 	GameState.fatigue = 1
 	check(not GameState.goto_map("ch1_crossroad", "gate_left"), "피로도가 바닥나면 사냥터에 못 들어감")
 	GameState.clock = 600.0
+
+	print("[밤의 몬스터]")
+	GameState.clock = 1300.0
+	field.call("_spawn_monster", "slime_faded", Vector2(300, 200))
+	await frames(2)
+	var night_kind := str(get_tree().get_nodes_in_group("enemies")[-1].get("kind"))
+	GameState.clock = 600.0
+	field.call("_spawn_monster", "slime_faded", Vector2(340, 200))
+	await frames(2)
+	check(night_kind == "slime_erased" and str(get_tree().get_nodes_in_group("enemies")[-1].get("kind")) == "slime_faded", "밤에는 많이 지워진 모습이 나오고 낮에는 그대로")
 
 	print("[쓰러짐]")
 	GameState.pencil_lead = 50
@@ -249,8 +271,82 @@ func _run() -> void:
 	await frames(4)
 	check(bool(hp.call("try_interact")), "내 집에 F 로 들어감")
 	await frames(2)
-	check(GameState.day == d0 + 1 and GameState.fatigue == 100 and GameState.clock >= 360.0 and GameState.clock < 365.0, "자면 다음 날 아침 6시, 피로가 풀림")
+	check(GameState.day == d0 + 1 and GameState.fatigue == 110 and GameState.clock >= 360.0 and GameState.clock < 365.0, "자면 다음 날 아침 6시, 피로가 풀림 (정성 집이라 110)")
 	check(int(hp.get("hp")) == int(hp.get("max_hp")), "HP 가 가득 참")
+
+	print("[건물 기능]")
+	GameState.pencil_lead = 500
+	GameState.coins = 3000
+	var spots := {"bld_storage": Vector2(300, 300), "bld_board": Vector2(420, 300), "bld_fishing": Vector2(540, 300),
+		"bld_villager_a": Vector2(300, 600), "bld_craft": Vector2(420, 600)}
+	for bid in spots:
+		home.call("start_placing", bid)
+		check(bool(await home.call("place_at", spots[bid], 0.95)), "%s 을(를) 정성으로 지음" % Data.BUILDS[bid]["name"])
+	var objs: Array = home.get("objects")
+	var by_id := {}
+	for o in objs:
+		by_id[str(o.get("id"))] = o
+	# 창고
+	GameState.inventory = [GameState.Items.make("hat", 0, 0, 1), GameState.Items.make("shoe", 0, 0, 1)]
+	check(GameState.storage_size() == 72, "정성 창고는 72칸")
+	(by_id["bld_storage"] as Node).call("interact")
+	await frames(3)
+	check(bool(hhud.call("is_menu_open", "storage")), "창고에 말을 걸면 창고 창이 열림")
+	(hhud.call("menu", "storage") as Control).call("_move", 0)
+	check(GameState.storage.size() == 1 and GameState.inventory.size() == 1, "장비를 창고에 넣음")
+	(hhud.call("menu", "storage") as Control).call("_set_tab", 1)
+	await frames(3)
+	await shot("life_8_storage.png")
+	(hhud.call("menu", "storage") as Control).call("_move", 0)
+	check(GameState.storage.is_empty() and GameState.inventory.size() == 2, "창고에서 다시 꺼냄")
+	hhud.call("toggle_menu", "storage")
+	# 게시판
+	(by_id["bld_board"] as Node).call("interact")
+	await frames(3)
+	check(bool(hhud.call("is_menu_open", "board")) and GameState.board_quests.size() == 3, "게시판에 오늘의 부탁 3개가 붙음")
+	var q: Dictionary = GameState.board_quests[0]
+	check(not GameState.board_claim(0), "다 하기 전에는 보상을 받을 수 없음")
+	for i in int(q["need"]):
+		GameState.on_kill(str(q["sp"]) + "_faded")
+	var c0 := GameState.coins
+	(hhud.call("menu", "board") as Control).call("refresh")
+	await frames(3)
+	await shot("life_9_board.png")
+	check(GameState.board_claim(0) and GameState.coins == c0 + roundi(int(q["need"]) * 12 * 1.2), "다 하면 보상을 받음 (정성 게시판은 +20%)")
+	check(not GameState.board_claim(0), "보상은 한 번만")
+	hhud.call("toggle_menu", "board")
+	# 낚시터
+	(by_id["bld_fishing"] as Node).call("interact")
+	await frames(3)
+	var fishing: Control = hhud.call("fishing")
+	check(bool(fishing.call("is_active")) and is_equal_approx(float(fishing.get("window")), 1.0), "낚시가 시작됨 (정성 낚시터는 입질 시간 1초)")
+	check(str(fishing.call("pull")) == "" and str(fishing.get("phase")) == "result", "입질 전에 채면 놓침")
+	for i in 400:
+		if str(fishing.get("phase")) == "bite":
+			break
+		await frames(1)
+	await shot("life_10_fishing.png")
+	var fish_id := str(fishing.call("pull"))
+	check(fish_id.begins_with("fish_") and GameState.consumable_count(fish_id) == 1, "입질에 맞춰 채면 물고기가 가방에 들어옴")
+	fishing.call("stop")
+	check(not get_tree().paused, "낚시를 그만두면 다시 움직임")
+	hp.set("hp", 5)
+	check(bool(hp.call("use_consumable", fish_id)) and int(hp.get("hp")) > 5, "물고기를 먹으면 HP 회복")
+	# 주민 집
+	var gift := GameState.villager_gift("a", true)
+	check(gift != "" and GameState.villager_gift("a", true) == "", "주민은 하루에 한 번 선물을 줌 (%s)" % gift)
+	GameState.day += 1
+	check(GameState.villager_gift("a", true) != "", "다음 날에는 다시 줌")
+	# 정성 혜택
+	check(GameState.has_fine("bld_house") and not GameState.has_fine("bld_shop"), "정성 건물인지 구분함")
+	check(GameState.price_of("paper") == 30, "보통 문방구는 제값")
+	GameState.home_objects[1]["fine"] = true
+	check(GameState.price_of("paper") == 27, "정성 문방구는 10% 할인")
+	GameState.sleep()
+	check(GameState.fatigue == 110, "정성 집에서 자면 피로도 110")
+	hp.global_position = Vector2(420, 330)
+	await frames(30)
+	await shot("life_11_buildings.png")
 
 	print("[저장/불러오기]")
 	GameState.friends = [{"sp": "dots", "lv": 3, "exp": 5, "stars": 1}]
@@ -263,14 +359,14 @@ func _run() -> void:
 	GameState.day = 1
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.friends.size() == 1 and GameState.companion == 0 and int(GameState.friends[0]["stars"]) == 1, "친구가 그대로")
-	check(GameState.home_objects.size() == 8 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
-	check(GameState.day == d0 + 1 and GameState.fatigue == 100, "날짜와 피로도가 그대로")
+	check(GameState.home_objects.size() == 13 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
+	check(GameState.day == d0 + 3 and GameState.fatigue == 110, "날짜와 피로도가 그대로")
 	home.queue_free()
 	await frames(3)
 	home = HomeScene.instantiate()
 	add_child(home)
 	await frames(5)
-	check((home.get("objects") as Array).size() == 8 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
+	check((home.get("objects") as Array).size() == 13 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

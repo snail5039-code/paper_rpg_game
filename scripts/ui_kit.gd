@@ -44,10 +44,10 @@ static func box(name: String, tint: Color = Color.WHITE) -> StyleBox:
 static func button(parent: Control, text: String, pos: Vector2, size: Vector2, on_press: Callable, kind: String = "auto") -> Button:
 	var b := Button.new()
 	b.text = text
+	b.clip_text = true     # 크기보다 먼저: 글자 폭 때문에 단추가 제멋대로 넓어지지 않게
 	b.position = pos
 	b.size = size
 	b.focus_mode = Control.FOCUS_NONE
-	b.clip_text = true
 	b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	b.add_theme_font_size_override("font_size", 9)
 	if kind == "plain":
@@ -81,6 +81,11 @@ static func icon_button(parent: Control, tex_name: String, pos: Vector2, size: V
 	b.add_theme_stylebox_override("pressed", box(tex_name, Color(0.85, 0.75, 0.65)))
 	b.add_theme_stylebox_override("disabled", box(tex_name, Color(1, 1, 1, 0.35)))
 	return b
+
+
+## 글자가 다 보이는 단추 폭
+static func text_width(text: String, font_size: int = 9) -> float:
+	return ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 
 
 static func label(parent: Control, text: String, pos: Vector2, size: Vector2, font_size: int) -> Label:
