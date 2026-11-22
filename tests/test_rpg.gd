@@ -330,6 +330,14 @@ func _run() -> void:
 	await frames(3)
 	var canvas: Control = shop.get("_canvas")
 	check(is_instance_valid(canvas), "만들기에서 그리기 화면이 열림")
+	# 아무렇게나 그으면 만들어지지 않고 재료도 그대로다
+	canvas.set("strokes", [PackedVector2Array([Vector2(0.05, 0.05), Vector2(0.08, 0.05)])])
+	canvas.call("_update")
+	var scribble_n := GameState.inventory.size()
+	canvas.call("finish")
+	await frames(3)
+	check(is_instance_valid(canvas) and GameState.inventory.size() == scribble_n and GameState.material_count(2) == 4,
+		"견본과 너무 다르게 그리면 만들어지지 않고 재료도 안 듦")
 	canvas.set("strokes", good)
 	canvas.call("_update")
 	await frames(3)

@@ -14,6 +14,8 @@ const AiPixel := preload("res://scripts/ai_pixel.gd")
 
 const BOARD := Rect2(70, 46, 156, 156)     # 그림판 (창 안의 자리)
 
+const MIN_QUALITY := 0.3    # 견본과 적어도 이만큼은 비슷해야 만들어진다 (아무렇게나 그으면 안 만들어진다)
+
 var recipe: Array
 var strokes: Array = []                    # 선마다 PackedVector2Array (0~1)
 var fill := 0                              # 고른 크레용 색 번호
@@ -198,6 +200,11 @@ func finish() -> void:
 		return
 	if not GameState.can_craft(recipe):
 		_info.text = "재료가 모자라요."
+		return
+	if quality < MIN_QUALITY:
+		# 견본과 너무 다르다: 만들지 않고 재료도 쓰지 않는다. 고쳐 그릴 수 있다.
+		Sound.play("fail")
+		_info.text = "견본과 너무 달라요. (비슷한 정도 %d%%, %d%% 는 넘어야 해요) 흐린 견본을 따라 그려 보세요." % [roundi(quality * 100.0), roundi(MIN_QUALITY * 100.0)]
 		return
 	var img := Pixel.pixelize(strokes, Pixel.PALETTE[fill])
 	if AiPixel.api_key() != "":
