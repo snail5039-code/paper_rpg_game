@@ -12,7 +12,8 @@ const Fx := preload("res://scripts/fx_frames.gd")
 const Data := preload("res://scripts/game_data.gd")
 const Items := preload("res://scripts/items.gd")
 const FallenScript := preload("res://scripts/fallen.gd")
-const EQUIP_DROP_RATE := 0.05   # 장비가 떨어질 확률 ("흐릿한" 단계)
+const EQUIP_DROP_RATE := 0.02   # 몬스터가 장비를 떨어뜨릴 확률 (세부설정 6)
+const MID_BOSS_DROP_RATE := 0.3 # 중간 보스. 대장과 필드 보스는 반드시 준다
 
 ## 종류. add_child 하기 전에 정한다.
 var kind := "slime"
@@ -297,13 +298,20 @@ func _die() -> void:
 	GameState.on_kill(kind)
 	GameState.add_coins(maxi(1, exp_reward / 2) + randi() % 2)
 	# 장비: 많이 지워진 모습은 조금 더 잘 준다
-	# 보스는 반드시 장비를 준다 (중간 보스·필드 보스 1개, 대장 2개). 등급은 난이도 단계를 따른다.
+	# 중간 보스는 30%, 필드 보스는 반드시 1개, 대장은 반드시 2개. 등급은 난이도 단계를 따른다.
 	var tiers: Array = Data.DIFFICULTY[clampi(tier, 0, Data.DIFFICULTY.size() - 1)]["tier"]
 	var gear_n := 0
 	if boss != "":
-		gear_n = 2 if boss == "boss" else 1
+		gear_n = 2 if boss == "boss" else (1 if boss == "field" or randf() < MID_BOSS_DROP_RATE * GameState.drop_mult() else 0)
 		GameState.add_coins(exp_reward)
 		GameState.on_boss_killed(kind)
+		# 유일 장비: 대장과 필드 보스가 마지막 단계("빈")에서만 떨어뜨린다
+		var unique_id := str(Data.MONSTERS[kind].get("unique", ""))
+		if unique_id != "" and tier >= Data.DIFFICULTY.size() - 1 and randf() < Items.UNIQUE_DROP_RATE * GameState.drop_mult():
+			var prize: Node2D = PickupScript.new()
+			prize.set("item", Items.make_unique(unique_id))
+			prize.global_position = global_position + Vector2(0, 12)
+			get_parent().add_child(prize)
 	elif randf() < EQUIP_DROP_RATE * (1.6 if kind.ends_with("_erased") else 1.0) * GameState.drop_mult():
 		gear_n = 1
 	for i in gear_n:

@@ -46,6 +46,8 @@ SHEETS = {
     "34_hats_b": (5, 3, [("hat_%d_%d" % (c + 5, v), HAT_SCALE) for v in range(3) for c in range(5)]),
     # 손에 드는 도구 10종 (촉이 위, 쥐는 쪽이 아래). 모두 같은 배율로 줄여야 서로의 길이가 맞는다.
     "41_tools": (5, 2, [("tool_%d" % i, TOOL_SCALE) for i in range(10)]),
+    # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
+    "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
 }
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
 FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0)}

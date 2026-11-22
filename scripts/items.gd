@@ -31,6 +31,30 @@ const OPT_RANGE := {
 	"critdmg": [5, 15], "aspd": [2, 5], "mspd": [2, 4], "drop": [3, 8], "exp": [3, 8],
 }
 
+## 완성 등급 장비의 고유 효과 (부위마다 하나). 유일 장비는 자기만의 효과가 있다.
+const FX_BY_SLOT := {"tool": "ink", "hat": "brim", "cloth": "pad", "shoe": "light", "bag": "pocket", "acc": "spark"}
+const FX_TEXT := {
+	"ink": "잉크 번짐: 치명타가 나면 MP 3 회복",
+	"brim": "단단한 챙: 받는 피해 10% 감소",
+	"pad": "두꺼운 솜: 1초마다 HP 1 회복",
+	"light": "가벼운 발: 회피를 20% 더 자주",
+	"pocket": "넉넉한 주머니: 소모품 회복량 30% 증가",
+	"spark": "반짝임: 필살기 게이지가 30% 빨리 참",
+	"u_star": "구겨진 별: 치명타가 나면 필살기 게이지 +5",
+	"u_pen": "마르지 않는 잉크: 공격이 맞을 때마다 HP 1 회복",
+}
+## 유일 장비: 대장과 필드 보스가 "빈" 단계에서만 떨어뜨린다. 옵션이 정해져 있다.
+##   icon: 가방 아이콘 그림, held: 손에 드는 그림 (도구만), shape: 그림이 없을 때 대신 쓰는 모양
+const UNIQUES := {
+	"u_star": {"name": "구깃이의 구겨진 별", "slot": "acc", "shape": 2, "icon": "unique_star",
+		"opts": [["critdmg", 40], ["atk", 14], ["aspd", 10]]},
+	"u_pen": {"name": "떠돌이의 만년필", "slot": "tool", "shape": 3, "icon": "unique_pen", "held": "tool_unique_pen",
+		"opts": [["crit", 8], ["aspd", 12], ["hp", 60]]},
+}
+const UNIQUE_COLOR := Color(1.0, 0.62, 0.55)
+const UNIQUE_LEVEL := 70
+const UNIQUE_DROP_RATE := 0.25
+
 const MAX_PLUS := 12
 const ENHANCE_RATE := [1.0, 1.0, 1.0, 0.8, 0.8, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]   # +0→+1 … +11→+12
 const DUST_BY_TIER := [1, 2, 4, 8, 20]
@@ -149,6 +173,15 @@ const RECIPES := [
 	["색칠 샤프", ["tool", 2, 2], {2: 6, 3: 2}, 8],
 	["색칠 우비", ["cloth", 2, 2], {0: 6, 1: 2}, 8],
 	["색칠 안경", ["acc", 5, 2], {8: 6, 9: 2}, 8],
+	["색칠 털모자", ["hat", 3, 2], {6: 6, 7: 2}, 8],
+	["색칠 장화", ["shoe", 1, 2], {10: 6, 11: 2}, 8],
+	["색칠 크로스백", ["bag", 4, 2], {4: 6, 5: 2}, 8],
+	["덧칠 깃펜", ["tool", 3, 3], {2: 10, 3: 5, 11: 2}, 20],
+	["덧칠 종이 왕관", ["hat", 5, 3], {6: 10, 7: 5, 11: 2}, 20],
+	["덧칠 망토", ["cloth", 7, 3], {0: 10, 1: 5, 11: 2}, 20],
+	["덧칠 롤러스케이트", ["shoe", 5, 3], {10: 10, 9: 5, 11: 2}, 20],
+	["덧칠 화구 가방", ["bag", 7, 3], {8: 10, 5: 5, 11: 2}, 20],
+	["덧칠 구름 배지", ["acc", 8, 3], {4: 10, 9: 5, 11: 2}, 20],
 ]
 
 ## 문방구에서 파는 것: 소모품 id 또는 장비 [부위, 모양, 등급, 값]
@@ -209,19 +242,46 @@ static func random_drop(level: int, max_tier: int = 1) -> Dictionary:
 	return make(slot, randi() % 10, tier, maxi(1, level))
 
 
+## 유일 장비를 만든다 (옵션이 정해져 있다)
+static func make_unique(id: String) -> Dictionary:
+	var u: Dictionary = UNIQUES[id]
+	return {"slot": str(u["slot"]), "shape": int(u["shape"]), "tier": 4, "level": UNIQUE_LEVEL, "plus": 0,
+		"opts": (u["opts"] as Array).duplicate(true), "unique": id}
+
+
+static func is_unique(item: Dictionary) -> bool:
+	return UNIQUES.has(str(item.get("unique", "")))
+
+
+## 장비의 고유 효과 id ("" 은 없음): 유일 장비는 자기 것, 완성 등급은 부위마다 하나
+static func fx_of(item: Dictionary) -> String:
+	if is_unique(item):
+		return str(item["unique"])
+	return str(FX_BY_SLOT[str(item["slot"])]) if int(item["tier"]) >= 4 else ""
+
+
 static func item_name(item: Dictionary) -> String:
 	var plus := int(item.get("plus", 0))
 	var base := "%s %s" % [TIER_NAMES[int(item["tier"])], SHAPES[str(item["slot"])][int(item["shape"])]]
+	if is_unique(item):
+		base = "★ " + str(UNIQUES[str(item["unique"])]["name"])
 	return ("+%d " % plus if plus > 0 else "") + base
 
 
 ## 직접 그려 만든 장비는 내 그림이 아이콘이다
 static func icon(item: Dictionary) -> String:
 	var own := str(item.get("art", ""))
-	return own if own != "" else "equip_%s_%d" % [str(item["slot"]), int(item["shape"])]
+	if own != "":
+		return own
+	if is_unique(item) and ResourceLoader.exists("res://assets/sprites/%s.png" % str(UNIQUES[str(item["unique"])]["icon"])):
+		return str(UNIQUES[str(item["unique"])]["icon"])
+	return "equip_%s_%d" % [str(item["slot"]), int(item["shape"])]
 
 
+## 아이콘에 입히는 색. 유일 장비의 그림은 색이 칠해져 있어서 그대로 둔다 (그림이 없을 때만 붉게).
 static func tier_color(item: Dictionary) -> Color:
+	if is_unique(item):
+		return Color.WHITE if icon(item).begins_with("unique_") else UNIQUE_COLOR
 	return TIER_COLORS[int(item["tier"])]
 
 
@@ -248,6 +308,8 @@ static func describe(item: Dictionary) -> String:
 	var lines: Array = [item_name(item), stat_text(str(MAIN_STAT[str(item["slot"])]), main_value(item))]
 	for o in item["opts"]:
 		lines.append("  " + stat_text(str(o[0]), int(o[1])))
+	if fx_of(item) != "":
+		lines.append(str(FX_TEXT[fx_of(item)]))
 	if int(item.get("bonus", 0)) > 0:
 		lines.append("직접 그림 +%d%%" % int(item["bonus"]))
 	lines.append("필요 필력 %d" % int(item["level"]))

@@ -180,8 +180,10 @@ func _refresh_bag() -> void:
 				_row(box, GameState.consumable_icon(str(id)), "%s ×%d   %s" % [info[0], n, info[3]],
 					[["쓰기", _use.bind(str(id)), true], ["1", GameState.set_quick_slot.bind(0, str(id)), str(GameState.quick_slots[0]) != str(id)],
 						["2", GameState.set_quick_slot.bind(1, str(id)), str(GameState.quick_slots[1]) != str(id)]] if str(info[4]) != "" else [])
-		_info.text = "1 번 키: %s    2 번 키: %s\n1, 2 단추를 누르면 그 키에 넣어요." % [
+		_info.text = _message if _message != "" else "소비 %d / %d칸    1 번 키: %s    2 번 키: %s" % [
+			GameState.bag_used("use"), int(GameState.bag_sizes["use"]),
 			Items.CONSUMABLES[str(GameState.quick_slots[0])][0], Items.CONSUMABLES[str(GameState.quick_slots[1])][0]]
+		_expand_buttons("use")
 		return
 	# 입은 장비 6칸 (2 × 3)
 	for i in Items.SLOTS.size():
@@ -220,12 +222,7 @@ func _refresh_bag() -> void:
 	if item3.is_empty():
 		_info.text = _message if _message != "" else "장비 %d / %d칸   동전 %d   지우개 가루 %d" % [
 			GameState.inventory.size(), GameState.bag_size, GameState.coins, GameState.dust]
-		if GameState.bag_size < GameState.BAG_MAX:
-			var cost := GameState.bag_expand_cost()
-			var tl := _label(_win, "칸 늘리기 +%d" % GameState.BAG_STEP, Vector2(100, 215), Vector2(72, 14), 9)
-			tl.set_meta("temp", true)
-			_button(_win, "동전 %d" % int(cost[0]), Vector2(172, 211), Vector2(64, 20), _expand.bind("coins")).disabled = GameState.coins < int(cost[0])
-			_button(_win, "지우개 가루 %d" % int(cost[1]), Vector2(240, 211), Vector2(88, 20), _expand.bind("dust")).disabled = GameState.dust < int(cost[1])
+		_expand_buttons("equip")
 		return
 	_info.text = Items.describe(item3).replace("\n", "   ")
 	if selected >= 0:
@@ -247,8 +244,9 @@ func _materials_grid() -> void:
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var name_l := _label(_body, str(Data.MATERIALS[i]) if n > 0 else "?", pos + Vector2(-4, 39), Vector2(52, 12), 8)
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info.text = "필력 %d   경험치 %d / %d   연필심 %d   동전 %d   지우개 가루 %d" % [
-		GameState.level, GameState.exp, GameState.exp_needed(), GameState.pencil_lead, GameState.coins, GameState.dust]
+	_info.text = _message if _message != "" else "재료 %d / %d칸   필력 %d   연필심 %d   동전 %d   지우개 가루 %d" % [
+		GameState.bag_used("mat"), int(GameState.bag_sizes["mat"]), GameState.level, GameState.pencil_lead, GameState.coins, GameState.dust]
+	_expand_buttons("mat")
 
 
 func _turn_page(d: int) -> void:
@@ -257,8 +255,19 @@ func _turn_page(d: int) -> void:
 	refresh()
 
 
-func _expand(with: String) -> void:
-	_message = "가방이 %d칸으로 늘었어요." % (GameState.bag_size + GameState.BAG_STEP) if GameState.expand_bag(with) else "값이 모자라요."
+## 가방 칸 늘리기 단추 (장비, 소비, 재료 가방마다 따로. 동전이나 지우개 가루로 낸다)
+func _expand_buttons(bag: String) -> void:
+	if int(GameState.bag_sizes[bag]) >= GameState.BAG_MAX:
+		return
+	var cost := GameState.bag_expand_cost(bag)
+	var tl := _label(_win, "칸 늘리기 +%d" % GameState.BAG_STEP, Vector2(100, 215), Vector2(72, 14), 9)
+	tl.set_meta("temp", true)
+	_button(_win, "동전 %d" % int(cost[0]), Vector2(172, 211), Vector2(64, 20), _expand.bind("coins", bag)).disabled = GameState.coins < int(cost[0])
+	_button(_win, "지우개 가루 %d" % int(cost[1]), Vector2(240, 211), Vector2(88, 20), _expand.bind("dust", bag)).disabled = GameState.dust < int(cost[1])
+
+
+func _expand(with: String, bag: String = "equip") -> void:
+	_message = "%s 가방이 %d칸으로 늘었어요." % [GameState.BAG_NAMES[bag], int(GameState.bag_sizes[bag])] if GameState.expand_bag(with, bag) else "값이 모자라요."
 	refresh()
 
 

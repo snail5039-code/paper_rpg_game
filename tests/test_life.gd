@@ -543,6 +543,7 @@ func _run() -> void:
 	await frames(20)
 	await shot("life_21_field_boss.png")
 	check((f2.get("hud").get("_boss_bar") as ColorRect).visible, "보스 체력 막대가 화면 위에 나옴")
+	GameState.bag_sizes["use"] = GameState.BAG_MAX   # 앞에서 이것저것 모았으니 소비 가방을 넉넉하게
 	var fspots := 0
 	for n in get_tree().get_nodes_in_group("interactable"):
 		if str(n.get("mode")) == "forage":

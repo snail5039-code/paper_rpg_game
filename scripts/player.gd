@@ -45,6 +45,7 @@ var _hat_shape := -1
 var _tool: Sprite2D             # 손에 든 도구 (프레임마다 주먹 자리에 놓는다)
 var _tool_tex: Texture2D
 var _look := ""
+var _pad_t := 0.0               # "두꺼운 솜" 효과: 1초마다 HP 1
 
 const Anchors := preload("res://scripts/player_anchors.gd")
 ## 모자마다 [크기 배율, 머리 꼭대기에서 모자 아랫단까지 내려오는 길이(텍셀)]
@@ -120,6 +121,12 @@ func _physics_process(delta: float) -> void:
 	_swing_timer = maxf(0.0, _swing_timer - delta)
 	_invuln = maxf(0.0, _invuln - delta)
 	mp = minf(float(max_mp), mp + MP_REGEN * (2.0 if GameState.has_buff("mpregen") else 1.0) * delta)
+	if GameState.has_fx("pad") and hp > 0 and hp < max_hp:
+		_pad_t += delta
+		if _pad_t >= 1.0:
+			_pad_t -= 1.0
+			hp += 1
+			hp_changed.emit(hp, max_hp)
 	_combo_timer = maxf(0.0, _combo_timer - delta)
 	if _combo_timer <= 0.0:
 		combo = 0
@@ -146,7 +153,7 @@ func _physics_process(delta: float) -> void:
 		velocity = dir * move_speed * GameState.move_speed_mult()
 		if Input.is_action_just_pressed("dodge") and _dodge_cd <= 0.0:
 			_dodge_timer = dodge_time
-			_dodge_cd = dodge_cooldown
+			_dodge_cd = dodge_cooldown * (0.8 if GameState.has_fx("light") else 1.0)
 
 	if _dash_timer > 0.0:
 		_dash_timer -= delta
@@ -240,7 +247,7 @@ func _refresh_look() -> void:
 	var eq: Dictionary = GameState.equipped
 	var key := ""
 	for sl in ["hat", "tool", "cloth"]:
-		key += str(eq[sl].get("shape", 0)) + "," if eq.has(sl) else "-,"
+		key += str(eq[sl].get("shape", 0)) + str(eq[sl].get("unique", "")) + "," if eq.has(sl) else "-,"
 	if key == _look:
 		return
 	_look = key
@@ -257,6 +264,11 @@ func _refresh_look() -> void:
 		_attack_sprite.texture = swing
 	# 도구: 안 들었으면 처음부터 들고 있던 연필
 	_tool_tex = Art.tex("tool_%d" % (int(eq["tool"]["shape"]) if eq.has("tool") else 0))
+	# 유일 도구는 자기 그림이 있다
+	if eq.has("tool") and Items.is_unique(eq["tool"]):
+		var own := Art.tex(str(Items.UNIQUES[str(eq["tool"]["unique"])].get("held", "")))
+		if own:
+			_tool_tex = own
 
 
 ## 지금 보이는 프레임에 맞춰 도구를 주먹에, 모자를 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 자리가 다르다)
@@ -403,7 +415,21 @@ func _hit(enemy: Node2D, mult: float, dir: Vector2, ignore_defense: bool = false
 	var roll: Array = GameState.roll_damage(mult, 0 if ignore_defense else int(enemy.get("defense")))
 	enemy.call("take_damage", int(roll[0]), dir, bool(roll[1]))
 	if GameState.skill_rank("ult") > 0:
-		ult = minf(ULT_MAX, ult + ULT_PER_HIT)
+		ult = minf(ULT_MAX, ult + ULT_PER_HIT * _ult_gain() + (5.0 if bool(roll[1]) and GameState.has_fx("u_star") else 0.0))
+	# 장비의 고유 효과
+	if bool(roll[1]) and GameState.has_fx("ink"):
+		mp = minf(float(max_mp), mp + 3.0)
+	if GameState.has_fx("u_pen") and hp < max_hp:
+		hp += 1
+		hp_changed.emit(hp, max_hp)
+
+
+func _ult_gain() -> float:
+	return 1.3 if GameState.has_fx("spark") else 1.0
+
+
+func _heal_mult() -> float:
+	return 1.3 if GameState.has_fx("pocket") else 1.0
 
 
 # ---------- 필살기 (V) ----------
@@ -456,12 +482,12 @@ func use_consumable(id: String) -> bool:
 	if str(info[4]) == "hp":
 		if hp >= max_hp:
 			return false
-		hp = mini(max_hp, hp + ceili(max_hp * float(info[5])))
+		hp = mini(max_hp, hp + ceili(max_hp * float(info[5]) * _heal_mult()))
 		hp_changed.emit(hp, max_hp)
 	elif str(info[4]) == "mp":
 		if mp >= float(max_mp):
 			return false
-		mp = minf(float(max_mp), mp + max_mp * float(info[5]))
+		mp = minf(float(max_mp), mp + max_mp * float(info[5]) * _heal_mult())
 	elif str(info[4]) == "food":
 		# 요리: 회복과 한동안 이어지는 효과
 		var fx: Dictionary = Items.FOOD_FX.get(id, {})
@@ -469,10 +495,10 @@ func use_consumable(id: String) -> bool:
 		if not need:
 			return false
 		if fx.has("hp"):
-			hp = mini(max_hp, hp + ceili(max_hp * float(fx["hp"])))
+			hp = mini(max_hp, hp + ceili(max_hp * float(fx["hp"]) * _heal_mult()))
 			hp_changed.emit(hp, max_hp)
 		if fx.has("mp"):
-			mp = minf(float(max_mp), mp + max_mp * float(fx["mp"]))
+			mp = minf(float(max_mp), mp + max_mp * float(fx["mp"]) * _heal_mult())
 		if fx.has("buff"):
 			GameState.add_buff(str(fx["buff"]), float(fx["time"]))
 			GameState.notify("%s (%d분)" % [Items.BUFF_NAMES[str(fx["buff"])], int(float(fx["time"]) / 60.0)])
@@ -506,10 +532,10 @@ func is_dodging() -> bool:
 func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
-	hp -= maxi(1, amount - GameState.defense())
+	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0)))
 	Sound.play("hurt")
 	if GameState.skill_rank("ult") > 0:
-		ult = minf(ULT_MAX, ult + ULT_PER_HURT)
+		ult = minf(ULT_MAX, ult + ULT_PER_HURT * _ult_gain())
 	_invuln = invuln_time
 	_knock = from_dir.normalized() * 160.0
 	hp_changed.emit(hp, max_hp)

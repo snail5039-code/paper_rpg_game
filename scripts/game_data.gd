@@ -72,12 +72,12 @@ const MONSTERS := {
 	"boss_crumple": {
 		"name": "구겨진 종이 구깃이", "art": "single", "sprite": "boss_1", "hp": 320, "speed": 34.0, "damage": 10,
 		"radius": 24.0, "exp": 150, "def": 3, "drops": [6, 1.0, 7, 1.0], "lunge_time": 0.45, "lunge_speed": 200.0,
-		"boss": "boss", "scale": 1.0, "slam": 6.0, "summon": "dots_erased", "aggro": 220.0,
+		"boss": "boss", "scale": 1.0, "slam": 6.0, "summon": "dots_erased", "aggro": 220.0, "unique": "u_star",
 	},
 	"boss_scribble": {
 		"name": "떠돌이 큰 낙서", "art": "single", "sprite": "boss_2", "hp": 240, "speed": 46.0, "damage": 9,
 		"radius": 22.0, "exp": 110, "def": 2, "drops": [0, 1.0, 1, 1.0], "lunge_time": 0.4, "lunge_speed": 230.0,
-		"boss": "field", "scale": 1.0, "slam": 8.0, "aggro": 160.0,
+		"boss": "field", "scale": 1.0, "slam": 8.0, "aggro": 160.0, "unique": "u_pen",
 	},
 	"bug_erased": {
 		"name": "많이 지워진 지우개똥 벌레", "art": "strip", "sprite": "bug_erased", "hp": 29, "speed": 38.0, "damage": 5,

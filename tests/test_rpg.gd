@@ -5,6 +5,7 @@ extends Node
 
 const MainScene := preload("res://scenes/main.tscn")
 const Items := preload("res://scripts/items.gd")
+const Data := preload("res://scripts/game_data.gd")
 const Art := preload("res://scripts/art.gd")
 const Pixel := preload("res://scripts/doodle_pixel.gd")
 const AiPixel := preload("res://scripts/ai_pixel.gd")
@@ -362,13 +363,64 @@ func _run() -> void:
 	GameState.coins = 1000
 	GameState.dust = 24
 	check(GameState.bag_size == 24 and GameState.bag_expand_cost() == [150, 12], "처음 24칸, 늘리는 값은 동전 150 또는 가루 12")
-	check(GameState.expand_bag("coins") and GameState.bag_size == 30 and GameState.coins == 850, "동전으로 30칸")
-	check(GameState.expand_bag("dust") and GameState.bag_size == 36 and GameState.dust == 0, "지우개 가루로 36칸 (값은 두 배씩)")
-	check(not GameState.expand_bag("dust") and GameState.bag_size == 36, "값이 모자라면 늘지 않음")
+	check(GameState.expand_bag("coins") and GameState.bag_size == 32 and GameState.coins == 850, "동전으로 32칸 (8칸씩)")
+	check(GameState.expand_bag("dust") and GameState.bag_size == 40 and GameState.dust == 0, "지우개 가루로 40칸 (값은 두 배씩)")
+	check(not GameState.expand_bag("dust") and GameState.bag_size == 40, "값이 모자라면 늘지 않음")
 	var kept: Array = GameState.inventory.duplicate()
-	while GameState.inventory.size() < 36:
+	while GameState.inventory.size() < 40:
 		GameState.add_item(Items.make("hat", 0, 0, 1))
-	check(GameState.inventory.size() == 36 and not GameState.add_item(Items.make("hat", 0, 0, 1)), "늘어난 칸만큼 담기고 넘치면 못 담음")
+	check(GameState.inventory.size() == 40 and not GameState.add_item(Items.make("hat", 0, 0, 1)), "늘어난 칸만큼 담기고 넘치면 못 담음")
+	# 소비 가방과 재료 가방: 종류 하나가 한 칸
+	check(int(GameState.bag_sizes["use"]) == 24 and int(GameState.bag_sizes["mat"]) == 48, "소비 24칸, 재료 48칸으로 시작")
+	var use_kept: Dictionary = GameState.consumables.duplicate()
+	GameState.consumables = {}
+	var use_ids: Array = Items.CONSUMABLES.keys()
+	for ui in 24:
+		GameState.add_consumable(str(use_ids[ui]))
+	check(GameState.bag_used("use") == 24 and not GameState.add_consumable(str(use_ids[30])), "소비 가방은 24종류까지. 새 종류는 못 넣음")
+	check(GameState.add_consumable(str(use_ids[0]), 5) and GameState.consumable_count(str(use_ids[0])) == 6, "이미 가진 종류는 더 넣을 수 있음")
+	check(not GameState.buy(str(use_ids[30])), "가득하면 문방구에서도 새 종류를 못 삼")
+	check(GameState.add_consumable(str(use_ids[30]), 1, true), "꼭 받아야 하는 보상은 가득해도 들어옴")
+	GameState.consumables = {}
+	GameState.coins = 150
+	check(GameState.expand_bag("coins", "use") and int(GameState.bag_sizes["use"]) == 32 and GameState.bag_size == 40,
+		"소비 가방만 따로 32칸으로 늘림")
+	GameState.consumables = use_kept
+	check(GameState.BAG_MAX == 96, "가방은 96칸까지")
+
+	print("[완성 등급 고유 효과와 유일 장비]")
+	var eq_kept: Dictionary = GameState.equipped.duplicate(true)
+	var done_tool := Items.make("tool", 0, 4, 1)
+	check(Items.fx_of(done_tool) == "ink" and Items.fx_of(Items.make("tool", 0, 3, 1)) == "", "완성 등급에만 고유 효과가 붙음")
+	check(Items.describe(done_tool).contains("잉크 번짐"), "설명에 고유 효과가 나옴")
+	GameState.equipped["hat"] = Items.make("hat", 0, 4, 1)
+	GameState.equipped["shoe"] = Items.make("shoe", 0, 4, 1)
+	GameState.changed.emit()
+	check(GameState.has_fx("brim") and GameState.has_fx("light") and not GameState.has_fx("ink"), "입은 장비의 고유 효과만 켜짐")
+	var def_now := GameState.defense()
+	player.set("_invuln", 0.0)
+	var brim_hp := int(player.get("hp"))
+	player.call("take_damage", def_now + 20, Vector2.RIGHT)
+	check(brim_hp - int(player.get("hp")) == 18, "단단한 챙: 받는 피해 20 이 18 로 줄어듦")
+	player.set("hp", int(player.get("max_hp")))
+	var star := Items.make_unique("u_star")
+	check(Items.is_unique(star) and Items.item_name(star) == "★ 구깃이의 구겨진 별" and int(star["tier"]) == 4 and (star["opts"] as Array).size() == 3,
+		"유일 장비는 이름과 옵션이 정해져 있음")
+	check(Items.fx_of(star) == "u_star" and Items.describe(star).contains("구겨진 별"), "유일 장비는 자기만의 효과가 있음")
+	check(str(Data.MONSTERS["boss_crumple"]["unique"]) == "u_star" and str(Data.MONSTERS["boss_scribble"]["unique"]) == "u_pen",
+		"대장과 필드 보스마다 유일 장비가 하나씩")
+	GameState.equipped["tool"] = Items.make_unique("u_pen")
+	GameState.changed.emit()
+	await frames(2)
+	check(GameState.has_fx("u_pen") and GameState.attack_power() > 0, "유일 도구를 입으면 효과가 켜지고 공격력이 계산됨")
+	var opt_item := Items.make("acc", 0, 0, 1)
+	opt_item["opts"] = [["drop", 20], ["exp", 50]]
+	GameState.equipped["acc"] = opt_item
+	check(is_equal_approx(GameState.drop_mult(), 1.2), "드롭률 옵션이 실제로 드롭에 반영됨")
+	GameState.equipped = eq_kept
+	GameState.changed.emit()
+	await frames(2)
+	check(Items.RECIPES.size() >= 21, "조합법: 스케치·색칠·덧칠 등급을 여섯 부위 모두 만들 수 있음 (%d가지)" % Items.RECIPES.size())
 	hud.call("toggle_menu", "bag")
 	(hud.get("_menus")["bag"] as Control).call("_turn_page", 1)
 	await frames(3)
@@ -426,7 +478,7 @@ func _run() -> void:
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.inventory.size() == inv_n and GameState.equipped.has("hat"), "장비가 그대로")
 	check(GameState.skill_rank("slash") == rank and str(GameState.skill_slots[0]) == "slash", "스킬이 그대로")
-	check(GameState.bag_size == 36, "늘린 가방 칸이 그대로")
+	check(GameState.bag_size == 40 and int(GameState.bag_sizes["use"]) == 32, "늘린 가방 칸이 그대로")
 	check(GameState.coins == coins and GameState.attack_power() > 0, "동전이 그대로이고 수치 계산이 됨 (공격력 %d)" % GameState.attack_power())
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))

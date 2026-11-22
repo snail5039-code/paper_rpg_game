@@ -44,6 +44,12 @@ func _physics_process(delta: float) -> void:
 					return
 				GameState.notify("%s 획득!" % Items.item_name(item))
 			elif mat_id >= 0:
+				if not GameState.mat_room(mat_id):
+					_full_notice -= delta
+					if _full_notice <= 0.0:
+						_full_notice = 2.0
+						GameState.notify("재료 가방이 가득 찼어요.")
+					return
 				GameState.add_material(mat_id, amount)
 				GameState.notify("%s +%d" % [Data.MATERIALS[mat_id], amount])
 			else:

@@ -61,9 +61,17 @@ var skill_points: int = 0
 var skill_ranks: Dictionary = {}  # 스킬 id → 단계
 var skill_slots: Array = ["", "", ""]   # Q, E, R 칸에 넣은 스킬
 const INVENTORY_SIZE := 24        # 처음 가방 칸 수
-const BAG_STEP := 6               # 한 번 늘릴 때마다
-const BAG_MAX := 60
-var bag_size: int = INVENTORY_SIZE
+const BAG_STEP := 8               # 한 번 늘릴 때마다
+const BAG_MAX := 96
+## 가방 세 가지: 장비(equip), 소비(use), 재료(mat). 소비와 재료는 종류 하나가 한 칸을 차지한다.
+const BAG_START := {"equip": 24, "use": 24, "mat": 48}
+const BAG_NAMES := {"equip": "장비", "use": "소비", "mat": "재료"}
+var bag_sizes: Dictionary = BAG_START.duplicate()
+var bag_size: int:                # 장비 가방 칸 수
+	get:
+		return int(bag_sizes["equip"])
+	set(v):
+		bag_sizes["equip"] = v
 var custom_icons: Dictionary = {} # 소모품 id → 내가 그린 아이콘 이름
 var friends: Array = []           # 친구 {"sp": 종, "lv": 레벨, "exp": 경험치, "stars": 별}
 var companion: int = -1           # 같이 다니는 친구 (friends 의 번호, -1 없음)
@@ -300,8 +308,7 @@ func exp_needed(lv: int = -1) -> int:
 
 
 func add_exp(amount: int) -> void:
-	if has_buff("exp"):
-		amount = ceili(amount * 1.1)
+	amount = ceili(amount * ((1.1 if has_buff("exp") else 1.0) + gear("exp") * 0.01))
 	_friend_exp(amount)
 	if level >= MAX_LEVEL:
 		return
@@ -388,6 +395,14 @@ func gear(key: String) -> int:
 			if str(o[0]) == key:
 				total += int(o[1])
 	return total
+
+
+## 입고 있는 장비에 그 고유 효과가 있는지 (Items.FX_TEXT 의 id)
+func has_fx(id: String) -> bool:
+	for slot in equipped:
+		if Items.fx_of(equipped[slot]) == id:
+			return true
+	return false
 
 
 func add_item(item: Dictionary) -> bool:
@@ -489,9 +504,35 @@ func consumable_count(id: String) -> int:
 	return int(consumables.get(id, 0))
 
 
-func add_consumable(id: String, amount: int = 1) -> void:
+## 가방에 든 종류 수 (kind: "equip" 은 장비 개수, "use" 는 소모품 종류, "mat" 은 재료 종류)
+func bag_used(kind: String) -> int:
+	if kind == "equip":
+		return inventory.size()
+	var n := 0
+	var src: Dictionary = consumables if kind == "use" else materials
+	for k in src:
+		if int(src[k]) > 0:
+			n += 1
+	return n
+
+
+## 그 소모품을 더 넣을 자리가 있는지 (이미 가진 종류는 칸을 더 쓰지 않는다)
+func has_room(id: String) -> bool:
+	return consumable_count(id) > 0 or bag_used("use") < int(bag_sizes["use"])
+
+
+func mat_room(id: int) -> bool:
+	return material_count(id) > 0 or bag_used("mat") < int(bag_sizes["mat"])
+
+
+## 소모품을 넣는다. 새 종류인데 소비 가방이 가득하면 넣지 못하고 false. force 는 꼭 받아야 하는 보상용.
+func add_consumable(id: String, amount: int = 1, force: bool = false) -> bool:
+	if amount > 0 and not force and not has_room(id):
+		notify("소비 가방이 가득 찼어요. (%d칸)" % int(bag_sizes["use"]))
+		return false
 	consumables[id] = consumable_count(id) + amount
 	changed.emit()
+	return true
 
 
 ## 문방구에서 사기. entry 는 Items.SHOP 의 한 줄.
@@ -504,7 +545,7 @@ func price_of(entry: Variant) -> int:
 func buy(entry: Variant) -> bool:
 	var cost := price_of(entry)
 	if typeof(entry) == TYPE_STRING:
-		if coins < cost:
+		if coins < cost or not has_room(str(entry)):
 			return false
 		coins -= cost
 		add_consumable(str(entry))
@@ -524,20 +565,20 @@ func can_craft(recipe: Array) -> bool:
 			return false
 	if pencil_lead < int(recipe[3]):
 		return false
-	return typeof(recipe[1]) == TYPE_STRING or inventory.size() < bag_size
+	return has_room(str(recipe[1])) if typeof(recipe[1]) == TYPE_STRING else inventory.size() < bag_size
 
 
-## 가방 칸 늘리기 값: [동전, 지우개 가루]. 둘 중 하나로 낸다. 늘릴 때마다 두 배.
-func bag_expand_cost() -> Array:
-	var n := (bag_size - INVENTORY_SIZE) / BAG_STEP
+## 가방 칸 늘리기 값: [동전, 지우개 가루]. 둘 중 하나로 낸다. 늘릴 때마다 두 배 (32배까지).
+func bag_expand_cost(kind: String = "equip") -> Array:
+	var n := mini(5, (int(bag_sizes[kind]) - int(BAG_START[kind])) / BAG_STEP)
 	return [150 * int(pow(2, n)), 12 * int(pow(2, n))]
 
 
-## with: "coins" 또는 "dust"
-func expand_bag(with: String) -> bool:
-	if bag_size >= BAG_MAX:
+## with: "coins" 또는 "dust". kind: 늘릴 가방 ("equip", "use", "mat"). 8칸씩 96칸까지.
+func expand_bag(with: String, kind: String = "equip") -> bool:
+	if int(bag_sizes[kind]) >= BAG_MAX:
 		return false
-	var cost := bag_expand_cost()
+	var cost := bag_expand_cost(kind)
 	if with == "coins":
 		if coins < int(cost[0]):
 			return false
@@ -546,7 +587,7 @@ func expand_bag(with: String) -> bool:
 		if dust < int(cost[1]):
 			return false
 		dust -= int(cost[1])
-	bag_size += BAG_STEP
+	bag_sizes[kind] = int(bag_sizes[kind]) + BAG_STEP
 	changed.emit()
 	return true
 
@@ -909,8 +950,7 @@ func catch_fish(place: String = "home") -> String:
 	var night := is_night()
 	var pool: Array = t[3 if night else 2] if randf() < 0.12 else t[1 if night else 0]
 	var id := str(pool[randi() % pool.size()])
-	add_consumable(id)
-	return id
+	return id if add_consumable(id) else ""
 
 
 # ---------- 요리 효과 ----------
@@ -925,7 +965,7 @@ func add_buff(kind: String, seconds: float) -> void:
 
 
 func drop_mult() -> float:
-	return 1.1 if has_buff("drop") else 1.0
+	return (1.1 if has_buff("drop") else 1.0) + gear("drop") * 0.01
 
 
 ## 식당에서 요리한다. 정성 식당은 25% 로 하나를 더 만든다.
@@ -940,7 +980,7 @@ func can_cook(dish: String) -> bool:
 
 
 func cook(dish: String) -> bool:
-	if not can_cook(dish):
+	if not can_cook(dish) or not has_room(dish):
 		return false
 	var need: Dictionary = Items.DISHES[dish]
 	for id in need:
@@ -1004,6 +1044,9 @@ func harvest(key: String, i: int) -> String:
 	if i < 0 or i >= plots.size() or not plot_ripe(plots[i]):
 		return ""
 	var crop := str(Items.CROPS[str(plots[i]["seed"])][0])
+	if not has_room(crop):
+		notify("소비 가방이 가득 차서 거둘 수 없어요.")
+		return ""
 	plots[i] = {"seed": "", "grown": 0, "watered": false}
 	add_consumable(crop, 2 if has_fine("bld_farm") else 1)
 	return crop
@@ -1026,8 +1069,11 @@ func take_forage(key: String) -> String:
 		foraged = {"day": day, "taken": []}
 	if (foraged["taken"] as Array).has(key):
 		return ""
-	(foraged["taken"] as Array).append(key)
 	var id := str(Items.FORAGE[hash(key) % Items.FORAGE.size()])
+	if not has_room(id):
+		notify("소비 가방이 가득 차서 주울 수 없어요.")
+		return ""
+	(foraged["taken"] as Array).append(key)
 	add_consumable(id)
 	return id
 
@@ -1159,7 +1205,7 @@ func villager_daily(id: String) -> String:
 		return ""
 	v["gift_day"] = day
 	var gift := str(Data.VILLAGERS[id]["gift"])
-	add_consumable(gift, 2 if _house_fine(str(v["house"])) else 1)
+	add_consumable(gift, 2 if _house_fine(str(v["house"])) else 1, true)
 	return gift
 
 
@@ -1197,7 +1243,7 @@ func on_boss_killed(kind: String) -> void:
 	var role := str(Data.MONSTERS[kind].get("boss", ""))
 	if role == "field":
 		field_boss["dead"] = true
-		add_consumable("coating")
+		add_consumable("coating", 1, true)
 		notify("필드 보스를 물리쳤어요! 코팅지를 얻었어요.")
 	elif role == "boss" and difficulty == max_difficulty and max_difficulty < Data.DIFFICULTY.size() - 1:
 		max_difficulty += 1
@@ -1411,6 +1457,7 @@ func save_game() -> bool:
 		"skill_ranks": skill_ranks,
 		"skill_slots": skill_slots,
 		"bag_size": bag_size,
+		"bag_sizes": bag_sizes,
 		"friends": friends,
 		"companion": companion,
 		"clock": clock,
@@ -1502,7 +1549,11 @@ func load_game() -> bool:
 		consumables = data["consumables"]
 	if typeof(data.get("skill_ranks")) == TYPE_DICTIONARY:
 		skill_ranks = data["skill_ranks"]
+	bag_sizes = BAG_START.duplicate()
 	bag_size = clampi(int(data.get("bag_size", INVENTORY_SIZE)), INVENTORY_SIZE, BAG_MAX)
+	if typeof(data.get("bag_sizes")) == TYPE_DICTIONARY:
+		for bag_kind in BAG_START:
+			bag_sizes[bag_kind] = clampi(int(data["bag_sizes"].get(bag_kind, BAG_START[bag_kind])), int(BAG_START[bag_kind]), BAG_MAX)
 	friends = []
 	if typeof(data.get("friends")) == TYPE_ARRAY:
 		for fr in data["friends"]:
@@ -1627,7 +1678,7 @@ func _reset_state() -> void:
 	skill_points = 0
 	skill_ranks = {}
 	skill_slots = ["", "", ""]
-	bag_size = INVENTORY_SIZE
+	bag_sizes = BAG_START.duplicate()
 	custom_icons = {}
 	friends = []
 	companion = -1
