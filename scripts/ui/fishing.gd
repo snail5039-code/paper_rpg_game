@@ -186,7 +186,7 @@ func _result(id: String) -> void:
 		_label.text = "놓쳤어요…"
 	else:
 		_tex["catch"] = UI.tex(str(Items.CONSUMABLES[id][1]))
-		_label.text = "%s 을(를) 낚았어요!" % Items.CONSUMABLES[id][0]
+		_label.text = GameState.Josa.fix("%s 을(를) 낚았어요!" % Items.CONSUMABLES[id][0])
 		Sound.play("reel")
 
 

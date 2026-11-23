@@ -1,4 +1,5 @@
 extends Node
+const Josa := preload("res://scripts/core/josa.gd")
 ## 전역 게임 상태 (Autoload: GameState)
 ## 퀘스트 진행도, 재료, 저장/불러오기, 일시정지(대화·연필 모드·컷신)를 관리한다.
 
@@ -417,7 +418,7 @@ func add_exp(amount: int) -> void:
 		skill_points += 1
 		leveled_up.emit(level)
 		Sound.play("levelup")
-		notify("레벨 업!  필력 %d" % level)
+		notify("필력이 올랐어요!  필력 %d" % level)
 		tip("skillpoint", "스킬 포인트가 생겼어요. K 를 눌러 스킬을 배워 보세요.")
 	if level >= MAX_LEVEL:
 		exp = 0
@@ -1958,7 +1959,7 @@ func set_menu_open(on: bool) -> void:
 
 
 func notify(text: String) -> void:
-	message.emit(text)
+	message.emit(Josa.fix(text))
 
 
 ## 처음 겪을 때 한 번만 띄우는 설명

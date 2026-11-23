@@ -105,6 +105,14 @@ func _run() -> void:
 		e.queue_free()
 	await frames(3)
 
+	print("[조사]")
+	var J := GameState.Josa
+	check(J.fix("낙서 슬라임 을(를) 얻었어요") == "낙서 슬라임을 얻었어요" and J.fix("풀말랑 이(가) 왔어요") == "풀말랑이 왔어요"
+		and J.fix("내 집 이(가) 2단계 초가집 이(가) 됐어요") == "내 집이 2단계 초가집이 됐어요", "받침에 맞는 조사 (을·이)")
+	check(J.fix("점박이 은(는) 쉬어요") == "점박이는 쉬어요" and J.fix("봄이 와(과) 친해요") == "봄이와 친해요"
+		and J.fix("구깃이의 방 (으)로 가는 문") == "구깃이의 방으로 가는 문" and J.fix("마을 (으)로") == "마을로", "받침 없는 말, ㄹ 받침 (으)로")
+	check(J.fix("점박이★ 을(를) 보내요") == "점박이★ 을(를) 보내요" and J.fix("연필 3 을(를)") == "연필 3을", "한글이 아니면 그대로, 숫자는 읽는 소리로")
+
 	print("[시작 장비와 수치]")
 	check(GameState.equipped.has("tool") and GameState.attack_power() == 10, "낙서 연필을 들고 시작, 공격력 10")
 	check(GameState.consumable_count("bandage") == 2, "반창고 2개를 갖고 시작")

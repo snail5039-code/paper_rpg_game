@@ -767,7 +767,7 @@ func _draw_levelup() -> void:
 		var pos := Vector2(cos(ang) * 16.0, -20.0 - p * 30.0 + sin(ang) * 6.0)
 		draw_circle(pos, 1.6, Color(1, 1, 0.8, fade))
 	var font := ThemeDB.fallback_font
-	var text := "LEVEL UP!"
+	var text := "필력 상승!"
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
 	var at := Vector2(-w * 0.5, -46.0 - minf(1.0, p * 2.5) * 12.0)
 	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 4, Color(0.35, 0.22, 0.1, fade))

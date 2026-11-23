@@ -30,7 +30,9 @@ var _detail: Control              # 오른쪽 클릭 상세 보기
 var farm_motion := true           # 밭일을 할 때 캐릭터 동작을 보여 줄지 (테스트에서 끌 수 있다)
 var _tab_buttons: Array = []
 var _fixed: Array = []         # 다시 그려도 남기는 단추 (닫기)
-var _message := ""
+var _message := "":
+	set(v):
+		_message = GameState.Josa.fix(v)
 var _pending := ""             # 한 번 더 눌러야 하는 행동 (확인 대기)
 var ctx := ""                  # 무엇에 대한 창인지 (밭의 자리, 주민의 id, 포탈의 목적지)
 var _seed := ""                # 밭에서 고른 씨앗
