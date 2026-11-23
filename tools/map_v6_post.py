@@ -101,10 +101,66 @@ def seam_ratio(a):
     return sx, sy
 
 
-def do_tex(src, dst, prev, n=512, band=96):
+def grid_period(a):
+    """모눈 간격(px)을 자기상관으로 잰다. 못 찾으면 None."""
+    g = a.mean(2)
+    ps = []
+    for axis in (0, 1):
+        prof = g.mean(axis)
+        prof = prof - ndimage.uniform_filter1d(prof, 25)
+        ac = np.correlate(prof, prof, "full")[len(prof) - 1:]
+        if len(ac) < 130 or ac[0] <= 0:
+            return None
+        p = 12 + int(np.argmax(ac[12:120]))
+        y0, y1, y2 = ac[p - 1], ac[p], ac[p + 1]
+        ps.append(p + 0.5 * (y0 - y2) / (y0 - 2 * y1 + y2 + 1e-9))
+        if ac[p] < 0.15 * ac[0]:
+            return None
+    return float(np.mean(ps))
+
+
+def seam_cut(err):
+    """겹치는 띠에서 두 그림의 차이가 가장 작은 세로 이음선을 찾는다. True = 오른쪽에서 온 그림."""
+    h, b = err.shape
+    cost = err.copy()
+    back = np.zeros((h, b), int)
+    for y in range(1, h):
+        pad = np.concatenate([[np.inf], cost[y - 1], [np.inf]])
+        cand = np.stack([pad[:-2], pad[1:-1], pad[2:]])
+        k = np.argmin(cand, 0)
+        cost[y] += cand[k, np.arange(b)]
+        back[y] = np.arange(b) + k - 1
+    x = int(np.argmin(cost[-1]))
+    seam = np.zeros(h, int)
+    for y in range(h - 1, -1, -1):
+        seam[y] = x
+        x = back[y, x]
+    return np.arange(b)[None, :] < seam[:, None]
+
+
+def wrap_x(a, n, band):
+    """(h, n+band) 그림의 오른쪽 남는 띠를 왼쪽 가장자리에 이음선으로 잘라 붙여 가로로 이어지게 한다."""
+    A, B = a[:, n:n + band], a[:, :band]
+    err = ndimage.gaussian_filter(((A - B) ** 2).sum(2), 1.5)
+    m = ndimage.gaussian_filter(seam_cut(err).astype(np.float32), 1.2)[..., None]
+    out = a[:, :n].copy()
+    out[:, :band] = A * m + B * (1 - m)
+    return out
+
+
+def do_tex(src, dst, prev, n=512, band=72):
     im = Image.open(src).convert("RGB")
     m = n + band
+    a0 = np.asarray(im).astype(np.float32)
+    p = grid_period(a0)
     s = max(m / min(im.size), 0.5)  # 결이 뭉개지지 않게 절반까지만 줄인다
+    if p:
+        # 모눈이 n px 안에 딱 맞게 들어가도록 배율을 맞춘다 (겹치는 띠에서 모눈선이 어긋나지 않게)
+        cells = max(1, round(n / (p * s)))
+        s = n / (cells * p)
+        while s * min(im.size) < m and cells > 1:
+            cells -= 1
+            s = n / (cells * p)
     im2 = im.resize((max(m, round(im.width * s)), max(m, round(im.height * s))), Image.LANCZOS)
     x = (im2.width - m) // 2
     y = (im2.height - m) // 2
@@ -112,15 +168,10 @@ def do_tex(src, dst, prev, n=512, band=96):
     # 넓게 퍼진 밝기 얼룩을 없애 반복될 때 티가 덜 나게 한다
     low = np.stack([ndimage.gaussian_filter(a[..., c], 60, mode="reflect") for c in range(3)], -1)
     a = a - low + low.mean(axis=(0, 1), keepdims=True)
-    # 남는 띠(band)를 반대쪽 가장자리에 겹쳐 섞는다
-    t = np.linspace(0, 1, band, dtype=np.float32)
-    t = t * t * (3 - 2 * t)
-    o = a[:, :n].copy()
-    o[:, :band] = a[:, n:n + band] * (1 - t)[None, :, None] + a[:, :band] * t[None, :, None]
-    a = o
-    o = a[:n].copy()
-    o[:band] = a[n:n + band] * (1 - t)[:, None, None] + a[:band] * t[:, None, None]
-    out = np.clip(o, 0, 255).astype(np.uint8)
+    # 남는 띠를 반대쪽 가장자리에 이음선으로 잘라 붙인다 (섞지 않아 물결 같은 무늬가 겹쳐 보이지 않는다)
+    a = wrap_x(a, n, band)
+    a = wrap_x(a.transpose(1, 0, 2), n, band).transpose(1, 0, 2)
+    out = np.clip(a, 0, 255).astype(np.uint8)
     Image.fromarray(out, "RGB").save(dst)
     tile = Image.new("RGB", (n * 2, n * 2))
     for i in range(2):
@@ -182,7 +233,20 @@ def resize_rgba(arr, w, h):
     return np.dstack([np.clip(rgb, 0, 255), al]).astype(np.uint8)
 
 
-def do_sheet(src, dst, prev, spec, margin=0.10):
+def despill(out):
+    """가장자리 반투명 픽셀에 남은 마젠타 기운(빨강·파랑이 초록보다 둘 다 훨씬 큰 색)을 걷어 낸다."""
+    rgb = out[..., :3].astype(np.int16)
+    g = rgb[..., 1]
+    soft = out[..., 3] < 255
+    mag = soft & (rgb[..., 0] - g > 40) & (rgb[..., 2] - g > 40)
+    for c in (0, 2):
+        ch = rgb[..., c]
+        ch[mag] = np.minimum(ch[mag], g[mag] + 40)
+    out[..., :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    return out
+
+
+def do_sheet(src, dst, prev, spec, margin=0.11):  # 목표 11%: 반올림·가장자리 번짐에도 10% 이상 남게
     W, H, cols, rows, mode, valign = spec
     im = Image.open(src)
     notes = []
@@ -251,6 +315,7 @@ def do_sheet(src, dst, prev, spec, margin=0.10):
         else:
             py = round(r * ch + (ch - nh) / 2)
         out[py:py + nh, px:px + nw] = resize_rgba(crop, nw, nh)
+    out = despill(out)
     Image.fromarray(out, "RGBA").save(dst)
 
     p = Image.new("RGBA", (W, H), (70, 110, 190, 255))
