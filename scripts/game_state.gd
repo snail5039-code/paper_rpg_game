@@ -24,6 +24,7 @@ const STAT_DESCS := ["공격력 +2", "최대 HP +8, 방어 +1", "치명타 확�
 const MAP_SCENES := {
 	"ch1": "res://scenes/main.tscn",
 	"home": "res://scenes/home.tscn",
+	"tower": "res://scenes/tower.tscn",
 	"ch1_meadow": "res://scenes/field.tscn",
 	"ch1_crossroad": "res://scenes/field.tscn",
 	"ch1_gridwoods": "res://scenes/field.tscn",
@@ -128,6 +129,8 @@ var max_difficulty: int = 0       # 고를 수 있는 가장 높은 단계 (대�
 var field_boss: Dictionary = {"day": 0, "map": "", "dead": false}
 var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 var boss_bonus: Dictionary = {}      # 보스 다시 도전 보너스를 받은 날 ("종류:단계" → 날)
+var tower_floor: int = 0             # 끝없는 탑: 지금 오르는 층 (0 은 탑 밖)
+var tower_best: int = 0              # 끝없는 탑: 끝낸 가장 높은 층
 var quick_slots: Array = ["bandage", "milk"]   # 1, 2 번 키에 넣은 소모품
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
@@ -1077,6 +1080,11 @@ func sleep() -> void:
 ## 쓰러졌다: 연필심의 10%를 잃고, 내 마을이 열려 있으면 내 마을로 돌아간다.
 ## 돌려주는 것: 내 마을로 옮겨 갔으면 true (false 면 그 맵의 입구에서 다시 시작)
 func on_player_death() -> bool:
+	if current_map == "tower":
+		# 끝없는 탑: 잃는 것은 없고 그 판이 끝난다
+		notify("쓰러졌다…  탑 %d층에서 멈췄어요. (최고 기록 %d층)" % [tower_floor, tower_best])
+		tower_floor = 0
+		return goto_map("home", "from_death")
 	if current_map.begins_with("tut_"):
 		notify("쓰러졌다…  연습 페이지에서는 잃는 것이 없어요. 다시 해 봐요!")
 		return false      # 연습 페이지에서는 연필심을 잃지 않고 그 맵의 입구에서 다시 시작한다
@@ -1714,6 +1722,8 @@ func field_boss_map() -> String:
 ## 보스를 물리쳤다. 대장을 잡으면 다음 난이도 단계가 열린다.
 func on_boss_killed(kind: String) -> void:
 	bosses_beaten[kind] = int(bosses_beaten.get(kind, 0)) + 1
+	if current_map == "tower":
+		return      # 탑의 대장은 층 보상만 준다 (난이도·필드 보스·다시 도전 보너스와 따로)
 	var role := str(Data.MONSTERS[kind].get("boss", ""))
 	boss_daily_bonus(kind, role)
 	if role == "field":
@@ -1724,6 +1734,51 @@ func on_boss_killed(kind: String) -> void:
 		max_difficulty += 1
 		notify("대장을 물리쳤어요! \"%s\" 단계가 열렸어요. (내 마을의 문에서 고른다)" % Data.DIFFICULTY[max_difficulty]["name"])
 	changed.emit()
+
+
+# ---------- 끝없는 탑 ("빈 페이지 탑") ----------
+
+## 1층부터 새로 오른다 (내 마을의 탑 문)
+func start_tower() -> bool:
+	tower_floor = 1
+	if goto_map("tower", "gate_bottom"):
+		return true
+	tower_floor = 0
+	return false
+
+
+## 층의 몬스터를 다 물리쳤다: 보상을 주고, 처음 오른 층이면 더 준다. 돌려주는 것: 받은 것 설명
+func tower_clear(fl: int) -> String:
+	var r := tower_reward(fl, fl > tower_best)
+	coins += int(r["coins"])
+	var parts: Array = ["동전 %d" % int(r["coins"])]
+	if int(r["coating"]) > 0:
+		add_consumable("coating", int(r["coating"]), true)
+		parts.append("코팅지 %d" % int(r["coating"]))
+	if int(r["gear"]) > 0:
+		for i in int(r["gear"]):
+			var it := Items.random_drop(maxi(1, level), mini(4, 1 + fl / 10))
+			it["tier"] = mini(4, maxi(int(it["tier"]), fl / 10))
+			if add_item(Items.make(str(it["slot"]), int(it["shape"]), int(it["tier"]), int(it["level"]))):
+				parts.append("장비")
+	if fl > tower_best:
+		tower_best = fl
+		parts.append("새 기록!")
+	changed.emit()
+	return ", ".join(parts)
+
+
+## 층 보상: 층마다 동전, 5층마다(대장) 코팅지와 장비. 처음 오른 층은 동전 두 배.
+static func tower_reward(fl: int, first: bool) -> Dictionary:
+	var boss_floor := fl % 5 == 0
+	return {"coins": (10 * fl + (50 * fl if boss_floor else 0)) * (2 if first else 1),
+		"coating": (1 + (1 if first else 0)) if boss_floor else 0, "gear": 1 if boss_floor else 0}
+
+
+## 다음 층으로 오른다
+func tower_next() -> bool:
+	tower_floor += 1
+	return goto_map("tower", "gate_bottom")
 
 
 ## 보스 다시 도전: 보스마다, 난이도 단계마다 하루 한 번 코팅지·동전·지우개 가루를 더 준다.
@@ -2001,6 +2056,7 @@ func save_game() -> bool:
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
 		"boss_bonus": boss_bonus,
+		"tower_best": tower_best,
 		"quick_slots": quick_slots,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
@@ -2162,6 +2218,8 @@ func load_game() -> bool:
 	field_boss = {"day": int(fb.get("day", 0)), "map": str(fb.get("map", "")), "dead": bool(fb.get("dead", false))} if typeof(fb) == TYPE_DICTIONARY else {"day": 0, "map": "", "dead": false}
 	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
 	boss_bonus = data["boss_bonus"] if typeof(data.get("boss_bonus")) == TYPE_DICTIONARY else {}
+	tower_best = maxi(0, int(data.get("tower_best", 0)))
+	tower_floor = 0
 	var qs: Variant = data.get("quick_slots", [])
 	if typeof(qs) == TYPE_ARRAY and (qs as Array).size() == 2 and Items.CONSUMABLES.has(str(qs[0])) and Items.CONSUMABLES.has(str(qs[1])):
 		quick_slots = [str(qs[0]), str(qs[1])]
@@ -2264,6 +2322,8 @@ func _reset_state() -> void:
 	field_boss = {"day": 0, "map": "", "dead": false}
 	bosses_beaten = {}
 	boss_bonus = {}
+	tower_floor = 0
+	tower_best = 0
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false

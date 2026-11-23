@@ -24,6 +24,8 @@ var _drops: Array = []
 var _strip := false
 var _single := false         # 그림 한 장짜리 (보스)
 var tier := 0                # 난이도 단계 (사냥터가 정해 준다)
+var hp_mult := 1.0           # 끝없는 탑의 층 배율 (HP·경험치)
+var dmg_mult := 1.0          # 끝없는 탑의 층 배율 (공격)
 var boss := ""               # "mid", "boss", "field" (보스가 아니면 빈 글)
 var display_name := ""
 var _slam_every := 0.0       # 바닥 내리치기 간격 (0 은 안 함)
@@ -98,6 +100,10 @@ func _ready() -> void:
 	damage = roundi(damage * float(d["dmg"]))
 	exp_reward = roundi(exp_reward * float(d["exp"]))
 	defense = roundi(defense * float(d["dmg"]))
+	# 끝없는 탑: 층이 오를수록 더 세다 (tower.gd 가 정해 준다)
+	max_hp = roundi(max_hp * hp_mult)
+	damage = roundi(damage * dmg_mult)
+	exp_reward = roundi(exp_reward * hp_mult)
 	if boss != "":
 		add_to_group("boss")
 		leash_range = 400.0

@@ -42,6 +42,11 @@ func interact() -> void:
 	if locked or target_map == "":
 		GameState.notify("아직 열리지 않은 페이지다.")
 		return
+	# 끝없는 탑: 언제나 1층부터 (난이도 단계와 상관없다)
+	if target_map == "tower":
+		if not GameState.start_tower():
+			GameState.notify("빈 페이지 탑 (최고 기록 %d층)" % GameState.tower_best)
+		return
 	# 대장을 잡아 다음 단계가 열렸으면 들어가기 전에 난이도를 고른다
 	var hud := get_tree().get_first_node_in_group("hud")
 	if GameState.max_difficulty > 0 and hud:

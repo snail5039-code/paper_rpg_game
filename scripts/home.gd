@@ -40,6 +40,7 @@ const PORTALS := [
 	["ch1", "1장  공책 마을", Vector2(-140, 0), 0],
 	["", "2장  색연필 숲", Vector2(-140, -160), -1],
 	["", "3장  물감 호수", Vector2(-140, 160), -1],
+	["tower", "빈 페이지 탑", Vector2(-300, 0), 0],
 ]
 
 var size := Vector2(1280, 720)   # 지금 마을 크기 (GameState.home_sheets 에 따라)

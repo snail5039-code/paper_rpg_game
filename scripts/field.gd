@@ -51,9 +51,7 @@ func _ready() -> void:
 		add_to_group("game_map")
 	if field_id == "":
 		field_id = GameState.current_map
-	if not Data.FIELDS.has(field_id):
-		field_id = "ch1_crossroad"
-	cfg = Data.FIELDS[field_id]
+	cfg = _make_config()
 
 	var tex := Art.tex(str(cfg["bg"]))
 	if tex:
@@ -78,6 +76,51 @@ func _ready() -> void:
 
 	for m in cfg["monsters"]:
 		_spawn_monster(str(m[0]), bg(m[1]))
+	_extras()
+
+	player = PlayerScene.instantiate()
+	var gates: Dictionary = cfg["gates"]
+	var arrive := str(GameState.spawn_tag).trim_prefix("gate_")
+	if not gates.has(arrive):
+		arrive = str(gates.keys()[0])
+	var start: Vector2 = bg(ARRIVE[arrive])
+	player.set("spawn_point", start)
+	player.position = GameState.saved_position if GameState.has_saved_position and GameState.spawn_tag == "" else start
+	GameState.spawn_tag = ""
+	actors.add_child(player)
+	companion = Companion.attach(actors, player)
+
+	var cam := Camera2D.new()
+	cam.zoom = Vector2.ONE * CAMERA_ZOOM
+	cam.limit_left = 0
+	cam.limit_top = 0
+	cam.limit_right = roundi(BG_SIZE.x * WORLD_PER_BG)
+	cam.limit_bottom = roundi(BG_SIZE.y * WORLD_PER_BG)
+	cam.position_smoothing_enabled = true
+	cam.position_smoothing_speed = 8.0
+	player.add_child(cam)
+
+	hud = HudScript.new()
+	hud.name = "HUD"
+	hud.set("quest_text_override", _title_text())
+	add_child(hud)
+	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "I 가방  K 스킬  M 지도"]])
+	_tips.call_deferred()
+
+
+## 이 화면의 내용 (FIELDS 표). 끝없는 탑(scripts/tower.gd)은 층마다 만들어 쓴다.
+func _make_config() -> Dictionary:
+	if not Data.FIELDS.has(field_id):
+		field_id = "ch1_crossroad"
+	return Data.FIELDS[field_id]
+
+
+func _title_text() -> String:
+	return "1장 · %s  (%s)" % [cfg["name"], GameState.diff()["name"]]
+
+
+## 사냥터에만 있는 것: 오늘의 필드 보스, 채집 자리, 풍선
+func _extras() -> void:
 	# 오늘의 필드 보스
 	if GameState.field_boss_map() == field_id:
 		_spawn_monster("boss_scribble", bg(Vector2(836, 470)))
@@ -109,35 +152,6 @@ func _ready() -> void:
 		balloon.set("key", field_id)
 		balloon.position = bg(Data.BALLOONS[field_id])
 		actors.add_child(balloon)
-
-	player = PlayerScene.instantiate()
-	var gates: Dictionary = cfg["gates"]
-	var arrive := str(GameState.spawn_tag).trim_prefix("gate_")
-	if not gates.has(arrive):
-		arrive = str(gates.keys()[0])
-	var start: Vector2 = bg(ARRIVE[arrive])
-	player.set("spawn_point", start)
-	player.position = GameState.saved_position if GameState.has_saved_position and GameState.spawn_tag == "" else start
-	GameState.spawn_tag = ""
-	actors.add_child(player)
-	companion = Companion.attach(actors, player)
-
-	var cam := Camera2D.new()
-	cam.zoom = Vector2.ONE * CAMERA_ZOOM
-	cam.limit_left = 0
-	cam.limit_top = 0
-	cam.limit_right = roundi(BG_SIZE.x * WORLD_PER_BG)
-	cam.limit_bottom = roundi(BG_SIZE.y * WORLD_PER_BG)
-	cam.position_smoothing_enabled = true
-	cam.position_smoothing_speed = 8.0
-	player.add_child(cam)
-
-	hud = HudScript.new()
-	hud.name = "HUD"
-	hud.set("quest_text_override", "1장 · %s  (%s)" % [cfg["name"], GameState.diff()["name"]])
-	add_child(hud)
-	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "I 가방  K 스킬  M 지도"]])
-	_tips.call_deferred()
 
 
 func _tips() -> void:
@@ -204,9 +218,14 @@ func _spawn_monster(kind: String, pos: Vector2) -> void:
 	m.set("kind", shown)
 	m.set("tier", GameState.difficulty)
 	m.position = pos
-	if not Data.MONSTERS[shown].has("boss"):     # 보스는 화면을 나갔다 들어와야 다시 나온다
-		m.connect("died", _on_monster_died.bind(kind))
+	_setup_monster(m, kind)
 	actors.add_child(m)
+
+
+## 몬스터를 놓기 전에 손본다. 사냥터: 보스가 아니면 쓰러진 뒤 다시 나온다 (보스는 화면을 나갔다 들어와야 다시 나온다)
+func _setup_monster(m: Node2D, kind: String) -> void:
+	if not Data.MONSTERS[str(m.get("kind"))].has("boss"):
+		m.connect("died", _on_monster_died.bind(kind))
 
 
 func _on_monster_died(home: Vector2, kind: String) -> void:

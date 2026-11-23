@@ -101,6 +101,53 @@ func _run() -> void:
 	GameState.current_map = "ch1"
 	check(GameState.load_game() and GameState.current_map == "ch1_gridwoods", "사냥터 화면에서도 지금 있는 맵이 저장됨")
 
+	print("[끝없는 탑]")
+	check(GameState.goto_map("home", ""), "내 마을로")
+	await frames(30)
+	var home2 := get_tree().current_scene
+	var tower_portal: Node2D = null
+	for pt in home2.get("portals"):
+		if str(pt.get("target_map")) == "tower":
+			tower_portal = pt
+	check(tower_portal != null and not bool(tower_portal.get("locked")), "내 마을에 탑 문이 있음")
+	GameState.tower_best = 0
+	var fat0 := GameState.fatigue
+	tower_portal.call("interact")
+	await frames(30)
+	var tower := get_tree().current_scene
+	check(scene_name() == "Tower" and GameState.current_map == "tower" and int(tower.get("floor_no")) == 1, "탑 문으로 들어가면 1층 (%s)" % scene_name())
+	check(GameState.fatigue == fat0, "탑은 피로도가 들지 않음")
+	var n1 := int(tower.get("remaining"))
+	check(n1 >= 4 and not bool(tower.get("cleared")), "1층에 몬스터 %d마리, 위쪽 문은 닫힘" % n1)
+	var tp: Node2D = tower.get("player")
+	tp.set("_invuln", 999.0)
+	var c_t := GameState.coins
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and e.has_method("take_damage"):
+			e.call("take_damage", 999999, Vector2.RIGHT, false)
+	await frames(20)
+	check(bool(tower.get("cleared")) and GameState.tower_best == 1 and GameState.coins >= c_t + 20, "다 물리치면 층을 끝내고 보상 (첫 기록은 두 배)")
+	tp.global_position = Vector2(836, 150) * (640.0 / 1672.0)
+	Input.action_press("move_up")
+	await frames(30)
+	Input.action_release("move_up")
+	await frames(30)
+	var tower2 := get_tree().current_scene
+	check(GameState.current_map == "tower" and int(tower2.get("floor_no")) == 2 and GameState.tower_floor == 2, "위쪽 문으로 나가면 2층")
+	check(float(tower2.get("remaining")) > n1 - 1, "층이 오르면 몬스터가 같거나 많음")
+	var k5: Vector2 = tower2.call("floor_mult", 5)
+	check(k5.x > 1.5 and tower2.call("is_boss_floor", 5) and str(tower2.call("floor_monsters", 5)[0][0]) == "boss_bug", "5층: 대장(지우개똥 벌레)과 더 센 몬스터")
+	var r5: Dictionary = GameState.tower_reward(5, false)
+	check(int(r5["coating"]) == 1 and int(r5["gear"]) == 1, "5층마다 코팅지와 장비")
+	var tp2: Node2D = tower2.get("player")
+	tp2.set("_invuln", 999.0)
+	tp2.global_position = Vector2(836, 830) * (640.0 / 1672.0)
+	Input.action_press("move_down")
+	await frames(30)
+	Input.action_release("move_down")
+	await frames(30)
+	check(GameState.current_map == "home" and GameState.tower_floor == 0 and GameState.tower_best == 1, "아래쪽 문으로 나가면 내 마을, 기록은 남음")
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])
 	get_tree().quit(1 if failed > 0 else 0)
