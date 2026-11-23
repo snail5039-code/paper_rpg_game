@@ -4,7 +4,7 @@ extends Node2D
 ## 기증한 것만 그린다. 물고기는 수조 안을 헤엄치고, 나머지는 칸에 놓인다.
 ## 가까이 가면 위에 "몬스터 스케치 12/90" 처럼 묶음 이름과 전시 수가 뜬다.
 
-const MuseumScript := preload("res://scripts/maps/museum.gd")
+const MuseumScript := preload("res://scripts/data/museum_data.gd")
 
 var museum: Node2D
 var spec: Array = []
@@ -78,7 +78,7 @@ func _draw() -> void:
 		for id in all_ids:
 			if GameState.museum_has(cat, str(id)):
 				have += 1
-		var text := "%s %d/%d" % [MuseumScript.GROUP_NAMES[group], have, all_ids.size()]
+		var text := "%s %d/%d  (F 크게 보기)" % [MuseumScript.GROUP_NAMES[group], have, all_ids.size()]
 		var font := ThemeDB.fallback_font
 		var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
 		var at := Vector2(-tw * 0.5, -size.y - 6)

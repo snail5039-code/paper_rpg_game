@@ -793,7 +793,7 @@ func _run() -> void:
 	await frames(2)
 	check(GameState.museum_entries("fish").size() == 50 and GameState.museum_entries("forage").size() == 50
 		and GameState.museum_entries("mon").size() == 90 and GameState.museum_entries("gear").size() == 60, "박물관 묶음: 물고기 50, 채집물 50, 몬스터 90, 장비 60")
-	var MuseumScript := load("res://scripts/maps/museum.gd")
+	var MuseumScript := load("res://scripts/data/museum_data.gd")
 	var mg: Dictionary = MuseumScript.groups()
 	check((mg["bug"] as Array).size() == 18 and (mg["flower"] as Array).size() == 12 and (mg["thing"] as Array).size() == 20, "채집물 전시: 곤충 18, 꽃 12, 그 밖의 것 20")
 	GameState.museum = {}

@@ -1,10 +1,10 @@
 extends Node2D
-## 건물 안에서 F 로 쓰는 자리: 침대(mode "bed"), 문(mode "door"), 계산대·작업대·상자·솥·주민(mode "use"), 액자(mode "frame").
+## 건물 안에서 F 로 쓰는 자리: 침대(mode "bed"), 문(mode "door"), 계산대·작업대·상자·솥·주민(mode "use"), 액자(mode "frame"), 박물관 전시대(mode "view").
 ## 일은 방(scripts/maps/room.gd)이 한다.
 
 const Art := preload("res://scripts/core/art.gd")
 const RANGE := 34.0
-const CALLS := {"bed": "use_bed", "door": "leave", "use": "use_fixture", "frame": "use_frame"}
+const CALLS := {"bed": "use_bed", "door": "leave", "use": "use_fixture", "frame": "use_frame", "view": "use_view"}
 
 var mode := "bed"
 var _key: Texture2D
@@ -27,8 +27,8 @@ func interact() -> void:
 	var room := _room()
 	if room == null:
 		return
-	if mode == "frame":
-		room.call("use_frame", self)   # 어느 액자인지 알려 준다
+	if mode == "frame" or mode == "view":
+		room.call(str(CALLS[mode]), self)   # 어느 액자·전시대인지 알려 준다
 	else:
 		room.call(str(CALLS.get(mode, "leave")))
 

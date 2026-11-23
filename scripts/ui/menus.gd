@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정", "dex": "도감", "donate": "박물관 기증"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": [], "dex": ["몬스터", "친구", "물고기", "채집", "작물", "장비", "재료"], "donate": ["물고기", "채집물", "몬스터", "장비"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기", "dex": "J  닫기", "donate": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정", "dex": "도감", "donate": "박물관 기증", "exhibit": "전시"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": [], "dex": ["몬스터", "친구", "물고기", "채집", "작물", "장비", "재료"], "donate": ["물고기", "채집물", "몬스터", "장비"], "exhibit": []}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기", "dex": "J  닫기", "donate": "Esc  닫기", "exhibit": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -249,6 +249,8 @@ func refresh() -> void:
 	_info.text = _message
 	if _title_label:
 		_title_label.text = "친구 우리" if kind == "friends" and ctx == "pen" else ("박물관" if kind == "dex" and ctx == "museum" else str(TITLES[kind]))
+		if kind == "exhibit" and ctx != "":
+			_title_label.text = str(MuseumScript.GROUP_NAMES[str(MuseumScript.DISPLAYS[int(ctx)][2])])
 	match kind:
 		"bag": _refresh_bag()
 		"skills": _refresh_skills()
@@ -265,6 +267,7 @@ func refresh() -> void:
 		"portal": _refresh_portal()
 		"dex": _refresh_dex()
 		"donate": _refresh_donate()
+		"exhibit": _refresh_exhibit()
 		"slots": _refresh_slots()
 		"settings": _settings_rows(_list())
 
@@ -1141,6 +1144,97 @@ func _donate(cat: String, id: String) -> void:
 	if _message.begins_with(name):
 		Sound.play("craft")
 	refresh()
+
+
+# ---------- 박물관 전시대 크게 보기 (박물관 안, 전시대 앞에서 F) ----------
+
+const MuseumScript := preload("res://scripts/data/museum_data.gd")
+const MonsterBook := preload("res://scripts/data/monster_book.gd")
+const PLACE_KO := {"home": "내 마을 물", "ch1": "1장 강", "pond": "들판 연못"}
+const TIME_KO := {"day": "낮에만", "night": "밤에만", "any": "낮·밤 언제나"}
+const RARITY_KO := ["흔함", "조금 드묾", "드묾", "전설"]
+const KIND_KO := {"flower": "꽃", "fruit": "과일", "thing": "주운 것", "bug": "곤충"}
+const ARCH_KO := {"hop": "통통 튀다 박치기", "dash": "다가와 몸을 날림", "swarm": "멀리서 알아채고 달려듦",
+	"ambush": "숨어 있다가 튀어나옴", "grid": "직각으로만 움직임", "roll": "굴러서 돌진"}
+
+
+## ctx = 전시대 번호 (MuseumScript.DISPLAYS). 기증한 것은 크게, 아직인 것은 그림자로. 누르면 설명.
+func _refresh_exhibit() -> void:
+	var d: Array = MuseumScript.DISPLAYS[clampi(int(ctx), 0, MuseumScript.DISPLAYS.size() - 1)]
+	var group := str(d[2])
+	var cat := MuseumScript.cat_of(group)
+	var all: Array = MuseumScript.groups()[group]
+	var ids: Array = all.slice(int(d[3]), int(d[3]) + int(d[4]))
+	var cols := 7 if ids.size() > 15 else 5
+	var cell := minf(42.0, _body.size.x / cols)
+	var x0 := (_body.size.x - cell * cols) * 0.5
+	var scroll := ScrollContainer.new()
+	scroll.size = _body.size
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_body.add_child(scroll)
+	var grid := Control.new()
+	grid.custom_minimum_size = Vector2(_body.size.x - 12, ceilf(ids.size() / float(cols)) * cell)
+	scroll.add_child(grid)
+	var have := 0
+	for i in ids.size():
+		var id := str(ids[i])
+		var done := GameState.museum_has(cat, id)
+		have += 1 if done else 0
+		var pos := Vector2(x0 + (i % cols) * cell, (i / cols) * cell)
+		_icon(grid, "ui_slot", pos, cell - 3)
+		var ic := UI.icon(grid, "", pos + Vector2(5, 5), Vector2(cell - 13, cell - 13), Color.WHITE if done else Color(0.15, 0.13, 0.13, 0.3))
+		ic.texture = _exhibit_tex(group, id)
+		_hit(grid, pos, Vector2(cell - 3, cell - 3), _exhibit_pick.bind(group, id))
+	if _message == "":
+		_info.text = "이 전시대 %d / %d   (전시실 전체 %d / %d)
+하나를 누르면 설명이 나와요. 그림자는 아직 기증하지 않은 것이에요." % [
+			have, ids.size(), GameState.museum_count(cat), GameState.museum_entries(cat).size()]
+
+
+func _exhibit_tex(group: String, id: String) -> Texture2D:
+	match group:
+		"fish", "bug", "flower", "thing":
+			return Art.tex(GameState.consumable_icon(id))
+		"mon":
+			return _dex_look("mon", id + "_faded")[0]
+		"gear":
+			return _dex_look("gear", id)[0]
+	return null
+
+
+func _exhibit_pick(group: String, id: String) -> void:
+	_message = exhibit_text(group, id)
+	refresh()
+
+
+## 전시물 한 줄 설명 (기증하지 않은 것은 이름을 가린다)
+static func exhibit_text(group: String, id: String) -> String:
+	var cat := MuseumScript.cat_of(group)
+	if not GameState.museum_has(cat, id):
+		return "??? — 아직 기증하지 않았어요. 가방에 있으면 부엉이 관장에게 기증해 보세요."
+	match group:
+		"fish":
+			var f: Array = Items.FISH_INFO[id]
+			return "%s — %s, %s, %s.
+%s" % [Items.CONSUMABLES[id][0], PLACE_KO.get(str(f[0]), ""), TIME_KO.get(str(f[1]), ""),
+				RARITY_KO[int(f[2])], Items.CONSUMABLES[id][3]]
+		"bug", "flower", "thing":
+			var g: Array = Items.FORAGE_INFO[id]
+			return "%s — %s, %s, %s.
+%s" % [Items.CONSUMABLES[id][0], KIND_KO.get(str(g[0]), ""), TIME_KO.get(str(g[1]), ""),
+				RARITY_KO[int(g[2])], Items.CONSUMABLES[id][3]]
+		"mon":
+			var name := str(Data.FRIENDS.get(id, {}).get("name", id))
+			if MonsterBook.SPECIES.has(id):
+				var sp: Array = MonsterBook.SPECIES[id]
+				return "%s — %d장의 몬스터. %s.
+몬스터 스케치를 기증한 그림이에요." % [name, int(sp[1]), ARCH_KO.get(str(sp[2]), "")]
+			return "%s — 1장 공책 마을의 몬스터.
+몬스터 스케치를 기증한 그림이에요." % name
+		"gear":
+			var p := id.split("_")
+			return "%s (%s) — 이 모양의 장비를 기증했어요." % [Items.SHAPES[p[0]][int(p[1])], Items.SLOT_NAMES[p[0]]]
+	return id
 
 
 func _museum_claim(cat: String, pct: int) -> void:
