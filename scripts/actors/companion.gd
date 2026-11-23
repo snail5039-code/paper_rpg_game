@@ -42,6 +42,10 @@ static func look(sp: String) -> Array:
 	var info: Dictionary = Data.FRIENDS.get(sp, {})
 	var cfg: Dictionary = Data.MONSTERS.get(str(info.get("kind", "slime")), Data.MONSTERS["slime"])
 	var tint: Color = info.get("tint", Color.WHITE)
+	# 합치기로만 나오는 친구는 전용 그림이 있으면 그것을 쓴다 (없으면 바탕 몬스터에 색만 입힌다)
+	var own := Art.tex("mon_friend_" + sp)
+	if own:
+		return [own, 6, Color.WHITE]
 	if str(cfg["art"]) == "strip":
 		return [Art.tex("mon_" + str(cfg["sprite"])), 6, tint]
 	if str(cfg["art"]) == "single":

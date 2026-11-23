@@ -91,3 +91,19 @@ STYLE: ...(공통 그림체)
 ```text
 Make ONE image: a wide sprite sheet, one row of 7 equal square cells on a perfectly flat solid magenta (#FF00FF) background (no paper, no grid, no shadows, no cell borders). Do not use magenta in the objects. Each icon centered in its cell with clear empty margin, nothing touching another cell. These are game MENU BUTTON icons, each one a single bold simple object readable at very small size (about 22 pixels), same style as the attached icons. Left to right: 1 a school backpack (inventory), 2 a little paper-doll person bust with a small star badge (character stats), 3 an open spell book with a sparkle above it (skills), 4 a folded paper treasure map with a red dot (map), 5 a cute round doodle blob monster face smiling (friends), 6 a thick closed collection book with a ribbon bookmark (encyclopedia), 7 a cog gear (settings). STYLE: ...(공통 그림체)
 ```
+
+## 81. 합치기 친구 3종 (`81_friend_<종>.png`)
+
+- 결과: `mon_friend_linespider`, `mon_friend_snowflake`, `mon_friend_grassmallang` (6칸 띠, 1장 몬스터와 같은 순서). 가져오기: `python3 tools/import_friends.py`
+- 칸: 기본, 움직임 A, 움직임 B, 예고(웅크림), 공격, 맞음. 첨부는 섞이는 두 몬스터의 `ch1_v5` 원본 시트.
+
+```text
+(줄거미, 첨부 05d_gridspider_faded + 05a_squiggle_faded)
+Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfectly flat solid magenta (#FF00FF) background (no paper, no grid, no shadows, no cell borders, no ground). Do not use magenta in the character. Each frame centered in its cell, all frames the SAME size and facing the SAME direction as the attached sheets, nothing touching another cell. Character: "Line Spider" — a friendly crayon doodle creature born from merging the two attached monsters: the round body of the grid spider with its thin legs, but its legs are long wavy squiggle lines like the squiggle monster, a warm orange-cream body (light pastel orange, not purple), cute dot eyes, a little ruled-line stripe pattern on its back. Same 6 frames in the same order as the attached sheets: 1 idle, 2 move pose A, 3 move pose B, 4 wind-up (crouch before attacking), 5 attack (leaping, legs stretched), 6 hurt (squinting, flinching). STYLE: ...(공통 그림체)
+
+(눈송이, 첨부 05b_dots_faded + 05e_dustbug_faded, 같은 대화에서 이어서)
+... Character: "Snowflake" — a fluffy round puff made of a cluster of soft pale-blue and white dots like falling snow, with tiny six-point snowflake crystals floating around it, two little bug antennae, cute dot eyes and a small smile. Pale icy blue and white pastel colours (not grey). In the attack frame it puffs out a burst of snow dots; in the hurt frame it squints and some dots scatter.
+
+(풀말랑, 첨부 02_slime_faded + 05c_grass_faded, 같은 대화에서 이어서)
+... Character: "Grass Mallang" — a soft squishy round slime blob in fresh pastel leaf-green, with a little tuft of grass blades and a tiny clover sprouting on top of its head, cute dot eyes and rosy cheeks. Movement like the slime: squash and stretch hopping. In the attack frame it bounces forward and grass blades fly out; in the hurt frame it squints and flattens.
+```

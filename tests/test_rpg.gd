@@ -113,6 +113,14 @@ func _run() -> void:
 		and J.fix("구깃이의 방 (으)로 가는 문") == "구깃이의 방으로 가는 문" and J.fix("마을 (으)로") == "마을로", "받침 없는 말, ㄹ 받침 (으)로")
 	check(J.fix("점박이★ 을(를) 보내요") == "점박이★ 을(를) 보내요" and J.fix("연필 3 을(를)") == "연필 3을", "한글이 아니면 그대로, 숫자는 읽는 소리로")
 
+	print("[합치기 친구 그림]")
+	var look_ok := true
+	for sp in ["grassmallang", "linespider", "snowflake"]:
+		var l: Array = preload("res://scripts/actors/companion.gd").look(sp)
+		if l[0] == null or int(l[1]) != 6 or l[2] != Color.WHITE or (l[0] as Texture2D).resource_path.get_file() != "mon_friend_%s.png" % sp:
+			look_ok = false
+	check(look_ok, "풀말랑·줄거미·눈송이는 색만 바꾼 그림이 아니라 전용 그림(6칸)을 씀")
+
 	print("[시작 장비와 수치]")
 	check(GameState.equipped.has("tool") and GameState.attack_power() == 10, "낙서 연필을 들고 시작, 공격력 10")
 	check(GameState.consumable_count("bandage") == 2, "반창고 2개를 갖고 시작")

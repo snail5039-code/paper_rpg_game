@@ -189,7 +189,7 @@ const FIELDS := {
 
 
 ## 친구 (다시 그려 준 몬스터). 종 → 이름, 그림으로 쓸 몬스터 종류, 힘 배율, 색, 스킬 이름
-##  아래 세 종은 합치기로만 나온다 (그림이 아직 없어서 색만 바꿔 쓴다).
+##  아래 세 종은 합치기로만 나온다. 그림은 mon_friend_<종> (tools/import_friends.py), 없으면 tint 로 색만 바꿔 쓴다.
 const FRIENDS := {
 	"slime": {"name": "낙서 슬라임", "kind": "slime_faded", "power": 1.0, "skill": "통통 박치기"},
 	"tm9": {"name": "낙서 토끼", "kind": "tm9", "power": 1.0, "skill": "깡충"},     # 연습 페이지에서 다시 그리기를 배우는 낙서 (친구가 되지는 않는다)

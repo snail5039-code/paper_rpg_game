@@ -56,5 +56,18 @@ func _run() -> void:
 	hud.call("_show_menu_tip", (hud.get("_menu_btns") as Array)[0], "가방 (I)")
 	await _frames(2)
 	await _shot("hud_2_boss.png")
+	# 합치기 친구 셋 (전용 그림)
+	for sp in ["grassmallang", "linespider", "snowflake"]:
+		GameState.add_friend(sp)
+	var shots := {"grassmallang": "hud_3_friend_grass.png", "linespider": "hud_4_friend_line.png", "snowflake": "hud_5_friend_snow.png"}
+	for i in GameState.friends.size():
+		var sp := str(GameState.friends[i]["sp"])
+		if shots.has(sp):
+			GameState.set_companion(i)
+			await _frames(30)
+			await _shot(shots[sp])
+	hud.call("press_menu_button", "friends")
+	await _frames(6)
+	await _shot("hud_6_friends_menu.png")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	get_tree().quit()
