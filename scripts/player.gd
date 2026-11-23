@@ -40,6 +40,10 @@ var _dash_dir := Vector2.ZERO
 var _fx: Dictionary = {}        # 방금 쓴 스킬의 효과 그림
 var _fx_tex: Dictionary = {}    # 효과 그림 (계속 쥐고 있어야 한다)
 var _hat: Sprite2D              # 쓴 모자 (머리 모양에 맞춰 그린 앞·옆·뒤 그림)
+var _aura: Sprite2D             # 강화 오라 (발밑)
+var aura_plus := 0              # 오라를 정한 강화 단계 (입은 장비 중 가장 높은 것)
+var _aura_t := 0.0
+const AURA_W := 48.0            # 오라 고리의 가로 (월드)
 var _hat_tex: Array = [null, null, null]   # 지금 모자의 앞, 옆(왼쪽을 봄), 뒤 그림
 var _hat_shape := -1
 var _tool: Sprite2D             # 손에 든 도구 (프레임마다 주먹 자리에 놓는다)
@@ -106,6 +110,20 @@ func _ready() -> void:
 	_hat.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hat.visible = false
 	add_child(_hat)
+	# 강화 오라: 입은 장비의 강화 단계가 +4 이상이면 발밑에서 빛이 피어오른다
+	var aura_tex := Art.tex("fx_aura")
+	if aura_tex:
+		_aura = Sprite2D.new()
+		_aura.texture = aura_tex
+		_aura.hframes = 4
+		_aura.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		_aura.scale = Vector2.ONE * (AURA_W / (aura_tex.get_width() / 4.0))
+		_aura.offset = Vector2(0, -aura_tex.get_height() * 0.5)
+		_aura.position = FOOT + Vector2(0, 3)
+		_aura.show_behind_parent = true
+		_aura.visible = false
+		add_child(_aura)
+		move_child(_aura, 0)
 	_refresh_look()
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	for n in ["slash", "circle", "dot", "hatch", "press", "erase", "hit", "star"]:
@@ -301,6 +319,10 @@ func _on_level_up(_level: int) -> void:
 ## 입은 장비가 바뀌면 겉모습을 맞춘다
 func _refresh_look() -> void:
 	var eq: Dictionary = GameState.equipped
+	aura_plus = Items.best_plus(eq)
+	if _aura:
+		_aura.visible = aura_plus >= Items.AURA_MIN
+		_aura.modulate = Items.aura_color(aura_plus)
 	var key := ""
 	for sl in ["hat", "tool", "cloth"]:
 		key += str(eq[sl].get("shape", 0)) + str(eq[sl].get("unique", "")) + str(eq[sl].get("set", "")) + "," if eq.has(sl) else "-,"
@@ -339,6 +361,7 @@ func _refresh_look() -> void:
 
 ## 지금 보이는 프레임에 맞춰 도구를 주먹에, 모자를 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 자리가 다르다)
 func _place_look(_moving: bool) -> void:
+	_animate_aura()
 	if _sprite == null:
 		_hat.visible = false
 		_tool.visible = false
@@ -414,6 +437,21 @@ func _place_tool(shown: Sprite2D, spot: Array, frame: Vector2, swinging: bool) -
 	if _tool.get_index() != want:
 		move_child(_tool, want)
 	_tool.show_behind_parent = not front
+
+
+## 오라는 0→1→2→3→2→1 로 오르내리며 숨 쉬듯 깜빡인다. +7 부터는 든 도구도 그 빛으로 은은히 물든다.
+func _animate_aura() -> void:
+	if _aura == null or not _aura.visible:
+		if _tool:
+			_tool.self_modulate = Color.WHITE
+		return
+	_aura_t += get_physics_process_delta_time()
+	var seq := [0, 1, 2, 3, 2, 1]
+	_aura.frame = int(seq[int(_aura_t * 8.0) % seq.size()])
+	var c := Items.aura_color(aura_plus)
+	_aura.modulate.a = c.a * (0.75 + 0.25 * sin(_aura_t * 4.0))
+	if _tool:
+		_tool.self_modulate = Color.WHITE.lerp(Color(c.r, c.g, c.b), 0.3 + 0.2 * sin(_aura_t * 5.0)) if aura_plus >= 7 else Color.WHITE
 
 
 func _on_state_changed() -> void:

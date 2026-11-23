@@ -121,10 +121,14 @@ func _title_text() -> String:
 
 ## 사냥터에만 있는 것: 오늘의 필드 보스, 채집 자리, 풍선
 func _extras() -> void:
+	# 대장 방에 들어오면 나팔 소리
+	if field_id == "ch1_bossroom":
+		Sound.play.call_deferred("boss_appear")
 	# 오늘의 필드 보스
 	if GameState.field_boss_map() == field_id:
 		_spawn_monster("boss_scribble", bg(Vector2(836, 470)))
 		GameState.notify.call_deferred("필드 보스 \"떠돌이 큰 낙서\" 가 이 근처에 있어요!")
+		Sound.play.call_deferred("boss_appear")
 	# 채집 자리 (하루에 한 번). 자리는 화면마다 정해져 있다.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(field_id)

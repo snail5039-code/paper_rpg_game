@@ -7,6 +7,7 @@ const FieldScene := preload("res://scenes/field.tscn")
 const HomeScene := preload("res://scenes/home.tscn")
 const Data := preload("res://scripts/game_data.gd")
 const AiPixel := preload("res://scripts/ai_pixel.gd")
+const Items_ := preload("res://scripts/items.gd")
 
 var passed := 0
 var failed := 0
@@ -787,6 +788,84 @@ func _run() -> void:
 	check(not GameState.museum_ready("fish", 25), "덜 채운 묶음은 받을 수 없음")
 	hhud.call("toggle_menu", "dex")
 	await frames(3)
+
+	print("[강화소]")
+	check(GameState.forge_bonus() == 0.0, "강화소가 없으면 보너스 없음")
+	GameState.pencil_lead = maxi(GameState.pencil_lead, 300)
+	GameState.coins = maxi(GameState.coins, 1000)
+	home.call("start_placing", "bld_forge")
+	check(bool(await home.call("place_at", Vector2(1140, 600), 0.9)), "강화소를 지음")
+	var forge_obj: Node = null
+	for n in get_tree().get_nodes_in_group("home_object"):
+		if str(n.get("id")) == "bld_forge":
+			forge_obj = n
+	check(is_equal_approx(GameState.forge_bonus(), 0.05), "강화소 1단계 정성: 성공률 +5%% (%.2f)" % GameState.forge_bonus())
+	var risky := Items_.make("hat", 0, 2, 1)
+	risky["plus"] = 9
+	check(is_equal_approx(GameState.enhance_chance(risky, GameState.forge_bonus()), 0.35), "+9 → +10: 30% 가 35% 로")
+	GameState.inventory.append(risky)
+	GameState.dust = 500
+	forge_obj.call("interact")
+	await frames(3)
+	var fp: Control = hhud.get("forge")
+	check(is_instance_valid(fp) and GameState.menu_open, "강화소에 F: 강화 화면이 열림")
+	fp.call("select", risky)
+	await frames(2)
+	await shot("life_25_forge.png")
+	check(str((fp.get("_risk") as Label).text).contains("지워져요"), "+9 는 실패하면 지워진다고 알려 줌")
+	GameState.consumables["coating"] = 1
+	fp.set("use_coating", false)
+	var lead_f := GameState.pencil_lead
+	fp.set("result_hold", 1.2)
+	fp.call("hit")
+	await get_tree().create_timer(0.5, true).timeout
+	await shot("life_25a_forge_hammer.png")
+	check(fp.get("_stage") != null and bool(fp.get("busy")), "두드리면 가운데에서 망치질 연출이 나옴")
+	await get_tree().create_timer(0.9, true).timeout
+	await shot("life_25b_forge_result.png")
+	var r_f := str(fp.get("last_result"))
+	check(r_f in ["ok", "broken"] and GameState.pencil_lead < lead_f, "결과를 크게 보여 줌 (%s)" % r_f)
+	while bool(fp.get("busy")):
+		await frames(2)
+	check(fp.get("_stage") == null, "결과 화면은 잠시 뒤 닫힘")
+	check(GameState.consumable_count("coating") == 1, "코팅지 쓰기를 끄면 코팅지를 쓰지 않음")
+	# 성공 연출: 반드시 성공하는 +1 → +2 → +3
+	var shiny := Items_.make("tool", 0, 2, 1)
+	shiny["plus"] = 1
+	GameState.inventory.append(shiny)
+	fp.call("select", shiny)
+	fp.call("hit")
+	while bool(fp.get("busy")):
+		await frames(2)
+	fp.call("hit")
+	await get_tree().create_timer(1.25, true).timeout
+	await shot("life_25c_forge_success.png")
+	while bool(fp.get("busy")):
+		await frames(2)
+	check(int(shiny["plus"]) == 3 and str(fp.get("last_result")) == "ok", "+1 → +3 성공")
+	fp.call("close")
+	await frames(2)
+	check(not is_instance_valid(hhud.get("forge")) and not GameState.menu_open, "닫으면 원래대로")
+	# 강화 겉모습: +4 이상을 입으면 발밑에 오라
+	var keep_tool: Dictionary = GameState.equipped.get("tool", {})
+	shiny["plus"] = 4
+	GameState.equipped["tool"] = shiny
+	GameState.changed.emit()
+	await frames(4)
+	var aura: Sprite2D = hp.get("_aura")
+	check(aura != null and aura.visible and int(hp.get("aura_plus")) == 4, "+4 를 입으면 오라가 생김")
+	shiny["plus"] = 10
+	GameState.changed.emit()
+	await frames(20)
+	check(aura.modulate.r > 0.9 and aura.modulate.b < 0.5, "+10 은 금빛 오라")
+	hp.global_position = forge_obj.global_position + Vector2(0, 40)
+	await frames(10)
+	await shot("life_25d_aura.png")
+	GameState.equipped["tool"] = keep_tool
+	GameState.inventory.erase(shiny)
+	GameState.changed.emit()
+	await frames(4)
+	check(not aura.visible, "벗으면 오라가 사라짐")
 	(by_id["bld_villager_a"] as Node).call("interact")
 	await frames(3)
 	check(bool(hhud.call("is_menu_open", "resident")), "주민 집에 말을 걸면 주민 창이 열림")
@@ -961,7 +1040,7 @@ func _run() -> void:
 	GameState.max_difficulty = 0
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.friends.size() == 1 and GameState.companion == 0 and int(GameState.friends[0]["stars"]) == 1, "친구가 그대로")
-	check(GameState.home_objects.size() == 17 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
+	check(GameState.home_objects.size() == 18 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
 	check(GameState.villager_name("kid") == "봄이" and GameState.hearts("kid") == 2 and GameState.max_difficulty == 1, "주민과 난이도 단계가 그대로")
 	check(GameState.farm_plots("560_600")[1]["seed"] == "s_carrot" and GameState.room_items.size() == 2, "밭과 방이 그대로")
 	check(str(GameState.room_items[1].get("art", "")).begins_with("drawn_"), "액자에 건 그림도 그대로")
@@ -971,7 +1050,7 @@ func _run() -> void:
 	home = HomeScene.instantiate()
 	add_child(home)
 	await frames(5)
-	check((home.get("objects") as Array).size() == 17 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
+	check((home.get("objects") as Array).size() == 18 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

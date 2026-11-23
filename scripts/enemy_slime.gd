@@ -34,6 +34,8 @@ var _slam_warn := 0.0        # 내리치기 예고가 남은 시간
 var _slam_pos := Vector2.ZERO
 var _summon := ""
 var _summoned := false
+var _roar_t := 4.0
+const ROAR_RANGE := 220.0
 const SLAM_RADIUS := 46.0
 const SLAM_WARN := 1.0
 
@@ -108,6 +110,9 @@ func _ready() -> void:
 		add_to_group("boss")
 		leash_range = 400.0
 		lose_range = 400.0
+		# 보스 곁에서는 낮은 울림이 들린다 (가까울수록 크게). 필드 보스는 더 멀리서도 들린다.
+		Sound.attach_boss_loop(self, 340.0 if boss == "field" else 260.0)
+		_roar_t = randf_range(2.0, 4.0)
 	if str(cfg["art"]) == "single":
 		var one := Art.tex(str(cfg["sprite"]))
 		if one:
@@ -254,6 +259,12 @@ func _physics_process(delta: float) -> void:
 func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 	if boss == "" or not has_player:
 		return
+	# 가까이 있으면 가끔 으르렁댄다
+	_roar_t -= delta
+	if _roar_t <= 0.0:
+		_roar_t = randf_range(5.0, 8.0)
+		if p.global_position.distance_to(global_position) < ROAR_RANGE:
+			Sound.play("boss_roar")
 	if _slam_every > 0.0:
 		if _slam_warn > 0.0:
 			_slam_warn -= delta

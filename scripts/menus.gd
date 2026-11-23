@@ -550,7 +550,7 @@ func _refresh_shop() -> void:
 			var text := "%s   연필심 %d · 가루 %d · 성공 %d%%" % [Items.item_name(item2), int(cost[0]), int(cost[1]), roundi(Items.enhance_rate(item2) * 100.0)]
 			_row(box, Items.icon(item2), Items.item_name(item2) + "  (최고 단계)" if maxed else text,
 				[["강화", _enhance.bind(item2), not maxed]], Items.tier_color(item2))
-		wallet += "   +7부터 실패하면 하락, +10부터 파괴"
+		wallet += "   +7부터 실패하면 하락, +10부터 파괴. 강화소에서 하면 더 잘 돼요"
 	_info.text = (_message + "\n" if _message != "" else "") + wallet
 
 

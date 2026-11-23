@@ -110,6 +110,27 @@ static func set_lines(set_id: String, n: int = -1) -> Array:
 	return out
 
 
+## 강화 겉모습: 입은 장비 중 가장 높은 강화 단계에 따라 발밑에 오라가 생긴다 (+4 하늘, +7 보라, +10 금빛)
+const AURA_MIN := 4
+
+
+static func best_plus(equipped: Dictionary) -> int:
+	var best := 0
+	for slot in equipped:
+		best = maxi(best, int((equipped[slot] as Dictionary).get("plus", 0)))
+	return best
+
+
+static func aura_color(plus: int) -> Color:
+	if plus >= 10:
+		return Color(1.0, 0.82, 0.3, 0.95)
+	if plus >= 7:
+		return Color(0.78, 0.55, 1.0, 0.9)
+	if plus >= AURA_MIN:
+		return Color(0.5, 0.8, 1.0, 0.8)
+	return Color(1, 1, 1, 0)
+
+
 ## 주민 전용: 하트 4개에 배우는 조합법, 하트 5개에 받는 장신구
 const VILLAGER_RECIPES := {
 	"baker": ["단팥빵", "v_redbean", {0: 3, 4: 2}, 4],

@@ -492,6 +492,19 @@ func submit_name(text: String = "") -> void:
 		name_done.emit(text if text != "" else _name_edit.text)
 
 
+## 강화소 화면 (scripts/forge_panel.gd)
+var forge: Control = null
+
+
+func open_forge() -> void:
+	if is_instance_valid(forge):
+		return
+	forge = load("res://scripts/forge_panel.gd").new()
+	add_child(forge)
+	GameState.set_menu_open(true)
+	forge.connect("closed", func() -> void: GameState.set_menu_open(false))
+
+
 ## 새 주민 그리기 화면을 연다 (빈 주민 집에서). 다 만들면 그 주민 창을 연다.
 var maker: Control = null
 

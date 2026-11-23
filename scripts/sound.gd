@@ -10,6 +10,7 @@ var _sfx: Dictionary = {}
 var _players: Array = []
 var _next := 0
 var _music: AudioStreamPlayer
+var boss_loop: AudioStreamWAV
 
 
 func _ready() -> void:
@@ -59,6 +60,16 @@ func _ready() -> void:
 	for k in life:
 		_sfx[k] = _tone(life[k][0], float(life[k][1]), 0.45)
 	_sfx["craft"] = _tone([[659.0, 659.0, 0.08], [880.0, 880.0, 0.16]], 0.0, 0.4)
+	# 보스: 나타날 때 낮은 나팔 소리, 가까이 있을 때 으르렁
+	_sfx["boss_appear"] = _tone([[110.0, 110.0, 0.35], [147.0, 147.0, 0.35], [131.0, 98.0, 0.7]], 0.15, 0.8)
+	_sfx["boss_roar"] = _tone([[160.0, 90.0, 0.45], [120.0, 60.0, 0.35]], 0.55, 0.7)
+	# 강화소: 망치질, 성공, 실패(단계 하락), 파괴, 코팅지가 막음
+	_sfx["forge_hit"] = _tone([[1800.0, 900.0, 0.05], [300.0, 200.0, 0.08]], 0.55, 0.6)
+	_sfx["forge_ok"] = _tone([[784.0, 784.0, 0.08], [988.0, 988.0, 0.08], [1319.0, 1319.0, 0.1], [1568.0, 1568.0, 0.3]], 0.0, 0.6)
+	_sfx["forge_down"] = _tone([[500.0, 300.0, 0.2], [300.0, 180.0, 0.3]], 0.15, 0.5)
+	_sfx["forge_break"] = _tone([[900.0, 120.0, 0.5]], 0.8, 0.7)
+	_sfx["forge_saved"] = _tone([[600.0, 600.0, 0.08], [400.0, 600.0, 0.2]], 0.1, 0.5)
+	boss_loop = _rumble()
 	_sfx["capture"] = _tone([[587.0, 587.0, 0.1], [740.0, 740.0, 0.1], [880.0, 880.0, 0.1], [1175.0, 1175.0, 0.25]], 0.0, 0.45)
 	for i in 6:
 		var p := AudioStreamPlayer.new()
@@ -123,6 +134,45 @@ func _melody() -> AudioStreamWAV:
 	w.loop_end = total
 	w.data = data
 	return w
+
+
+## 보스 곁에서 계속 들리는 낮은 울림 (되풀이). 보스에 AudioStreamPlayer2D 로 붙여서 가까울수록 크게 들린다.
+func _rumble() -> AudioStreamWAV:
+	var secs := 2.0
+	var total := int(secs * RATE)
+	var data := PackedByteArray()
+	data.resize(total * 2)
+	var smooth := 0.0
+	for i in total:
+		var t := float(i) / RATE
+		# 낮은 두 음 + 걸러 낸 잡음, 1초마다 숨 쉬듯 커졌다 작아진다 (끝과 처음이 이어지게 정수 주기)
+		smooth = lerpf(smooth, randf_range(-1.0, 1.0), 0.04)
+		var breath := 0.6 + 0.4 * sin(TAU * t / 1.0)
+		var s := (sin(TAU * 55.0 * t) * 0.5 + sin(TAU * 82.5 * t) * 0.3 + smooth * 0.9) * breath * 0.55
+		var v := clampi(int(s * 32767.0), -32768, 32767)
+		data[i * 2] = v & 0xFF
+		data[i * 2 + 1] = (v >> 8) & 0xFF
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = RATE
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = total
+	w.data = data
+	return w
+
+
+## 보스에 붙이는 울림: 가까울수록 크고, max_distance 밖에서는 들리지 않는다
+func attach_boss_loop(boss: Node2D, reach: float = 260.0) -> AudioStreamPlayer2D:
+	var p := AudioStreamPlayer2D.new()
+	p.name = "BossRumble"
+	p.stream = boss_loop
+	p.bus = "Sfx"
+	p.max_distance = reach
+	p.attenuation = 1.4
+	p.volume_db = -2.0
+	boss.add_child(p)
+	p.play()
+	return p
 
 
 func play(id: String) -> void:

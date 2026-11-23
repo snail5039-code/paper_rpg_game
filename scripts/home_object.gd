@@ -139,6 +139,9 @@ func interact() -> void:
 		"museum":
 			if hud:
 				hud.call("open_menu", "dex", "museum")
+		"forge":
+			if hud:
+				hud.call("open_forge")
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
 

@@ -72,6 +72,8 @@ func _title_text() -> String:
 
 
 func _extras() -> void:
+	if is_boss_floor(floor_no):
+		Sound.play.call_deferred("boss_appear")
 	# 위쪽 문은 층을 끝낼 때까지 막아 둔다
 	_barrier = StaticBody2D.new()
 	_barrier.name = "TopGateBarrier"

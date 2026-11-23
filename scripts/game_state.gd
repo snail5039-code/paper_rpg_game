@@ -686,7 +686,23 @@ func disassemble(index: int) -> int:
 
 
 ## 강화. 결과: "ok", "fail"(변화 없음), "down"(한 단계 하락), "broken"(파괴), "saved"(코팅지가 막음), 또는 못 하는 이유.
-func enhance(item: Dictionary) -> String:
+## 강화소의 성공률 보너스: 강화소가 있으면 1단계 +2%, 단계마다 +2% (5단계 +10%), 정성 강화소 +3%
+func forge_bonus() -> float:
+	var lv := build_level("bld_forge")
+	if lv <= 0:
+		return 0.0
+	return 0.02 * lv + (0.03 if has_fine("bld_forge") else 0.0)
+
+
+## 이 장비를 지금 강화할 때의 성공률 (bonus: 강화소에서 하면 forge_bonus())
+static func enhance_chance(item: Dictionary, bonus: float = 0.0) -> float:
+	var base := Items.enhance_rate(item)
+	return 1.0 if base >= 1.0 else clampf(base + bonus, 0.0, 0.95)
+
+
+## 장비를 한 단계 올린다. use_coating: 실패할 때 코팅지가 있으면 쓸지. bonus: 성공률 보너스 (강화소).
+## 돌려주는 것: "ok", "fail"(그대로), "saved"(코팅지가 막음), "down"(한 단계 하락), "broken"(파괴), 또는 못 한 까닭
+func enhance(item: Dictionary, use_coating: bool = true, bonus: float = 0.0) -> String:
 	lesson_note("enhance_try")
 	if int(item.get("plus", 0)) >= Items.MAX_PLUS:
 		return "최고 단계예요."
@@ -698,11 +714,11 @@ func enhance(item: Dictionary) -> String:
 	lesson_note("enhance")
 	var plus := int(item.get("plus", 0))
 	var result := "ok"
-	if randf() < Items.enhance_rate(item):
+	if randf() < enhance_chance(item, bonus):
 		item["plus"] = plus + 1
 	elif plus < 6:
 		result = "fail"
-	elif consumable_count("coating") > 0:
+	elif use_coating and consumable_count("coating") > 0:
 		consumables["coating"] = consumable_count("coating") - 1
 		result = "saved"
 	elif plus < 9:

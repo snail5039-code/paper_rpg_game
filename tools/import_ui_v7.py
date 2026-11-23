@@ -80,8 +80,14 @@ SHEETS = {
     # 직접 만드는 주민의 부품 (종이 인형): 몸 4, 옷 6, 얼굴 6. 겹치는 자리는 scripts/villager_maker.gd 가 몸 크기를 기준으로 정한다
     "77_villager_parts": (4, 4, [("cv_body_%d" % i, 96) for i in range(4)] + [("cv_cloth_%d" % i, 96) for i in range(6)]
         + [("cv_face_%d" % i, 96) for i in range(6)]),
+    "60_bld_forge": (5, 1, [("bld_forge_l1", BLD_SCALE), ("bld_forge_l2", BLD_SCALE), ("bld_forge", BLD_SCALE), ("bld_forge_l4", BLD_SCALE), ("bld_forge_l5", BLD_SCALE)]),
+    # 강화 연출: 모루, 든 망치, 내려치는 망치, 불꽃 / 성공, 실패, 파괴, 코팅지
+    "78_forge_fx": (4, 2, [("forge_anvil", 160), ("forge_hammer_up", 160), ("forge_hammer_hit", 160), ("forge_spark", 160),
+        ("forge_ok", 200), ("forge_fail", 160), ("forge_broken", 180), ("forge_saved", 160)]),
     "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
+# 칸을 자르지 않고 그대로 이어 붙이는 애니메이션 띠: (칸 수, 저장 이름, 한 칸의 가로)
+STRIPS = {"79_aura": (4, "fx_aura", 120)}
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
 COVER = {"72_bg_tower_0": "bg_tower_0", "72_bg_tower_1": "bg_tower_1", "72_bg_tower_boss": "bg_tower_boss"}
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
@@ -170,7 +176,8 @@ def main():
             im = cells[k]
             if out_name != "fx_erase":   # 가장자리에 남은 마젠타 물을 뺀다 (분홍 지우개 가루는 그대로 둔다)
                 a = np.asarray(im).astype(np.int16)
-                spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + 25)).clip(0)
+                # 회색 쇠붙이(강화 연출)는 분홍 물이 잘 보여서 더 세게 뺀다
+                spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + (4 if out_name.startswith("forge_") else 25))).clip(0)
                 a[..., 0] -= spill
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
@@ -209,6 +216,29 @@ def main():
         im = Image.open(src).convert("RGB")
         im.save(os.path.join(MID, name + ".png"))
         post.cover(im, 1672, 941).save(os.path.join(OUT, out_name + ".png"))
+        count += 1
+    for name, (n, out_name, cw) in STRIPS.items():
+        if not wanted(name):
+            continue
+        src = os.path.join(RAW, name + ".png")
+        if not os.path.isfile(src):
+            print("[없음] %s" % name)
+            continue
+        rgba, kc = post.chroma_key(Image.open(src))
+        if rgba is None:
+            print("[실패] %s" % name)
+            continue
+        rgba = post.drop_specks(rgba, min_area=30)
+        a = rgba.astype(np.int16)
+        spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + 25)).clip(0)
+        a[..., 0] -= spill
+        a[..., 2] -= spill
+        rgba = a.clip(0, 255).astype(np.uint8)
+        # 모든 칸에서 그림이 있는 세로 범위를 합쳐 자른다 (칸끼리 자리가 맞게)
+        ys = np.where(rgba[..., 3].max(axis=1) > 0)[0]
+        im = Image.fromarray(rgba[ys.min():ys.max() + 1], "RGBA")
+        im = im.resize((cw * n, round(im.height * cw * n / im.width)), Image.LANCZOS)
+        im.save(os.path.join(OUT, out_name + ".png"))
         count += 1
     print("완료: %d장" % count)
 
