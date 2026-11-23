@@ -29,7 +29,9 @@ var _mp_bar: ColorRect
 var _map: Control
 var _map_view: Control
 var _points_badge: Label
-var _status_panel: Panel
+var _status_panel: Control
+var _menu_btns: Array = []
+var _menu_tip: Label
 var _menus: Dictionary = {}
 var _quick: Array = []
 var _ult: Control              # 필살기 화면
@@ -124,6 +126,7 @@ func _ready() -> void:
 	_toast.modulate.a = 0.0
 
 	_build_quickbar(root)
+	_build_menu_buttons(root)
 	_build_menus(root)
 	_ult = UltimateScript.new()
 	root.add_child(_ult)
@@ -199,12 +202,8 @@ func _tex_rect(parent: Control, tex_name: String, pos: Vector2, size: Vector2) -
 ## 왼쪽 아래 상태 칸: 필력, HP·MP 막대, 연필심과 동전. 경험치는 화면 맨 아래 한 줄.
 func _build_bars(root: Control) -> void:
 	var y0 := STATUS_Y
-	var panel := Panel.new()
+	var panel := Control.new()   # 바탕 없이 자리만 잡는다 (조작 안내 위치 계산용)
 	_status_panel = panel
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.16, 0.14, 0.18, 0.55)
-	sb.set_corner_radius_all(4)
-	panel.add_theme_stylebox_override("panel", sb)
 	panel.position = Vector2(4, y0)
 	panel.size = Vector2(164, 38)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -316,6 +315,72 @@ func _build_quickbar(root: Control) -> void:
 		num_l.size = Vector2(16, 12)
 		num_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_quick.append([icon, shade, num_l])
+
+
+## 오른쪽 아래 단축 칸 위: 누르면 창이 열리는 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
+const MENU_BUTTONS := [
+	["menu_bag", "가방 (I)", "bag"], ["menu_stats", "능력치 (C)", "stats"], ["menu_skills", "스킬 (K)", "skills"],
+	["menu_map", "지도 (M)", "map"], ["menu_friends", "친구 (P)", "friends"], ["menu_dex", "도감 (J)", "dex"],
+	["menu_settings", "설정 · 도움말 (Esc)", "pause"],
+]
+const MENU_BTN := 22.0
+
+
+func _build_menu_buttons(root: Control) -> void:
+	var n := MENU_BUTTONS.size()
+	var x0 := 640.0 - 4.0 - n * (MENU_BTN + 2.0)
+	for i in n:
+		var b := TextureButton.new()
+		b.texture_normal = Art.tex(str(MENU_BUTTONS[i][0]))
+		b.ignore_texture_size = true
+		b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		b.position = Vector2(x0 + i * (MENU_BTN + 2.0), QUICK_Y - 30.0)
+		b.size = Vector2(MENU_BTN, MENU_BTN)
+		b.pivot_offset = b.size / 2.0
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var tip := str(MENU_BUTTONS[i][1])
+		b.mouse_entered.connect(func() -> void:
+			b.scale = Vector2(1.18, 1.18)
+			_show_menu_tip(b, tip))
+		b.mouse_exited.connect(func() -> void:
+			b.scale = Vector2.ONE
+			_menu_tip.visible = false)
+		b.pressed.connect(press_menu_button.bind(str(MENU_BUTTONS[i][2])))
+		root.add_child(b)
+		_menu_btns.append(b)
+	# 마우스를 올리면 단추 바로 위에 이름이 뜬다
+	_menu_tip = _label(root, Vector2.ZERO, 9)
+	_menu_tip.visible = false
+
+
+func _show_menu_tip(b: Control, text: String) -> void:
+	_menu_tip.text = text
+	var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+	var x := clampf(b.position.x + MENU_BTN / 2.0 - w / 2.0, 4.0, 636.0 - w)
+	_menu_tip.position = Vector2(x, b.position.y - 16.0)
+	_menu_tip.visible = true
+
+
+## 메뉴 단추를 눌렀을 때: 단축키를 누른 것과 같다
+func press_menu_button(id: String) -> void:
+	if GameState.dialogue_open or GameState.cutscene:
+		return
+	Sound.play("click")
+	match id:
+		"bag":
+			toggle_bag()
+		"stats":
+			toggle_stats()
+		"map":
+			toggle_map()
+		"friends", "dex":
+			if not is_menu_open(id):
+				(_menus[id] as Control).set("ctx", "")
+			toggle_menu(id)
+		_:
+			toggle_menu(id)
 
 
 ## 필살기를 시작한다 (플레이어가 부른다)
@@ -765,6 +830,10 @@ func _process(_delta: float) -> void:
 		var mmx: int = p.get("max_mp")
 		_mp_bar.size.x = HP_FILL_W * clampf(float(p.get("mp")) / float(maxi(mmx, 1)), 0.0, 1.0)
 	_hint_box.visible = not GameState.dialogue_open and not GameState.cutscene
+	for b in _menu_btns:
+		(b as Control).visible = _hint_box.visible
+	if not _hint_box.visible:
+		_menu_tip.visible = false
 	_night.color.a = 0.42 * GameState.night_amount()
 	var fx: Array = []
 	for bk in GameState.buffs:

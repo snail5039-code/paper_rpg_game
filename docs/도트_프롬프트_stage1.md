@@ -82,3 +82,12 @@ STYLE: ...(공통 그림체)
 - `76_set_tools.png` 3칸: 손에 드는 도구 (촉이 위). 첨부: `41_tools.png` → `tool_set_<세트>`
 - `40_cloth_set_<세트>.png`: `artifacts/cloth_ref.png`(tools/cloth_ref.py)와 세트 아이콘을 붙여 "같은 배치, 같은 자세, 맨손, 옷만 바꿔서". 가져오기: `python3 tools/import_cloth.py set_eraser set_crumple set_scribble`
 - `77_villager_parts.png` 4칸 × 4줄 "종이 인형": 1줄 몸 4(얼굴 없음), 2줄과 3줄 앞 두 칸 옷 6, 나머지 얼굴 6. 첨부: `ch1_v5/08_villagers_ch1.png`. 겹치는 자리는 `scripts/villager_maker.gd` 의 CLOTH_*, FACE_*
+
+## 80. HUD 메뉴 단추 (`80_menu_btns.png`)
+
+- 첨부: `74_set_icons.png` (아이콘 그림체)
+- 결과: `menu_bag`, `menu_stats`, `menu_skills`, `menu_map`, `menu_friends`, `menu_dex`, `menu_settings` (화면 오른쪽 아래, 누르면 창이 열림)
+
+```text
+Make ONE image: a wide sprite sheet, one row of 7 equal square cells on a perfectly flat solid magenta (#FF00FF) background (no paper, no grid, no shadows, no cell borders). Do not use magenta in the objects. Each icon centered in its cell with clear empty margin, nothing touching another cell. These are game MENU BUTTON icons, each one a single bold simple object readable at very small size (about 22 pixels), same style as the attached icons. Left to right: 1 a school backpack (inventory), 2 a little paper-doll person bust with a small star badge (character stats), 3 an open spell book with a sparkle above it (skills), 4 a folded paper treasure map with a red dot (map), 5 a cute round doodle blob monster face smiling (friends), 6 a thick closed collection book with a ribbon bookmark (encyclopedia), 7 a cog gear (settings). STYLE: ...(공통 그림체)
+```

@@ -120,6 +120,23 @@ func _run() -> void:
 	hud.call("toggle_map")
 	await frames(3)
 	check(not get_tree().paused, "지도를 닫으면 다시 움직임")
+	# 오른쪽 아래 메뉴 단추: 누르면 단축키와 같은 창이 열리고, 다시 누르면 닫힘
+	var btn_ok := true
+	for id in ["bag", "skills", "friends", "dex", "pause"]:
+		hud.call("press_menu_button", id)
+		await frames(2)
+		if not bool(hud.call("is_menu_open", id)):
+			btn_ok = false
+		hud.call("press_menu_button", id)
+		await frames(2)
+		if bool(hud.call("is_menu_open", id)):
+			btn_ok = false
+	hud.call("press_menu_button", "map")
+	await frames(2)
+	btn_ok = btn_ok and bool(hud.call("is_map_open"))
+	hud.call("press_menu_button", "map")
+	await frames(2)
+	check(btn_ok and not get_tree().paused, "메뉴 단추로 가방·스킬·친구·도감·설정·지도 창이 열리고 닫힘")
 	f.queue_free()
 	await frames(3)
 

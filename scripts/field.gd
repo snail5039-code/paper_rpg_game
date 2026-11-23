@@ -104,7 +104,7 @@ func _ready() -> void:
 	hud.name = "HUD"
 	hud.set("quest_text_override", _title_text())
 	add_child(hud)
-	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"], ["", "I 가방  K 스킬  M 지도"]])
+	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"]])
 	_tips.call_deferred()
 
 

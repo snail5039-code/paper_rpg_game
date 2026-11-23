@@ -84,6 +84,8 @@ SHEETS = {
     # 강화 연출: 모루, 든 망치, 내려치는 망치, 불꽃 / 성공, 실패, 파괴, 코팅지
     "78_forge_fx": (4, 2, [("forge_anvil", 160), ("forge_hammer_up", 160), ("forge_hammer_hit", 160), ("forge_spark", 160),
         ("forge_ok", 200), ("forge_fail", 160), ("forge_broken", 180), ("forge_saved", 160)]),
+    # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
+    "80_menu_btns": (7, 1, [("menu_%s" % n, 48) for n in ("bag", "stats", "skills", "map", "friends", "dex", "settings")]),
     "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
 # 칸을 자르지 않고 그대로 이어 붙이는 애니메이션 띠: (칸 수, 저장 이름, 한 칸의 가로)
