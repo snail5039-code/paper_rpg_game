@@ -121,6 +121,15 @@ func _run() -> void:
 			look_ok = false
 	check(look_ok, "풀말랑·줄거미·눈송이는 색만 바꾼 그림이 아니라 전용 그림(6칸)을 씀")
 
+	print("[몬스터 90종 그림]")
+	var Book := preload("res://scripts/data/monster_book.gd")
+	var missing: Array = []
+	for sp in Book.SPECIES:
+		for form in ["faded", "erased"]:
+			if not preload("res://scripts/core/art.gd").has("mon_%s_%s" % [sp, form]):
+				missing.append("%s_%s" % [sp, form])
+	check(Book.SPECIES.size() == 84 and missing.is_empty(), "새 몬스터 84종 모두 두 모습 그림이 있음 (없는 것: %s)" % str(missing))
+
 	print("[시작 장비와 수치]")
 	check(GameState.equipped.has("tool") and GameState.attack_power() == 10, "낙서 연필을 들고 시작, 공격력 10")
 	check(GameState.consumable_count("bandage") == 2, "반창고 2개를 갖고 시작")

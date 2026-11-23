@@ -26,6 +26,27 @@ TEX = 3.0
 WIDTH = {"hop": 26.0, "dash": 28.0, "swarm": 24.0, "ambush": 24.0, "grid": 26.0, "roll": 30.0}   # 한 칸 첫 그림의 가로(월드)
 
 
+# "희미하게" 그려져 게임에서 안 보이는 것: 불투명도를 올리고 선을 진하게 한다
+FAINT = {81: 2.6, 85: 3.0, 86: 2.6}
+
+
+def bolden(im, k):
+    a = np.asarray(im).astype(np.float32)
+    a[..., 3] = (a[..., 3] * k).clip(0, 255)
+    a[..., :3] *= 0.82
+    return Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
+
+
+def grey_out(im, keep=0.25):
+    """많이 지워진 모습: 원본은 옅은 칠이 자홍 바탕과 섞여 분홍빛이 돈다. 1장 몬스터처럼 회색에 가깝게 뺀다 (색은 keep 만큼만 남긴다)."""
+    a = np.asarray(im).astype(np.float32)
+    rgb = a[..., :3]
+    lum = (rgb * np.array([0.299, 0.587, 0.114], dtype=np.float32)).sum(-1, keepdims=True)
+    grey = np.concatenate([lum * 1.0, lum * 0.985, lum * 0.975], -1)    # 아주 살짝 따뜻한 회색
+    a[..., :3] = grey * (1.0 - keep) + rgb * keep
+    return Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
+
+
 def import_one(num, arch):
     src = os.path.join(RAW, "84_mon_m%02d.png" % num)
     if not os.path.isfile(src):
@@ -57,6 +78,10 @@ def import_one(num, arch):
             nw, nh = max(1, round(p.width * s)), max(1, round(p.height * s))
             q = p.resize((nw, nh), Image.LANCZOS)
             sheet.paste(q, (c * cw + (cw - nw) // 2, chh - pad - nh))
+        if num in FAINT:
+            sheet = bolden(sheet, FAINT[num])
+        if form == "erased":
+            sheet = grey_out(sheet)
         sheet.save(sprite_path("mon_m%02d_%s" % (num, form)))
     return "ok %dx%d" % (cw, chh)
 
