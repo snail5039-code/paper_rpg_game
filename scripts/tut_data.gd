@@ -54,6 +54,7 @@ const MAPS := [
 	{
 		"name": "허수아비 마당", "bg": "bg_tut_5", "in": "left", "out": "top", "npc": ["허수 아저씨", "tnpc_5", Vector2(560, 600)],
 		"monsters": [["tm5", Vector2(1100, 310)], ["tm5", Vector2(1360, 390)], ["tm5", Vector2(1150, 620)]],
+		"solids": [Rect2(105, 85, 245, 180), Rect2(120, 705, 170, 120), Rect2(1315, 650, 240, 180), Rect2(1235, 90, 330, 135)],   # 짚단, 울타리·상자
 		"lessons": ["trial", "learn"],
 		"intro": ["어서 와! 여긴 마음껏 두들겨도 되는 마당이야. 저 허수아비들은 안 아파해.",
 			"지금부터 잠깐, 연필로 할 수 있는 기술을 전부 열어 줄게. MP 도 안 줄어!",
@@ -112,7 +113,7 @@ const MAPS := [
 	{
 		"name": "물감 웅덩이", "bg": "bg_tut_10", "in": "right", "out": "bottom", "npc": ["붓 할아범", "tnpc_10", Vector2(480, 540)],
 		"monsters": [["tm10", Vector2(1300, 700)], ["tm10", Vector2(380, 720)]],
-		"solids": [Rect2(410, 96, 830, 330)],
+		"solids": [Rect2(410, 96, 830, 330), Rect2(950, 400, 85, 55)],   # 웅덩이, 표지판 윗부분 (앞에서 낚시)
 		"spots": {"fish": Vector2(990, 490), "cast": Vector2(-150, -210)},
 		"lessons": ["fish"],
 		"intro": ["허허, 조용히 하게. 물고기 달아나.",
@@ -123,7 +124,7 @@ const MAPS := [
 	{
 		"name": "색종이 텃밭", "bg": "bg_tut_11", "in": "top", "out": "right", "npc": ["색종이 아주머니", "tnpc_11", Vector2(480, 440)],
 		"monsters": [["tm11", Vector2(700, 720)], ["tm11", Vector2(1300, 680)]],
-		"solids": [Rect2(110, 110, 670, 250)],
+		"solids": [Rect2(110, 110, 670, 250), Rect2(205, 425, 130, 110), Rect2(130, 660, 170, 70), Rect2(1380, 600, 170, 120)],   # 텃밭, 호박, 종이학 둘
 		"spots": {"forage": [Vector2(300, 620), Vector2(1100, 660), Vector2(1400, 330)]},
 		"lessons": ["forage", "farm", "cook"],
 		"intro": ["어서 와요, 일손이 모자랐는데 잘됐네!",

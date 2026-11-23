@@ -104,6 +104,24 @@ func _run() -> void:
 	GameState.save_dir = DIR
 	GameState.settings = {"master": 0.0, "music": 0.0, "sfx": 0.0, "fullscreen": false, "last_slot": 0}
 
+	print("[막힌 곳]")
+	var clear := true
+	for m in Tut.MAPS:
+		var pts: Array = [m["npc"][2]]
+		for mo in m["monsters"]:
+			pts.append(mo[1])
+		var sp: Dictionary = m.get("spots", {})
+		if sp.has("fish"):
+			pts.append(sp["fish"])
+		for fp in sp.get("forage", []):
+			pts.append(fp)
+		for r in m.get("solids", []):
+			for pt in pts:
+				if (r as Rect2).has_point(pt):
+					clear = false
+					print("    막힌 곳 안에 있음: %s %s" % [m["name"], pt])
+	check(clear, "연습 페이지의 선생·몬스터·낚시·채집 자리는 막힌 곳 밖에 있음")
+
 	print("[새 캐릭터는 연습 페이지에서 시작한다]")
 	GameState.start_slot(1)
 	await frames(10)
