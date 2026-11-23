@@ -10,8 +10,9 @@ const TracePanelScript := preload("res://scripts/trace_panel.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
 const UI := preload("res://scripts/ui_kit.gd")
 const Items := preload("res://scripts/items.gd")
-const HP_FILL_W := 106.0
-const EXP_FILL_W := 110.0
+const HP_FILL_W := 79.0
+const EXP_FILL_W := 640.0
+const STATUS_Y := 316.0   # 왼쪽 아래 상태 칸의 위쪽
 
 var quest_text_override := ""   # 비어 있지 않으면 "할 일" 대신 이 글을 보여 준다 (내 마을)
 var _hp_label: Label
@@ -27,6 +28,7 @@ var _mp_bar: ColorRect
 var _map: Control
 var _map_view: Control
 var _points_badge: Label
+var _status_panel: Panel
 var _menus: Dictionary = {}
 var _quick: Array = []
 var _ult: Control              # 필살기 화면
@@ -84,39 +86,39 @@ func _ready() -> void:
 	var help := _label(root, Vector2(548, 32), 8)
 	help.text = "Esc 도움말"
 	help.modulate.a = 0.8
-	_board_label = _label(root, Vector2(10, 84), 9)
+	_board_label = _label(root, Vector2(8, 20), 8)
 	_board_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
-	_buff_label = _label(root, Vector2(10, 96), 9)
+	_buff_label = _label(root, Vector2(8, 31), 8)
 	_buff_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
 	# 보스 체력 막대 (화면 위 가운데)
 	_boss_back = ColorRect.new()
 	_boss_back.color = Color(0.2, 0.17, 0.18, 0.85)
-	_boss_back.position = Vector2(220, 46)
+	_boss_back.position = Vector2(220, 22)
 	_boss_back.size = Vector2(200, 8)
 	_boss_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_boss_back)
 	_boss_bar = ColorRect.new()
 	_boss_bar.color = Color(0.85, 0.3, 0.4)
-	_boss_bar.position = Vector2(221, 47)
+	_boss_bar.position = Vector2(221, 23)
 	_boss_bar.size = Vector2(198, 6)
 	_boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_boss_bar)
-	_boss_name = _label(root, Vector2(220, 30), 11)
+	_boss_name = _label(root, Vector2(220, 6), 10)
 	_boss_name.size = Vector2(200, 14)
 	_boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	_build_bars(root)
-	_quest_label = _label(root, Vector2(10, 68), 13)
+	_quest_label = _label(root, Vector2(8, 5), 10)
 	_quest_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 
 	_hint_box = HBoxContainer.new()
-	_hint_box.position = Vector2(10, 326)
+	_hint_box.position = Vector2(8, STATUS_Y - 20)
 	_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hint_box.add_theme_constant_override("separation", 5)
+	_hint_box.add_theme_constant_override("separation", 3)
 	root.add_child(_hint_box)
 
-	_toast = _label(root, Vector2(0, 104), 13)
-	_toast.size = Vector2(640, 24)
+	_toast = _label(root, Vector2(0, 64), 10)
+	_toast.size = Vector2(640, 16)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
 
@@ -193,51 +195,67 @@ func _tex_rect(parent: Control, tex_name: String, pos: Vector2, size: Vector2) -
 	return tr
 
 
-## 왼쪽 위: HP 막대, 경험치 눈금, 레벨, 연필과 연필심 수
+## 왼쪽 아래 상태 칸: 필력, HP·MP 막대, 연필심과 동전. 경험치는 화면 맨 아래 한 줄.
 func _build_bars(root: Control) -> void:
-	# HP: 틀 안쪽에 채움 그림을 잘라서 보여 준다
-	_tex_rect(root, "hud_hp_frame", Vector2(6, 4), Vector2(141, 24))
+	var y0 := STATUS_Y
+	var panel := Panel.new()
+	_status_panel = panel
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.16, 0.14, 0.18, 0.55)
+	sb.set_corner_radius_all(4)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.position = Vector2(4, y0)
+	panel.size = Vector2(164, 38)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(panel)
+	# 첫 줄: 필력, 남은 점수, 연필심, 동전
+	_level_label = _label(root, Vector2(9, y0 + 1), 9)
+	_points_badge = _label(root, Vector2(46, y0 + 1), 9)
+	_points_badge.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	_lead_label = _label(root, Vector2(84, y0 + 1), 9)
+	_coin_label = _label(root, Vector2(118, y0 + 1), 9)
+	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+	# HP: 틀 안쪽에 채움 그림을 잘라서 보여 준다 (틀 141x24 를 0.75배로)
+	_tex_rect(root, "hud_hp_frame", Vector2(5, y0 + 13), Vector2(106, 18))
 	_hp_clip = Control.new()
-	_hp_clip.position = Vector2(24, 12)
-	_hp_clip.size = Vector2(HP_FILL_W, 9)
+	_hp_clip.position = Vector2(18.5, y0 + 19)
+	_hp_clip.size = Vector2(HP_FILL_W, 7)
 	_hp_clip.clip_contents = true
 	_hp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_hp_clip)
-	_tex_rect(_hp_clip, "hud_hp_fill", Vector2.ZERO, Vector2(HP_FILL_W, 9))
-	_hp_label = _label(root, Vector2(150, 7), 12)
-
+	_tex_rect(_hp_clip, "hud_hp_fill", Vector2.ZERO, Vector2(HP_FILL_W, 7))
+	_hp_label = _label(root, Vector2(113, y0 + 15), 9)
 	# MP: HP 막대 바로 아래 파란 줄
 	var mp_back := ColorRect.new()
 	mp_back.color = Color(0.25, 0.22, 0.25, 0.8)
-	mp_back.position = Vector2(23, 28)
-	mp_back.size = Vector2(HP_FILL_W + 2, 5)
+	mp_back.position = Vector2(17.5, y0 + 31)
+	mp_back.size = Vector2(HP_FILL_W + 2, 4)
 	mp_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(mp_back)
 	_mp_bar = ColorRect.new()
 	_mp_bar.color = Color(0.4, 0.62, 0.95)
-	_mp_bar.position = Vector2(24, 29)
-	_mp_bar.size = Vector2(HP_FILL_W, 3)
+	_mp_bar.position = Vector2(18.5, y0 + 32)
+	_mp_bar.size = Vector2(HP_FILL_W, 2)
 	_mp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_mp_bar)
-
-	# 경험치: 자 눈금 위에 노란 줄
-	_tex_rect(root, "hud_exp_frame", Vector2(10, 37), Vector2(120, 12))
+	# 경험치: 화면 맨 아래 가로 한 줄
+	var exp_back := ColorRect.new()
+	exp_back.color = Color(0.2, 0.18, 0.2, 0.6)
+	exp_back.position = Vector2(0, 357)
+	exp_back.size = Vector2(640, 3)
+	exp_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(exp_back)
 	_exp_clip = Control.new()
-	_exp_clip.position = Vector2(15, 40)
-	_exp_clip.size = Vector2(0, 4)
+	_exp_clip.position = Vector2(0, 357)
+	_exp_clip.size = Vector2(0, 3)
 	_exp_clip.clip_contents = true
 	_exp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_exp_clip)
-	_tex_rect(_exp_clip, "hud_exp_fill", Vector2.ZERO, Vector2(EXP_FILL_W, 4))
-	_level_label = _label(root, Vector2(134, 34), 12)
-	_points_badge = _label(root, Vector2(186, 34), 12)
-	_points_badge.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
-
-	# 연필 + 연필심
-	_tex_rect(root, "hud_pencil_0", Vector2(10, 53), Vector2(100, 8.4))
-	_lead_label = _label(root, Vector2(114, 48), 12)
-	_coin_label = _label(root, Vector2(176, 48), 12)
-	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+	var exp_fill := ColorRect.new()
+	exp_fill.color = Color(1.0, 0.82, 0.3)
+	exp_fill.size = Vector2(EXP_FILL_W, 3)
+	exp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_exp_clip.add_child(exp_fill)
 
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
@@ -770,9 +788,8 @@ func _process(_delta: float) -> void:
 func _refresh() -> void:
 	var Q := GameState.Quest
 	var need := GameState.BRIDGE_COST
-	_lead_label.text = "× %d" % GameState.pencil_lead
+	_lead_label.text = "심 %d" % GameState.pencil_lead
 	_coin_label.text = "동전 %d" % GameState.coins
-	_coin_label.position.x = 114.0 + ThemeDB.fallback_font.get_string_size(_lead_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 12.0
 	var lines: Array = []
 	if GameState.board_day == GameState.day:
 		for q in GameState.board_quests:
@@ -789,6 +806,7 @@ func _refresh() -> void:
 	if GameState.skill_points > 0:
 		badges.append("K +%d" % GameState.skill_points)
 	_points_badge.text = "  ".join(badges)
+	_layout_status()
 	if _stats.visible:
 		_refresh_stats()
 	var q := GameState.quest
@@ -811,6 +829,17 @@ func _refresh() -> void:
 		_quest_label.text = "빨간 문으로 들어가면 내 마을로 갈 수 있다"
 
 
+## 상태 칸 첫 줄을 글 길이에 맞춰 이어 붙인다
+func _layout_status() -> void:
+	var x := 9.0
+	for l in [_level_label, _points_badge, _lead_label, _coin_label]:
+		var lab: Label = l
+		lab.position.x = x
+		if lab.text != "":
+			x += ThemeDB.fallback_font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x + 7.0
+	_status_panel.size.x = maxf(150.0, x + 2.0)
+
+
 ## 조작 안내 줄. items = [[아이콘 이름 또는 "", 설명], ...]  예: [["key_wasd", "이동"]]
 func set_hints(items: Array) -> void:
 	if items == _hints:
@@ -827,14 +856,14 @@ func set_hints(items: Array) -> void:
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-			var h := 26.0
+			var h := 15.0
 			tr.custom_minimum_size = Vector2(h * icon.get_width() / icon.get_height(), h)
 			_hint_box.add_child(tr)
 		var l := Label.new()
-		l.text = str(it[1]) + "   "
+		l.text = str(it[1]) + "  "
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_style_label(l, 13)
+		_style_label(l, 9)
 		_hint_box.add_child(l)
 
 
