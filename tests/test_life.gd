@@ -549,7 +549,7 @@ func _run() -> void:
 	for fid in GameState.Items.CONSUMABLES:
 		if GameState.consumable_count(str(fid)) > int(before_fish[fid]):
 			fish_id = str(fid)
-	check(fish_id != "" and (fish_id.begins_with("f_") or fish_id.begins_with("j_")), "찌를 초록 칸에 두면 낚임 (%s)" % fish_id)
+	check(fish_id != "" and (fish_id.begins_with("f_") or fish_id.begins_with("fish_") or fish_id.begins_with("j_")), "찌를 초록 칸에 두면 낚임 (%s)" % fish_id)
 	fishing.call("stop")
 	check(not get_tree().paused and not bool(angler.call("is_acting")), "낚시를 그만두면 다시 움직임")
 	# 밭일 동작: 갈퀴를 휘두르고 끝나면 알려 준다
@@ -563,16 +563,28 @@ func _run() -> void:
 	check(act_done[0] and not bool(angler.call("is_acting")), "동작이 끝나면 다시 움직일 수 있음")
 	GameState.clock = 600.0
 	var day_fish := {}
-	for i in 60:
-		day_fish[GameState.catch_fish("home")] = true
-	check(not day_fish.has("f_catfish") and day_fish.has("f_carp"), "낮에는 잉크 메기가 안 낚임")
+	for i in 400:
+		day_fish[GameState.roll_fish("home")] = true
+	check(not day_fish.has("f_catfish") and day_fish.has("f_carp") and not day_fish.has("fish_20"), "낮에는 잉크 메기가 안 낚이고, 다른 낚시터 물고기도 안 나옴")
 	GameState.clock = 1300.0
 	var night_fish := {}
-	for i in 60:
-		night_fish[GameState.catch_fish("ch1")] = true
-	check(night_fish.has("f_moon") and not night_fish.has("f_carp"), "1장 강의 밤에는 달빛 은어가 낚임")
+	for i in 600:
+		night_fish[GameState.roll_fish("ch1")] = true
+	check(night_fish.has("f_moon") and not night_fish.has("f_carp") and not night_fish.has("fish_14"), "1장 강의 밤에는 달빛 은어가 낚이고 낮 물고기는 안 나옴")
+	var pond_fish := {}
+	for i in 400:
+		pond_fish[GameState.roll_fish("pond")] = true
+	var common := 0
+	var legend := 0
+	for i in 2000:
+		var r := GameState.fish_rarity(GameState.roll_fish("pond"))
+		common += 1 if r == 0 else 0
+		legend += 1 if r == 3 else 0
+	check(pond_fish.has("fish_30") and not pond_fish.has("f_carp") and common > legend * 5, "들판 연못에는 연못 물고기만, 흔한 것이 전설보다 훨씬 많이 낚임 (%d / %d)" % [common, legend])
+	check(Items_.FISH_INFO.size() == 50 and GameState.dex_entries("fish").size() == 50, "물고기는 50종")
 	GameState.clock = 600.0
 	hp.set("hp", 5)
+	GameState.consumables["f_carp"] = GameState.consumable_count("f_carp") + 1
 	check(bool(hp.call("use_consumable", "f_carp")) and int(hp.get("hp")) > 5, "물고기를 먹으면 HP 회복")
 	# 주민 집
 	var gift := GameState.villager_gift("a", true)
@@ -756,11 +768,12 @@ func _run() -> void:
 	GameState.on_kill("slime_faded")
 	GameState.add_material(0)
 	check(GameState.dex_has("mon", "slime_faded") and GameState.dex_has("mat", "0") and not GameState.dex_has("mon", "slime_erased"), "물리친 몬스터와 얻은 재료가 도감에 적힘")
-	check(GameState.dex_entries("mon").size() == 15 and GameState.dex_entries("gear").size() == 60 and GameState.dex_entries("crop").size() == 8, "도감 묶음의 크기")
+	var mon_n := 15 + Data.Book.SPECIES.size() * 2
+	check(GameState.dex_entries("mon").size() == mon_n and GameState.dex_entries("gear").size() == 60 and GameState.dex_entries("crop").size() == 8, "도감 묶음의 크기")
 	var atk_d0 := GameState.gear("atk")
 	for k in GameState.dex_entries("mon"):
 		GameState.dex_add("mon", str(k))
-	check(GameState.dex_count("mon") == 15 and GameState.gear("atk") == atk_d0 + 3, "몬스터 묶음을 다 채우면 공격력 +3")
+	check(GameState.dex_count("mon") == mon_n and GameState.gear("atk") == atk_d0 + 3, "몬스터 묶음을 다 채우면 공격력 +3")
 	check(not GameState.museum_ready("mon", 25), "박물관이 없으면 보상을 못 받음")
 	hhud.call("toggle_menu", "dex")
 	await frames(3)
@@ -775,20 +788,64 @@ func _run() -> void:
 			museum = n
 	museum.call("interact")
 	await frames(3)
-	var dm: Control = hhud.call("menu", "dex")
-	check(bool(hhud.call("is_menu_open", "dex")) and str(dm.get("ctx")) == "museum", "박물관에 F: 도감 창이 박물관 모드로 열림")
-	dm.call("_set_tab", 0)
+	check(bool(hhud.call("is_menu_open", "donate")), "박물관에 F: (맵을 옮길 수 없는 테스트에서는) 기증 창이 열림")
+	hhud.call("toggle_menu", "donate")
 	await frames(2)
-	await shot("life_24a_museum.png")
+	check(GameState.museum_entries("fish").size() == 50 and GameState.museum_entries("forage").size() == 50
+		and GameState.museum_entries("mon").size() == 90 and GameState.museum_entries("gear").size() == 60, "박물관 묶음: 물고기 50, 채집물 50, 몬스터 90, 장비 60")
+	var MuseumScript := load("res://scripts/maps/museum.gd")
+	var mg: Dictionary = MuseumScript.groups()
+	check((mg["bug"] as Array).size() == 18 and (mg["flower"] as Array).size() == 12 and (mg["thing"] as Array).size() == 20, "채집물 전시: 곤충 18, 꽃 12, 그 밖의 것 20")
+	GameState.museum = {}
+	GameState.consumables["f_carp"] = 1
+	GameState.consumables.erase("f_minnow")
+	check(GameState.can_donate("fish", "f_carp") and not GameState.can_donate("fish", "f_minnow"), "가방에 있는 것만 기증할 수 있음")
+	check(GameState.donate("fish", "f_carp") and GameState.consumable_count("f_carp") == 0 and GameState.museum_has("fish", "f_carp"), "기증하면 가방에서 빠지고 전시됨")
+	GameState.consumables["f_carp"] = 1
+	check(not GameState.donate("fish", "f_carp"), "같은 것은 한 번만 기증")
+	GameState.sketches = {"slime": 1}
+	check(GameState.donate("mon", "slime") and not GameState.sketches.has("slime"), "몬스터 스케치를 기증함")
+	GameState.inventory.append(Items_.make("hat", 3, 1, 1))
+	check(GameState.donatable("gear").has("hat_3") and GameState.donate("gear", "hat_3") and GameState.museum_has("gear", "hat_3"), "장비를 기증함 (그 모양이 전시됨)")
+	var dn: Control = hhud.call("menu", "donate")
+	GameState.consumables["fg_5"] = 1
+	hhud.call("toggle_menu", "donate")
+	dn.call("_set_tab", 1)
+	await frames(3)
+	await shot("life_24a_donate.png")
+	dn.call("_donate", "forage", "fg_5")
+	check(GameState.museum_has("forage", "fg_5"), "기증 창의 단추로 기증함")
+	for id in GameState.museum_entries("mon"):
+		GameState.museum["mon"][str(id)] = true
 	var c_m := GameState.coins
 	var coat_m := GameState.consumable_count("coating")
 	for pct in [25, 50, 75, 100]:
-		dm.call("_museum_claim", "mon", pct)
-	check(GameState.coins > c_m and GameState.consumable_count("coating") == coat_m + 1, "몬스터 묶음 25~100%% 보상을 받음 (동전 +%d)" % (GameState.coins - c_m))
+		dn.call("_museum_claim", "mon", pct)
+	check(GameState.coins > c_m and GameState.consumable_count("coating") == coat_m + 1, "몬스터 전시실 25~100%% 보상을 받음 (동전 +%d)" % (GameState.coins - c_m))
 	check(not GameState.museum_claim("mon", 100), "같은 보상은 한 번만")
 	check(not GameState.museum_ready("fish", 25), "덜 채운 묶음은 받을 수 없음")
-	hhud.call("toggle_menu", "dex")
+	hhud.call("toggle_menu", "donate")
 	await frames(3)
+	var sk0 := GameState.sketches.size()
+	for i in 400:
+		GameState.on_kill("dots_faded")
+	check(int(GameState.sketches.get("dots", 0)) > 0 and GameState.sketches.size() == sk0 + 1, "몬스터를 물리치면 가끔 몬스터 스케치가 나옴 (%d장)" % int(GameState.sketches.get("dots", 0)))
+	print("[채집 50종과 곤충]")
+	check(Items_.FORAGE_INFO.size() == 50 and GameState.dex_entries("forage").size() == 50, "채집물은 50종")
+	var bug_ok := true
+	var plant_ok := true
+	for i in 300:
+		bug_ok = bug_ok and str(Items_.FORAGE_INFO[GameState.roll_forage("bug")][0]) == "bug"
+		plant_ok = plant_ok and str(Items_.FORAGE_INFO[GameState.roll_forage("plant")][0]) != "bug"
+	check(bug_ok and plant_ok, "곤충 자리에는 곤충만, 줍는 자리에는 곤충이 아닌 것만")
+	check(GameState.forage_item("x:1") == GameState.forage_item("x:1"), "채집 자리의 물건은 같은 때에는 늘 같음")
+	GameState.clock = 600.0
+	var day_bugs := {}
+	for i in 600:
+		day_bugs[GameState.roll_forage("bug")] = true
+	check(not day_bugs.has("fg_33") and day_bugs.has("fg_28"), "반딧불이는 밤에만, 종이 나비는 낮에 나옴")
+	GameState.consumables.erase("fg_28")
+	check(GameState.catch_bug("fg_28") and GameState.consumable_count("fg_28") == 1 and GameState.dex_has("forage", "fg_28"), "잠자리채로 잡으면 가방과 도감에 들어감")
 
 	print("[강화소]")
 	check(GameState.forge_bonus() == 0.0, "강화소가 없으면 보너스 없음")

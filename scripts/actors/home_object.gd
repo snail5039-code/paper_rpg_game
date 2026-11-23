@@ -137,8 +137,9 @@ func interact() -> void:
 			if hud:
 				hud.call("open_menu", "friends", "pen")
 		"museum":
-			if hud:
-				hud.call("open_menu", "dex", "museum")
+			# 박물관 안으로 들어간다 (기증한 것이 전시돼 있다)
+			if not GameState.enter_museum(GameState.house_key({"x": position.x, "y": position.y})) and hud:
+				hud.call("toggle_menu", "donate")
 		"forge":
 			if hud:
 				hud.call("open_forge")

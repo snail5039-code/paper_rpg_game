@@ -1,6 +1,6 @@
 extends Node2D
 ## 맵에 놓인 주울 것. F 로 줍는다.
-##   mode "forage" : 사냥터의 채집 자리 (풀, 돌, 나뭇가지, 열매). 하루에 한 번, 날이 바뀌면 다시 생긴다.
+##   mode "forage" : 사냥터의 채집 자리 (꽃, 과일, 버섯, 돌 등. Items.FORAGE_INFO). 하루에 한 번, 날이 바뀌면 다시 생긴다.
 ##   mode "balloon": 풍선 아이의 날아간 풍선. 화면마다 하나.
 ##   mode "fish"   : 낚시 자리 (1장 마을의 강가). 줍는 것이 아니라 낚시를 시작한다.
 
@@ -22,7 +22,7 @@ func _ready() -> void:
 	_key_tex = Art.tex("key_f")
 	match mode:
 		"forage":
-			_tex = Art.tex(str(Items.CONSUMABLES[str(Items.FORAGE[hash(key) % Items.FORAGE.size()])][1]))
+			_tex = Art.tex(str(Items.CONSUMABLES[GameState.forage_item(key)][1]))
 		"balloon":
 			_tex = Art.tex("deco_balloon")
 		"fish":
@@ -81,7 +81,7 @@ func _draw() -> void:
 	if _tex == null:
 		draw_circle(Vector2.ZERO, 4, Color(0.4, 0.7, 0.4))
 	else:
-		var h := 26.0 if mode != "forage" else 12.0
+		var h := 26.0 if mode != "forage" else 14.0
 		var w := h * _tex.get_width() / float(_tex.get_height())
 		var bob := sin(_t * 2.0) * 2.0 if mode == "balloon" else 0.0
 		draw_texture_rect(_tex, Rect2(Vector2(-w * 0.5, -h + 4 + bob), Vector2(w, h)), false)

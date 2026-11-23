@@ -107,3 +107,14 @@ Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfect
 (풀말랑, 첨부 02_slime_faded + 05c_grass_faded, 같은 대화에서 이어서)
 ... Character: "Grass Mallang" — a soft squishy round slime blob in fresh pastel leaf-green, with a little tuft of grass blades and a tiny clover sprouting on top of its head, cute dot eyes and rosy cheeks. Movement like the slime: squash and stretch hopping. In the attack frame it bounces forward and grass blades fly out; in the hurt frame it squints and flattens.
 ```
+
+## 82~83. 물고기 42종·채집 46종 아이콘 (`82_fish_a~c.png`, `83_forage_a~d.png`)
+
+- 첨부: `26_food.png` (물고기 아이콘 그림체). 한 대화 안에서 차례로.
+- 결과: `fish_0`~`fish_41`, `forage_4`~`forage_49`, 잠자리채 `life_net` (83_forage_d 의 11번째 칸, 가져올 때 세운다). 이름 순서는 `scripts/data/items.gd` 의 `fish_*`, `fg_*` (fg_N 의 그림은 forage_N+4).
+- 물고기 시트: 5×3, 옆모습 왼쪽 보기. 채집 시트: 4×3. 칸마다 어떤 것인지 영어로 하나씩 적는다 (예: "1 an origami paper goldfish (orange folded paper), 2 a round pufferfish covered in thumbtack spikes, …"). 그림체 문장은 공통 그림체.
+
+## 85~86. 박물관 (`85_bg_museum.png`, `86_museum_props.png`)
+
+- 85: 첨부 `61_room_shop.png`. "the EMPTY interior of a small village MUSEUM hall … back wall across the top (cream paper wallpaper with a soft ruled-line pattern, two tall arched windows, a few small hanging lamps), a warm light wooden plank floor …, an open double doorway at the bottom centre. The floor must be COMPLETELY EMPTY" → `bg_room_museum`
+- 86: 4×2, 자홍 바탕, 전부 비어 있게: 수조, 곤충 표본장, 꽃 화단, 진열 탁자, 코르크 판 이젤, 유리 진열장, 안내 데스크, 부엉이 관장 → `prop_tank`, `prop_bugcase`, `prop_planter`, `prop_table`, `prop_board`, `prop_showcase`, `prop_desk`, `npc_curator`. 전시물은 `scripts/maps/museum_display.gd` 가 그 위에 그린다.

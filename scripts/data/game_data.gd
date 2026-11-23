@@ -1,4 +1,5 @@
 extends RefCounted
+const Book := preload("res://scripts/data/monster_book.gd")
 const Art := preload("res://scripts/core/art.gd")
 ## 게임 데이터 표: 재료, 몬스터. (수치는 가안)
 
@@ -14,7 +15,7 @@ const MATERIALS := [
 ##          strip 칸 순서: 기본, 움직임1, 움직임2, 공격 예고, 공격, 맞음
 ##  drops : [흔한 재료 번호, 확률, 드문 재료 번호, 확률]
 ##  grid  : true 면 가로·세로로만 움직인다 (모눈 거미)
-const MONSTERS := {
+const MONSTERS_CH1 := {
 	"slime": {
 		"name": "낙서 슬라임", "art": "frames", "sprite": "slime", "hp": 12, "speed": 40.0, "damage": 4,
 		"radius": 10.0, "exp": 5, "def": 0, "drops": [0, 0.6, 1, 0.1],
@@ -133,7 +134,7 @@ const CH1_LAYOUT := {
 const MAP_NAMES := {
 	"tut_1": "연습 페이지 1", "tut_2": "연습 페이지 2", "tut_3": "연습 페이지 3", "tut_4": "연습 페이지 4", "tut_5": "연습 페이지 5", "tut_6": "연습 페이지 6", "tut_7": "연습 페이지 7", "tut_8": "연습 페이지 8", "tut_9": "연습 페이지 9", "tut_10": "연습 페이지 10", "tut_11": "연습 페이지 11", "tut_12": "연습 페이지 12", "tut_13": "연습 페이지 13",
 	"home": "내 마을", "ch1": "공책 마을", "ch1_meadow": "들판", "ch1_crossroad": "갈림길",
-	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길", "ch1_bossroom": "구깃이의 방", "home_room": "내 집",
+	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길", "ch1_bossroom": "구깃이의 방", "home_room": "내 집", "museum": "박물관",
 }
 
 ## 사냥터 화면 (scripts/maps/field.gd). 위치는 bg px (배경 1672×941).
@@ -145,7 +146,7 @@ const FIELDS := {
 		"name": "갈림길", "bg": "bg_ch1_crossroad",
 		"gates": {"top": "ch1", "bottom": "ch1_erasedroad", "left": "ch1_meadow", "right": "ch1_gridwoods"},
 		"solids": [Rect2(672, 300, 90, 120), Rect2(915, 300, 140, 130)],
-		"monsters": [["dots_faded", Vector2(350, 650)], ["dots_faded", Vector2(1250, 300)], ["squiggle_faded", Vector2(1200, 650)]],
+		"monsters": [["dots_faded", Vector2(350, 650)], ["dots_faded", Vector2(1250, 300)], ["squiggle_faded", Vector2(1200, 650)], ["m09_faded", Vector2(450, 300)]],
 	},
 	"ch1_meadow": {
 		"name": "들판", "bg": "bg_ch1_meadow",
@@ -155,6 +156,7 @@ const FIELDS := {
 			["slime_faded", Vector2(560, 300)], ["slime_faded", Vector2(700, 650)], ["slime_faded", Vector2(1000, 250)],
 			["grass_faded", Vector2(400, 600)], ["grass_faded", Vector2(900, 700)], ["grass_faded", Vector2(1250, 300)],
 			["dots_faded", Vector2(620, 480)], ["dots_faded", Vector2(1150, 640)],
+			["m07_faded", Vector2(820, 360)], ["m08_faded", Vector2(1350, 560)],
 		],
 	},
 	"ch1_gridwoods": {
@@ -165,6 +167,7 @@ const FIELDS := {
 			["spider_faded", Vector2(500, 420)], ["spider_faded", Vector2(900, 520)], ["spider_faded", Vector2(1300, 430)],
 			["squiggle_faded", Vector2(700, 400)], ["squiggle_faded", Vector2(1100, 540)],
 			["spider_erased", Vector2(1450, 520)], ["squiggle_erased", Vector2(1420, 400)],
+			["m10_faded", Vector2(1000, 460)],
 			["boss_bug", Vector2(1300, 470)],
 		],
 	},
@@ -183,6 +186,7 @@ const FIELDS := {
 			["bug_erased", Vector2(600, 680)], ["bug_erased", Vector2(1200, 680)],
 			["slime_erased", Vector2(500, 450)], ["slime_erased", Vector2(1150, 450)],
 			["dots_erased", Vector2(300, 740)], ["grass_erased", Vector2(1350, 720)],
+			["m07_erased", Vector2(800, 300)], ["m09_erased", Vector2(1450, 470)], ["m10_erased", Vector2(250, 470)],
 		],
 	},
 }
@@ -190,7 +194,7 @@ const FIELDS := {
 
 ## 친구 (다시 그려 준 몬스터). 종 → 이름, 그림으로 쓸 몬스터 종류, 힘 배율, 색, 스킬 이름
 ##  아래 세 종은 합치기로만 나온다. 그림은 mon_friend_<종> (tools/import_friends.py), 없으면 tint 로 색만 바꿔 쓴다.
-const FRIENDS := {
+const FRIENDS_BASE := {
 	"slime": {"name": "낙서 슬라임", "kind": "slime_faded", "power": 1.0, "skill": "통통 박치기"},
 	"tm9": {"name": "낙서 토끼", "kind": "tm9", "power": 1.0, "skill": "깡충"},     # 연습 페이지에서 다시 그리기를 배우는 낙서 (친구가 되지는 않는다)
 	"squiggle": {"name": "삐뚤선", "kind": "squiggle_faded", "power": 1.0, "skill": "휘감기"},
@@ -202,6 +206,9 @@ const FRIENDS := {
 	"linespider": {"name": "줄거미", "kind": "spider_faded", "power": 1.6, "skill": "줄 치기", "tint": Color(1.0, 0.85, 0.6)},
 	"snowflake": {"name": "눈송이", "kind": "dots_faded", "power": 1.6, "skill": "얼리기", "tint": Color(0.75, 0.9, 1.0)},
 }
+## 몬스터 90종: 위의 1장·연습 페이지·보스 표 + scripts/data/monster_book.gd 의 84종 (2~9장, 1장의 새 4종)
+static var MONSTERS: Dictionary = MONSTERS_CH1.merged(Book.MONSTERS)
+static var FRIENDS: Dictionary = FRIENDS_BASE.merged(Book.FRIENDS)
 ## 다른 종끼리 합치기: [재료, 재료, 새 종]. 둘 다 별 2개 이상이어야 한다.
 const MERGES := [["slime", "grass", "grassmallang"], ["squiggle", "spider", "linespider"], ["dots", "bug", "snowflake"]]
 
@@ -270,8 +277,8 @@ const HEART_NEED := [10, 30, 60, 100, 150]
 const CUSTOM_MAX := 12
 
 ## 도감 묶음과, 다 채우면 오르는 능력
-const DEX_NAMES := {"mon": "몬스터", "friend": "친구", "fish": "물고기", "crop": "작물", "gear": "장비", "mat": "재료"}
-const DEX_BONUS := {"mon": {"atk": 3}, "friend": {"hp": 30}, "fish": {"mp": 20}, "crop": {"def": 2}, "gear": {"crit": 2}, "mat": {"drop": 5}}
+const DEX_NAMES := {"mon": "몬스터", "friend": "친구", "fish": "물고기", "forage": "채집", "crop": "작물", "gear": "장비", "mat": "재료"}
+const DEX_BONUS := {"mon": {"atk": 3}, "friend": {"hp": 30}, "fish": {"mp": 20}, "forage": {"exp": 5}, "crop": {"def": 2}, "gear": {"crit": 2}, "mat": {"drop": 5}}
 const MUSEUM_STEPS := [25, 50, 75, 100]
 const PERSONAS := {
 	"glutton": {"name": "먹보", "like": "d_carp", "gift": "bread",

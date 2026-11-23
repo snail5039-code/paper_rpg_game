@@ -260,7 +260,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/ui/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause", "farm", "cook", "resident", "furnish", "portal", "dex"]:
+	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause", "farm", "cook", "resident", "furnish", "portal", "dex", "donate"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -1013,7 +1013,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_menu("dex")
 			get_viewport().set_input_as_handled()
 			return
-		for mk in ["build", "storage", "board", "farm", "cook", "resident", "furnish", "portal", "dex"]:
+		for mk in ["build", "storage", "board", "farm", "cook", "resident", "furnish", "portal", "dex", "donate"]:
 			if is_menu_open(mk) and kc == KEY_ESCAPE:
 				toggle_menu(mk)
 				get_viewport().set_input_as_handled()

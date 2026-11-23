@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정", "dex": "도감"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": [], "dex": ["몬스터", "친구", "물고기", "작물", "장비", "재료"]}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기", "dex": "J  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정", "dex": "도감", "donate": "박물관 기증"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": [], "dex": ["몬스터", "친구", "물고기", "채집", "작물", "장비", "재료"], "donate": ["물고기", "채집물", "몬스터", "장비"]}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기", "dex": "J  닫기", "donate": "Esc  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -67,10 +67,11 @@ func _ready() -> void:
 	_fixed.append(UI.icon_button(_win, "ui_close", Vector2(396, 0), Vector2(20, 20), func() -> void: close_requested.emit()))
 	var x := 66.0
 	for i in (TABS[kind] as Array).size():
-		var many := (TABS[kind] as Array).size() > 4
-		var b := UI.button(_win, str(TABS[kind][i]), Vector2(x, 37), Vector2(44 if many else 50, 19), _set_tab.bind(i), "tab")
+		var n := (TABS[kind] as Array).size()
+		var tw := 50.0 if n <= 4 else (44.0 if n <= 6 else 40.0)
+		var b := UI.button(_win, str(TABS[kind][i]), Vector2(x, 37), Vector2(tw, 19), _set_tab.bind(i), "tab")
 		_tab_buttons.append(b)
-		x += 46.0 if many else 52.0
+		x += tw + 2.0
 	_body = Control.new()
 	_body.position = Vector2(62, 62 if not (TABS[kind] as Array).is_empty() else 44)
 	_body.size = Vector2(300, 130 if not (TABS[kind] as Array).is_empty() else 148)
@@ -263,6 +264,7 @@ func refresh() -> void:
 		"furnish": _refresh_furnish()
 		"portal": _refresh_portal()
 		"dex": _refresh_dex()
+		"donate": _refresh_donate()
 		"slots": _refresh_slots()
 		"settings": _settings_rows(_list())
 
@@ -1015,7 +1017,7 @@ func _recall() -> void:
 
 # ---------- 도감 (J) 과 박물관 ----------
 
-const DEX_CATS := ["mon", "friend", "fish", "crop", "gear", "mat"]
+const DEX_CATS := ["mon", "friend", "fish", "forage", "crop", "gear", "mat"]
 
 
 ## 도감 칸 하나의 그림과 이름
@@ -1038,7 +1040,7 @@ func _dex_look(cat: String, id: String) -> Array:
 			return [tex, str(cfg["name"])]
 		"friend":
 			return [_friend_tex(id), str(Data.FRIENDS[id]["name"])]
-		"fish", "crop":
+		"fish", "crop", "forage":
 			return [Art.tex(GameState.consumable_icon(id)), str(Items.CONSUMABLES[id][0])]
 		"gear":
 			var p := id.split("_")
@@ -1085,7 +1087,60 @@ func _refresh_dex() -> void:
 		var n := GameState.dex_count(cat)
 		_info.text = "%s %d / %d   다 채우면: %s%s\n%s" % [Data.DEX_NAMES[cat], n, entries.size(), GameState.dex_bonus_text(cat),
 			"  (받는 중!)" if n >= entries.size() else "",
-			"박물관: 채운 만큼 보상을 받아요." if museum else "만나거나 얻으면 적혀요. 박물관을 지으면 채운 만큼 보상을 받아요."]
+			"박물관: 채운 만큼 보상을 받아요." if museum else "만나거나 얻으면 적혀요. 박물관에는 따로 기증해서 전시해요."]
+
+
+# ---------- 박물관 기증 (박물관 안의 안내 데스크) ----------
+
+func _refresh_donate() -> void:
+	var cat := str(GameState.MUSEUM_CATS[clampi(tab, 0, GameState.MUSEUM_CATS.size() - 1)])
+	# 위: 채운 만큼 받는 보상
+	for i in Data.MUSEUM_STEPS.size():
+		var pct := int(Data.MUSEUM_STEPS[i])
+		var got := GameState.museum_claimed.has("%s:%d" % [cat, pct])
+		var b := _button(_body, "%d%% %s" % [pct, "받음" if got else "받기"], Vector2(i * 74, 0), Vector2(70, 18), _museum_claim.bind(cat, pct))
+		b.disabled = not GameState.museum_ready(cat, pct)
+	var holder := Control.new()
+	holder.position = Vector2(0, 22)
+	holder.size = _body.size - Vector2(0, 22)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_body.add_child(holder)
+	var box := UI.scroll_list(holder, holder.size)
+	var can := GameState.donatable(cat)
+	if can.is_empty():
+		_row(box, "", "지금 기증할 수 있는 것이 없어요.", [])
+	for id in can:
+		var look := _donate_look(cat, str(id))
+		_row(box, "", str(look[1]), [["기증", _donate.bind(cat, str(id)), true]])
+		var row := box.get_child(box.get_child_count() - 1) as Control
+		var face := UI.icon(row, "", Vector2(4, 2), Vector2(20, 20))
+		face.texture = look[0]
+	if _message == "":
+		_info.text = "%s 전시 %d / %d   가방에서 하나씩 기증하면 박물관에 전시돼요.
+%s" % [GameState.MUSEUM_NAMES[cat],
+			GameState.museum_count(cat), GameState.museum_entries(cat).size(),
+			"몬스터 스케치는 몬스터를 물리치면 가끔 나와요." if cat == "mon" else "채운 만큼 보상을 받아요 (25·50·75·100%)."]
+
+
+## 기증할 것의 [그림, 이름]
+func _donate_look(cat: String, id: String) -> Array:
+	match cat:
+		"fish", "forage":
+			return [Art.tex(GameState.consumable_icon(id)), str(Items.CONSUMABLES[id][0])]
+		"mon":
+			var l := _dex_look("mon", id + "_faded")
+			return [l[0], "%s 스케치 (%d장)" % [str(Data.FRIENDS.get(id, {}).get("name", id)), int(GameState.sketches.get(id, 0))]]
+		"gear":
+			return _dex_look("gear", id)
+	return [null, id]
+
+
+func _donate(cat: String, id: String) -> void:
+	var name := str(_donate_look(cat, id)[1])
+	_message = "%s 을(를) 기증했어요! 박물관에 전시돼요." % name if GameState.donate(cat, id) else "기증할 수 없어요."
+	if _message.begins_with(name):
+		Sound.play("craft")
+	refresh()
 
 
 func _museum_claim(cat: String, pct: int) -> void:

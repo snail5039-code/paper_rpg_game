@@ -1,13 +1,17 @@
 extends "res://scripts/maps/field.gd"
 ## 끝없는 탑 "빈 페이지 탑". 내 마을의 탑 문으로 들어가 1층부터 오른다.
 ##  - 층마다 화면 한 장. 몬스터를 다 물리치면 보상을 받고 위쪽 문이 열린다. 위로 나가면 다음 층.
-##  - 5층마다 대장(1장의 보스 셋이 차례로). 층이 오를수록 몬스터가 세진다. 끝이 없다.
+##  - 5층마다 대장(1장의 보스 셋이 차례로). 끝이 없다.
+##  - 층이 오를수록 다음 장의 몬스터로 바뀐다: 1~5층 1장, 6~10층 2장 … 41~45층 9장, 46층부터는 90종이 섞여 나온다.
+##    장마다 몬스터가 세지고(scripts/data/monster_book.gd), 한 장 안에서도 층마다 조금씩 세진다.
 ##  - 피로도가 들지 않는다. 쓰러지면 잃는 것 없이 그 판이 끝나고 내 마을로 돌아간다.
 ##  - 아래쪽 문으로 나가면 그만 오르고 내 마을로 돌아간다.
 ## 배경 그림: bg_tower_0, bg_tower_1 (보통 층), bg_tower_boss (대장 층). 위·아래 변 가운데에 문.
 ##  그림이 아직 없으면 1장 갈림길 그림을 흐리게 칠해서 쓴다.
 
-const POOL := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+const POOL := ["slime", "squiggle", "dots", "grass", "spider", "bug"]   # 1장의 원래 몬스터
+const Book := preload("res://scripts/data/monster_book.gd")
+const CHAPTER_FLOORS := 5
 const BOSSES := ["boss_bug", "boss_crumple", "boss_scribble"]
 const FALLBACK_BG := "bg_ch1_crossroad"
 const FALLBACK_SOLIDS := [Rect2(672, 300, 90, 120), Rect2(915, 300, 140, 130)]
@@ -22,9 +26,25 @@ static func is_boss_floor(f: int) -> bool:
 	return f % 5 == 0
 
 
-## 층이 오를수록 세진다
+## 그 층의 장 (1~9, 46층부터 0 = 섞임)
+static func floor_chapter(f: int) -> int:
+	return 0 if f > CHAPTER_FLOORS * 9 else (f - 1) / CHAPTER_FLOORS + 1
+
+
+## 그 층에 나오는 몬스터 종들
+static func floor_pool(f: int) -> Array:
+	var ch := floor_chapter(f)
+	var out: Array = POOL.duplicate() if ch <= 1 else []
+	for sp in Book.SPECIES:
+		if ch == 0 or int(Book.SPECIES[sp][1]) == ch:
+			out.append(str(sp))
+	return out
+
+
+## 한 장 안에서 층이 오를수록 조금씩 세진다 (장이 바뀌면 몬스터 자체가 세다). 46층부터는 계속 세진다.
 static func floor_mult(f: int) -> Vector2:
-	return Vector2(1.0 + 0.18 * (f - 1), 1.0 + 0.1 * (f - 1))   # (HP·경험치, 공격)
+	var step := (f - 1) % CHAPTER_FLOORS if f <= CHAPTER_FLOORS * 9 else f - CHAPTER_FLOORS * 8
+	return Vector2(1.0 + 0.18 * step, 1.0 + 0.1 * step)   # (HP·경험치, 공격)
 
 
 ## 그 층의 몬스터 [종류, bg px 자리]. 층마다 늘 같다.
@@ -37,7 +57,8 @@ static func floor_monsters(f: int) -> Array:
 		out.append([BOSSES[(f / 5 - 1) % BOSSES.size()], Vector2(836, 420)])
 		n = 2
 	for i in n:
-		var sp := str(POOL[rng.randi() % POOL.size()])
+		var pool := floor_pool(f)
+		var sp := str(pool[rng.randi() % pool.size()])
 		var form := "_erased" if f >= 6 and rng.randf() < minf(0.7, 0.1 * (f - 5)) else "_faded"
 		var at := Vector2.ZERO
 		for t in 30:

@@ -86,10 +86,23 @@ SHEETS = {
     # 강화 연출: 모루, 든 망치, 내려치는 망치, 불꽃 / 성공, 실패, 파괴, 코팅지
     "78_forge_fx": (4, 2, [("forge_anvil", 160), ("forge_hammer_up", 160), ("forge_hammer_hit", 160), ("forge_spark", 160),
         ("forge_ok", 200), ("forge_fail", 160), ("forge_broken", 180), ("forge_saved", 160)]),
+    # 물고기 50종 중 새 42종 (5×3 시트 셋), 채집 50종 중 새 46종 (4×3 시트 넷). 이름 순서는 scripts/data/items.gd 의 fish_*, fg_*
+    "82_fish_a": (5, 3, [("fish_%d" % i, 64) for i in range(0, 15)]),
+    "82_fish_b": (5, 3, [("fish_%d" % i, 64) for i in range(15, 30)]),
+    "82_fish_c": (5, 3, [("fish_%d" % i, 64) for i in range(30, 42)]),
+    "83_forage_a": (4, 3, [("forage_%d" % i, 64) for i in range(4, 16)]),
+    "83_forage_b": (4, 3, [("forage_%d" % i, 64) for i in range(16, 28)]),
+    "83_forage_c": (4, 3, [("forage_%d" % i, 64) for i in range(28, 40)]),
+    "83_forage_d": (4, 3, [("forage_%d" % i, 64) for i in range(40, 50)] + [("life_net", 124)]),
+    # 박물관 가구 (비어 있음, 전시물은 게임이 넣는다): 수조, 곤충 표본장, 꽃 화단, 진열 탁자, 코르크 판, 유리 진열장, 안내 데스크, 부엉이 관장
+    "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
+                               ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
     "80_menu_btns": (7, 1, [("menu_%s" % n, 48) for n in ("bag", "stats", "skills", "map", "friends", "dex", "settings")]),
     "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
+# 비스듬히 그려져 와서 세워야 하는 도구: 이름 → 돌릴 각도(반시계). 크기는 세운 뒤의 높이
+UPRIGHT = {"life_net": 45}
 # 칸을 자르지 않고 그대로 이어 붙이는 애니메이션 띠: (칸 수, 저장 이름, 한 칸의 가로)
 STRIPS = {"79_aura": (4, "fx_aura", 120)}
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
@@ -99,7 +112,7 @@ FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 128
         # 건물 안 방 배경 (내 집의 방과 같은 크기와 배치)
         "61_room_shop": ("bg_room_shop", 1280, 1.0), "61_room_craft": ("bg_room_craft", 1280, 1.0),
         "61_room_storage": ("bg_room_storage", 1280, 1.0), "61_room_diner": ("bg_room_diner", 1280, 1.0),
-        "61_room_villager": ("bg_room_villager", 1280, 1.0)}
+        "61_room_villager": ("bg_room_villager", 1280, 1.0), "85_bg_museum": ("bg_room_museum", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):
@@ -192,6 +205,10 @@ def main():
                 s = size if size <= 1.0 else size / max(im.size)
             if not isinstance(size, str) and size < 0:
                 s = -size * 1774.0 / rgba.shape[1]
+            if out_name in UPRIGHT:        # 비스듬히 그려진 도구를 세운다 (손잡이 아래, 끝이 위)
+                im = im.rotate(UPRIGHT[out_name], resample=Image.BICUBIC, expand=True)
+                im = im.crop(im.getbbox())
+                s = size / im.height
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             im.save(sprite_path(out_name))
             count += 1

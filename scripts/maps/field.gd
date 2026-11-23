@@ -12,7 +12,10 @@ const PlayerScene := preload("res://scenes/player.tscn")
 const Companion := preload("res://scripts/actors/companion.gd")
 const MonsterScene := preload("res://scenes/enemy.tscn")
 const SpotScript := preload("res://scripts/actors/pickup_spot.gd")
+const BugScript := preload("res://scripts/actors/bug.gd")
 const FORAGE_SPOTS := 4
+const BUG_SLOTS := 3            # 화면에 들어올 때마다 곤충 자리 셋 (자리마다 70%)
+const POND_SPOT := Vector2(470, 300)   # 들판 연못의 낚시 표지판 (bg px)
 
 const BG_SIZE := Vector2(1672, 941)
 const WORLD_PER_BG := 640.0 / 1672.0
@@ -149,6 +152,32 @@ func _extras() -> void:
 		spot.position = bg(at)
 		actors.add_child(spot)
 		made += 1
+	# 곤충 (잠자리채로 잡는다). 들어올 때마다 새로 나온다.
+	for i in BUG_SLOTS:
+		if randf() > 0.7:
+			continue
+		var at := Vector2.ZERO
+		for t in 20:
+			at = Vector2(randf_range(PLAY.position.x + 100, PLAY.end.x - 100), randf_range(PLAY.position.y + 90, PLAY.end.y - 90))
+			var ok := true
+			for r in cfg["solids"]:
+				if (r as Rect2).grow(50).has_point(at):
+					ok = false
+			if ok:
+				break
+		var bug: Node2D = BugScript.new()
+		bug.set("id", GameState.roll_forage("bug"))
+		bug.position = bg(at)
+		bug.set("area", Rect2(bg(at) - Vector2(40, 30), Vector2(80, 60)))
+		actors.add_child(bug)
+	# 들판 연못의 낚시 자리 (연못에서만 낚이는 물고기가 있다)
+	if field_id == "ch1_meadow":
+		var fs: Node2D = SpotScript.new()
+		fs.set("mode", "fish")
+		fs.set("key", "pond")
+		fs.position = bg(POND_SPOT)
+		fs.set("cast_to", bg(Vector2(330, 280)) - bg(POND_SPOT))
+		actors.add_child(fs)
 	# 풍선 아이의 날아간 풍선
 	if Data.BALLOONS.has(field_id):
 		var balloon: Node2D = SpotScript.new()

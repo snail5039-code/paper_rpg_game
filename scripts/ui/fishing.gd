@@ -23,6 +23,9 @@ var place := "home"
 var progress := 0.0          # 끌어올리기 게이지 (0 ~ 1)
 var bobber := Vector2.ZERO   # 찌가 떠 있는 자리 (월드)
 var _zone_half := 0.17
+var _zone_cur := 0.17        # 지금 문 물고기에 맞춘 초록 칸 반 높이
+var _zone_speed := 1.2      # 초록 칸이 오르내리는 빠르기
+var hooked := ""            # 입질한 물고기
 var _pos := 0.3              # 찌의 높이 (0 아래 ~ 1 위)
 var _vel := 0.0
 var _zone := 0.5
@@ -78,6 +81,7 @@ func start(fine: bool = false, where: String = "home", at: Vector2 = Vector2.INF
 	if where == "home":
 		window += (GameState.build_lv("bld_fishing") - 3) * 0.1      # 낚시터의 단계: 입질 시간이 0.1초씩
 	_zone_half = 0.21 if fine else 0.17
+	_zone_cur = _zone_half
 	place = where
 	visible = true
 	var p := _player()
@@ -150,13 +154,13 @@ func step_reel(delta: float, held: bool) -> void:
 	if _pos <= 0.0 or _pos >= 1.0:
 		_pos = clampf(_pos, 0.0, 1.0)
 		_vel = 0.0
-	_zone = 0.5 + 0.26 * sin(_t * 1.2)
-	if absf(_pos - _zone) <= _zone_half:
+	_zone = 0.5 + 0.26 * sin(_t * _zone_speed)
+	if absf(_pos - _zone) <= _zone_cur:
 		progress += delta / FILL_TIME
 	else:
 		progress = maxf(0.0, progress - delta / (FILL_TIME * 2.0))
 	if progress >= 1.0:
-		_result(GameState.catch_fish(place))
+		_result(GameState.catch_fish(place, hooked))
 	elif _t >= REEL_TIME:
 		_result("")
 
@@ -165,6 +169,11 @@ func step_reel(delta: float, held: bool) -> void:
 func pull() -> bool:
 	if phase == "bite":
 		phase = "reel"
+		# 무엇이 물었는지 정한다. 드물수록 초록 칸이 작고 빨리 움직인다.
+		hooked = GameState.roll_fish(place)
+		var rare := GameState.fish_rarity(hooked)
+		_zone_speed = 1.2 * (1.0 + 0.3 * rare)
+		_zone_cur = maxf(0.09, _zone_half - 0.025 * rare)
 		_t = 0.0
 		progress = 0.0
 		_pos = 0.3
@@ -291,8 +300,8 @@ func _draw_gauge() -> void:
 	var bar := Rect2(base, BAR_SIZE)
 	g.draw_rect(bar.grow(2), Color(0.35, 0.27, 0.24))
 	g.draw_rect(bar, Color(0.8, 0.9, 1.0))
-	var zy := bar.end.y - (_zone + _zone_half) * bar.size.y
-	g.draw_rect(Rect2(bar.position.x, zy, bar.size.x, _zone_half * 2.0 * bar.size.y).intersection(bar), Color(0.5, 0.85, 0.5))
+	var zy := bar.end.y - (_zone + _zone_cur) * bar.size.y
+	g.draw_rect(Rect2(bar.position.x, zy, bar.size.x, _zone_cur * 2.0 * bar.size.y).intersection(bar), Color(0.5, 0.85, 0.5))
 	var by := bar.end.y - _pos * bar.size.y
 	g.draw_rect(Rect2(bar.position.x - 2, by - 2, bar.size.x + 4, 4), Color(0.9, 0.35, 0.3))
 	var prog := Rect2(base + Vector2(-34, BAR_SIZE.y + 6), Vector2(44, 5))

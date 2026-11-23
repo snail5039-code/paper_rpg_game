@@ -5,7 +5,7 @@
     ["buildings", ["bld", "deco", "furn", "portal", "prop", "door"]],
     ["characters", ["player", "hat", "cv", "villager", "tnpc", "npc", "shopkeeper", "portrait", "emote", "mallang"]],
     ["monsters", ["mon", "tm", "slime", "slimef", "slimee", "boss", "monster", "smudge"]],
-    ["items", ["equip", "set", "tool", "mat", "food", "item", "crop", "misc", "icon", "dish", "vgift", "forage", "unique", "life"]],
+    ["items", ["equip", "set", "tool", "mat", "food", "item", "crop", "misc", "icon", "dish", "vgift", "forage", "unique", "life", "fish"]],
     ["ui", ["ui", "hud", "menu", "key", "stat", "skill", "mark", "ult"]],
     ["effects", ["fx", "forge", "dust"]]
   ]

@@ -32,6 +32,7 @@ const MAP_SCENES := {
 	"ch1_erasedroad": "res://scenes/field.tscn",
 	"ch1_bossroom": "res://scenes/field.tscn",
 	"home_room": "res://scenes/room.tscn",
+	"museum": "res://scenes/museum.tscn",
 	"tut_1": "res://scenes/tut_map.tscn", "tut_2": "res://scenes/tut_map.tscn", "tut_3": "res://scenes/tut_map.tscn",
 	"tut_4": "res://scenes/tut_map.tscn", "tut_5": "res://scenes/tut_map.tscn", "tut_6": "res://scenes/tut_map.tscn",
 	"tut_7": "res://scenes/tut_map.tscn", "tut_8": "res://scenes/tut_map.tscn", "tut_9": "res://scenes/tut_map.tscn",
@@ -112,8 +113,10 @@ var save_dir: String = "user://"   # 캐릭터 칸, 공유 자료, 설정 파일
 const TITLE_SCENE := "res://scenes/title.tscn"
 ## 모든 캐릭터가 같이 쓰는 것 (내 마을, 창고, 밭, 가구, 주민). 캐릭터 칸으로 할 때는 shared.json 에 따로 저장한다.
 const SHARED_KEYS := ["home_cells", "home_doodles", "home_intro_seen", "home_sheets", "home_objects", "storage",
-	"farms", "furniture", "room_items", "rooms", "villagers", "custom_villagers", "gift_days", "balloons", "dex", "museum_claimed"]
+	"farms", "furniture", "room_items", "rooms", "villagers", "custom_villagers", "gift_days", "balloons", "dex", "museum_claimed", "museum"]
 var dex: Dictionary = {}              # 도감: 묶음("mon", "friend", "fish", "crop", "gear", "mat") → {id: true}
+var museum: Dictionary = {}           # 박물관에 기증한 것 (묶음 → {id: true}). 내 마을과 같이 저장된다
+var sketches: Dictionary = {}         # 가진 몬스터 스케치 (종 → 개수). 박물관에 기증한다
 var museum_claimed: Dictionary = {}   # 박물관에서 받은 보상 ("묶음:퍼센트" → true)
 var custom_villagers: Dictionary = {}   # 직접 만든 주민 (id "cv1"… → {"persona", "art"})
 var buffs: Dictionary = {}        # 요리 효과 (종류 → 남은 초)
@@ -543,11 +546,11 @@ static func dex_entries(cat: String) -> Array:
 				if str(k) != "tm9":
 					out.append(str(k))
 		"fish":
-			for place in Items.FISH:
-				for pool in Items.FISH[place]:
-					for f in pool:
-						if not out.has(str(f)):
-							out.append(str(f))
+			for f in Items.FISH_INFO:
+				out.append(str(f))
+		"forage":
+			for f in Items.FORAGE_INFO:
+				out.append(str(f))
 		"crop":
 			for s in Items.CROPS:
 				out.append(str(Items.CROPS[s][0]))
@@ -577,6 +580,94 @@ static func dex_bonus_text(cat: String) -> String:
 	return ", ".join(parts)
 
 
+# ---------- 박물관 (기증과 전시) ----------
+const MUSEUM_CATS := ["fish", "forage", "mon", "gear"]
+const MUSEUM_NAMES := {"fish": "물고기", "forage": "채집물", "mon": "몬스터 스케치", "gear": "장비"}
+const MUSEUM_MON_CH1 := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+
+
+## 박물관에 전시할 수 있는 것 전부 (묶음마다)
+static func museum_entries(cat: String) -> Array:
+	var out: Array = []
+	match cat:
+		"fish":
+			out = Items.FISH_INFO.keys()
+		"forage":
+			out = Items.FORAGE_INFO.keys()
+		"mon":
+			out = MUSEUM_MON_CH1.duplicate()
+			out.append_array(Data.Book.SPECIES.keys())
+		"gear":
+			for sl in Items.SLOTS:
+				for i in 10:
+					out.append("%s_%d" % [sl, i])
+	return out
+
+
+func museum_has(cat: String, id: String) -> bool:
+	return (museum.get(cat, {}) as Dictionary).has(id)
+
+
+func museum_count(cat: String) -> int:
+	return (museum.get(cat, {}) as Dictionary).size()
+
+
+## 가방에서 기증할 수 있는 것이 있는지 (아직 기증하지 않았고, 하나 이상 가졌는지)
+func can_donate(cat: String, id: String) -> bool:
+	if museum_has(cat, id):
+		return false
+	match cat:
+		"fish", "forage":
+			return consumable_count(id) > 0
+		"mon":
+			return int(sketches.get(id, 0)) > 0
+		"gear":
+			return _gear_index(id) >= 0
+	return false
+
+
+## 가방 속 장비 중 그 모양(부위_모양)인 것의 번호 (유일 장비는 빼고)
+func _gear_index(shape_key: String) -> int:
+	for i in inventory.size():
+		var it: Dictionary = inventory[i]
+		if "%s_%d" % [str(it.get("slot", "")), int(it.get("shape", -1))] == shape_key and not Items.is_unique(it):
+			return i
+	return -1
+
+
+## 지금 기증할 수 있는 것들 (묶음마다)
+func donatable(cat: String) -> Array:
+	var out: Array = []
+	for id in museum_entries(cat):
+		if can_donate(cat, str(id)):
+			out.append(str(id))
+	return out
+
+
+## 하나를 기증한다: 가방에서 하나 빠지고 박물관에 전시된다
+func donate(cat: String, id: String) -> bool:
+	if build_level("bld_museum") <= 0 or not can_donate(cat, id):
+		return false
+	match cat:
+		"fish", "forage":
+			consumables[id] = consumable_count(id) - 1
+			if int(consumables[id]) <= 0:
+				consumables.erase(id)
+		"mon":
+			sketches[id] = int(sketches[id]) - 1
+			if int(sketches[id]) <= 0:
+				sketches.erase(id)
+		"gear":
+			inventory.remove_at(_gear_index(id))
+	var book: Dictionary = museum.get(cat, {})
+	book[id] = true
+	museum[cat] = book
+	if museum_count(cat) == museum_entries(cat).size():
+		notify("박물관의 %s 전시실을 다 채웠어요!" % MUSEUM_NAMES[cat])
+	changed.emit()
+	return true
+
+
 ## 박물관 보상: 묶음마다 25·50·75·100% 를 채우면 한 번씩. 박물관 단계가 높을수록 많이.
 func museum_reward(_cat: String, pct: int) -> Dictionary:
 	var step := pct / 25
@@ -586,7 +677,7 @@ func museum_reward(_cat: String, pct: int) -> Dictionary:
 
 func museum_ready(cat: String, pct: int) -> bool:
 	return build_level("bld_museum") > 0 and not museum_claimed.has("%s:%d" % [cat, pct]) \
-		and dex_count(cat) * 100 >= pct * dex_entries(cat).size()
+		and museum_count(cat) * 100 >= pct * museum_entries(cat).size()
 
 
 func museum_claim(cat: String, pct: int) -> bool:
@@ -1213,6 +1304,16 @@ func enter_room(key: String, id: String) -> bool:
 	return false
 
 
+## 박물관 안으로 들어간다. 맵을 옮길 수 없는 곳(테스트)에서는 false.
+func enter_museum(key: String) -> bool:
+	var before := room_ctx
+	room_ctx = {"key": key, "id": "bld_museum"}
+	if goto_map("museum", ""):
+		return true
+	room_ctx = before
+	return false
+
+
 func has_fine(id: String) -> bool:
 	for o in home_objects:
 		if str(o["id"]) == id and bool(o.get("fine", false)):
@@ -1287,6 +1388,12 @@ func on_kill(kind: String) -> void:
 	lesson_note("kill")
 	board_note(Data.species_of(kind))
 	dex_add("mon", kind)
+	# 몬스터 스케치 (박물관에 기증): 4%, 많이 지워진 모습은 6%
+	var sp := Data.species_of(kind)
+	if museum_entries("mon").has(sp) and randf() < (0.06 if kind.ends_with("_erased") else 0.04) * drop_mult():
+		sketches[sp] = int(sketches.get(sp, 0)) + 1
+		notify("%s 의 몬스터 스케치를 주웠어요! (박물관에 기증할 수 있어요)" % str(Data.FRIENDS.get(sp, {}).get("name", sp)))
+		changed.emit()
 
 
 ## 게시판 부탁이 하나 나아간다 (몬스터 종, "fish", "forage")
@@ -1323,17 +1430,58 @@ func residents() -> Array:
 	return out
 
 
-## 낚시: 그 낚시터(place: "home", "ch1")의 물고기 하나를 가방에 넣고 id 를 돌려준다.
-##  낮과 밤에 낚이는 것이 다르고, 12% 로 드문 것(쪽지, 장화, 종이학)이 올라온다.
-func catch_fish(place: String = "home") -> String:
-	var t: Array = Items.FISH.get(place, Items.FISH["home"])
+const JUNK := ["j_scrap", "j_bottle", "j_boot"]
+const JUNK_NIGHT := ["j_crane", "j_bottle"]
+const FISH_WEIGHT := [60.0, 28.0, 10.0, 2.0]   # 희귀도별 무게 (흔함, 조금 드묾, 드묾, 전설)
+
+
+## 그 낚시터(place: "home", "ch1", "pond")에서 지금 낚일 수 있는 물고기 id 들
+func fish_pool(place: String) -> Array:
 	var night := is_night()
-	var pool: Array = t[3 if night else 2] if randf() < 0.12 else t[1 if night else 0]
-	var id := str(pool[randi() % pool.size()])
+	var out: Array = []
+	for id in Items.FISH_INFO:
+		var info: Array = Items.FISH_INFO[id]
+		var t := str(info[1])
+		if str(info[0]) == place and (t == "any" or (t == "night") == night):
+			out.append(str(id))
+	return out
+
+
+## 입질했을 때 무엇이 물었는지 고른다 (가방에는 아직 넣지 않는다). 12% 로 잡동사니.
+func roll_fish(place: String = "home") -> String:
+	if randf() < 0.12:
+		var junk: Array = JUNK_NIGHT if is_night() else JUNK
+		return str(junk[randi() % junk.size()])
+	var pool := fish_pool(place)
+	if pool.is_empty():
+		pool = fish_pool("home")
+	var total := 0.0
+	for id in pool:
+		total += float(FISH_WEIGHT[int(Items.FISH_INFO[id][2])])
+	var r := randf() * total
+	for id in pool:
+		r -= float(FISH_WEIGHT[int(Items.FISH_INFO[id][2])])
+		if r <= 0.0:
+			return str(id)
+	return str(pool[-1])
+
+
+## 물고기(또는 잡동사니)의 희귀도 0~3 (잡동사니는 0, 종이학은 2)
+static func fish_rarity(id: String) -> int:
+	if Items.FISH_INFO.has(id):
+		return int(Items.FISH_INFO[id][2])
+	return 2 if id == "j_crane" else 0
+
+
+## 낚시: 물고기 하나를 가방에 넣고 id 를 돌려준다. id 를 주지 않으면 그 자리에서 고른다.
+func catch_fish(place: String = "home", id: String = "") -> String:
+	if id == "":
+		id = roll_fish(place)
 	if not add_consumable(id):
 		return ""
 	lesson_note("fish")
-	dex_add("fish", id)
+	if Items.FISH_INFO.has(id):
+		dex_add("fish", id)
 	board_note("fish")
 	return id
 
@@ -1475,15 +1623,61 @@ func take_forage(key: String) -> String:
 		foraged = {"day": day, "taken": []}
 	if (foraged["taken"] as Array).has(key):
 		return ""
-	var id := str(Items.FORAGE[hash(key) % Items.FORAGE.size()])
+	var id := forage_item(key)
 	if not has_room(id):
 		notify("소비 가방이 가득 차서 주울 수 없어요.")
 		return ""
 	(foraged["taken"] as Array).append(key)
 	add_consumable(id)
+	dex_add("forage", id)
 	lesson_note("forage")
 	board_note("forage")
 	return id
+
+
+const FORAGE_WEIGHT := [60.0, 26.0, 11.0, 3.0]
+
+
+## 채집물 중에서 kind ("plant": 곤충이 아닌 것, "bug": 곤충)이고 지금(낮·밤) 나오는 것을 희귀도 무게로 하나 고른다.
+func roll_forage(kind: String, rng: RandomNumberGenerator = null) -> String:
+	var night := is_night()
+	var pool: Array = []
+	var total := 0.0
+	for id in Items.FORAGE_INFO:
+		var info: Array = Items.FORAGE_INFO[id]
+		if (str(info[0]) == "bug") != (kind == "bug"):
+			continue
+		var t := str(info[1])
+		if t != "any" and (t == "night") != night:
+			continue
+		pool.append(str(id))
+		total += float(FORAGE_WEIGHT[int(info[2])])
+	if pool.is_empty():
+		return "g_grass"
+	var r := (rng.randf() if rng else randf()) * total
+	for id in pool:
+		r -= float(FORAGE_WEIGHT[int(Items.FORAGE_INFO[id][2])])
+		if r <= 0.0:
+			return str(id)
+	return str(pool[-1])
+
+
+## 채집 자리(key)에 오늘 놓인 것. 날마다, 낮·밤마다 바뀌지만 같은 때에는 늘 같다.
+func forage_item(key: String) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:%d:%d" % [key, day, 1 if is_night() else 0])
+	return roll_forage("plant", rng)
+
+
+## 잠자리채로 곤충을 잡았다
+func catch_bug(id: String) -> bool:
+	if not add_consumable(id):
+		notify("소비 가방이 가득 차서 넣을 수 없어요.")
+		return false
+	dex_add("forage", id)
+	board_note("forage")
+	notify("%s 을(를) 잡았어요!" % Items.CONSUMABLES[id][0])
+	return true
 
 
 func forage_left(key: String) -> bool:
@@ -2067,6 +2261,8 @@ func save_game() -> bool:
 		"custom_villagers": custom_villagers,
 		"dex": dex,
 		"museum_claimed": museum_claimed,
+		"museum": museum,
+		"sketches": sketches,
 		"balloons": balloons,
 		"difficulty": difficulty,
 		"max_difficulty": max_difficulty,
@@ -2211,6 +2407,8 @@ func load_game() -> bool:
 			if Data.DEX_NAMES.has(str(dk)) and typeof(data["dex"][dk]) == TYPE_DICTIONARY:
 				dex[str(dk)] = data["dex"][dk]
 	museum_claimed = data["museum_claimed"] if typeof(data.get("museum_claimed")) == TYPE_DICTIONARY else {}
+	museum = data["museum"] if typeof(data.get("museum")) == TYPE_DICTIONARY else {}
+	sketches = data["sketches"] if typeof(data.get("sketches")) == TYPE_DICTIONARY else {}
 	custom_villagers = {}
 	if typeof(data.get("custom_villagers")) == TYPE_DICTIONARY:
 		for ck in data["custom_villagers"]:
@@ -2333,6 +2531,8 @@ func _reset_state() -> void:
 	custom_villagers = {}
 	dex = {}
 	museum_claimed = {}
+	museum = {}
+	sketches = {}
 	balloons = []
 	difficulty = 0
 	max_difficulty = 0
