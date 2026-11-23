@@ -40,7 +40,7 @@ STYLE: ...(공통 그림체)
 
 ## 72. 끝없는 탑 배경 3장 (`72_bg_tower_0.png`, `72_bg_tower_1.png`, `72_bg_tower_boss.png`)
 
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 - 결과: `bg_tower_0`, `bg_tower_1`, `bg_tower_boss` (1672 × 941)
 
 ```text
@@ -81,7 +81,7 @@ STYLE: ...(공통 그림체)
 - `75_set_hats.png` 3칸 × 3줄: 칸은 지우개·구김·낙서, 줄은 앞·옆(왼쪽을 봄)·뒤. 첨부: `artifacts/hat_ref.png`, `33_hats_a.png`, `74_set_icons.png` → `hat_set_<세트>_<0~2>`
 - `76_set_tools.png` 3칸: 손에 드는 도구 (촉이 위). 첨부: `41_tools.png` → `tool_set_<세트>`
 - `40_cloth_set_<세트>.png`: `artifacts/cloth_ref.png`(tools/cloth_ref.py)와 세트 아이콘을 붙여 "같은 배치, 같은 자세, 맨손, 옷만 바꿔서". 가져오기: `python3 tools/import_cloth.py set_eraser set_crumple set_scribble`
-- `77_villager_parts.png` 4칸 × 4줄 "종이 인형": 1줄 몸 4(얼굴 없음), 2줄과 3줄 앞 두 칸 옷 6, 나머지 얼굴 6. 첨부: `ch1_v5/08_villagers_ch1.png`. 겹치는 자리는 `scripts/villager_maker.gd` 의 CLOTH_*, FACE_*
+- `77_villager_parts.png` 4칸 × 4줄 "종이 인형": 1줄 몸 4(얼굴 없음), 2줄과 3줄 앞 두 칸 옷 6, 나머지 얼굴 6. 첨부: `ch1_v5/08_villagers_ch1.png`. 겹치는 자리는 `scripts/ui/villager_maker.gd` 의 CLOTH_*, FACE_*
 
 ## 80. HUD 메뉴 단추 (`80_menu_btns.png`)
 

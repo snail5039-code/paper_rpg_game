@@ -10,13 +10,15 @@ import os
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SP = os.path.join(ROOT, "assets", "sprites")
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 W, H = 608, 912          # 2:3 (ChatGPT 의 세로 그림 비율). 걷기와 공격을 가운데에 놓는다
 
 
 def main():
-    walk = Image.open(os.path.join(SP, "player_walk.png")).convert("RGBA")
-    attack = Image.open(os.path.join(SP, "player_attack.png")).convert("RGBA")
+    walk = Image.open(sprite_path("player_walk")).convert("RGBA")
+    attack = Image.open(sprite_path("player_attack")).convert("RGBA")
     out = Image.new("RGBA", (W, H), (255, 0, 255, 255))
     out.alpha_composite(walk, ((W - walk.width) // 2, 0))
     out.alpha_composite(attack, ((W - attack.width) // 2, H // 2))

@@ -5,7 +5,7 @@ extends Node
 
 const FieldScene := preload("res://scenes/field.tscn")
 const MainScene := preload("res://scenes/main.tscn")
-const Data := preload("res://scripts/game_data.gd")
+const Data := preload("res://scripts/data/game_data.gd")
 const S := 640.0 / 1672.0
 
 var passed := 0

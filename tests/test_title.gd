@@ -6,7 +6,7 @@ extends Node
 
 const TitleScene := preload("res://scenes/title.tscn")
 const MainScene := preload("res://scenes/main.tscn")
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/data/items.gd")
 const DIR := "user://test_title/"
 
 var passed := 0
@@ -142,7 +142,7 @@ func _run() -> void:
 	var held: Sprite2D = player.get("_tool")
 	var body: Sprite2D = player.get("_sprite")
 	var swing_body: Sprite2D = player.get("_attack_sprite")
-	var ArtT := preload("res://scripts/art.gd")
+	var ArtT := preload("res://scripts/core/art.gd")
 	check(not hat.visible and held.visible and held.texture == ArtT.tex("tool_0") and body.texture == ArtT.tex("player_walk_c0"),
 		"기본 차림: 모자 없음, 손에 연필, 후드티")
 	GameState.equipped["hat"] = Items.make("hat", 2, 0, 1)
@@ -160,7 +160,7 @@ func _run() -> void:
 		check(ArtT.tex("player_walk_c%d" % shape) != null and ArtT.tex("player_attack_c%d" % shape) != null and ArtT.tex("tool_%d" % shape) != null,
 			"옷 %d번의 걷기·공격 그림과 도구 %d번 그림이 있음" % [shape, shape])
 	# 네 방향에서 모자가 머리 위에 붙어 있는지: 모자의 가운데가 머리 가운데에서 크게 벗어나지 않아야 한다
-	var Anchors := preload("res://scripts/player_anchors.gd")
+	var Anchors := preload("res://scripts/data/player_anchors.gd")
 	var ok_all := true
 	var views := {}
 	for dir in [Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT, Vector2.UP]:
@@ -186,8 +186,8 @@ func _run() -> void:
 	check(held.visible and is_equal_approx(held.region_rect.size.y, float(held.texture.get_height())) and absf(held.rotation) > 0.01,
 		"공격하는 동안에는 도구가 통째로, 휘두르는 방향으로 기울어 보임")
 	for shape in 10:
-		check(preload("res://scripts/art.gd").tex("hat_%d_0" % shape) != null and preload("res://scripts/art.gd").tex("hat_%d_1" % shape) != null
-			and preload("res://scripts/art.gd").tex("hat_%d_2" % shape) != null, "모자 %d번의 앞·옆·뒤 그림이 있음" % shape)
+		check(preload("res://scripts/core/art.gd").tex("hat_%d_0" % shape) != null and preload("res://scripts/core/art.gd").tex("hat_%d_1" % shape) != null
+			and preload("res://scripts/core/art.gd").tex("hat_%d_2" % shape) != null, "모자 %d번의 앞·옆·뒤 그림이 있음" % shape)
 	GameState.equipped.erase("hat")
 	GameState.changed.emit()
 	await frames(2)

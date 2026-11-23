@@ -1,12 +1,13 @@
 extends Node
+const Art := preload("res://scripts/core/art.gd")
 ## 튜토리얼 장 "연습 페이지" 테스트: 새 캐릭터가 13개 맵에서 선생에게 할 일을 받아 하나씩 끝내고 1장으로 넘어가는지.
 ## 대화는 테스트가 대신 넘기고, 할 일은 게임의 함수를 직접 불러 채운다.
 ## 장면이 바뀌어도 남도록 이 노드는 root 로 옮겨 간다.
 ## 실행: godot --headless --path . res://tests/test_lessons.tscn   (뒤에 "-- <폴더>" 를 주면 맵마다 화면을 찍는다)
 
-const Items := preload("res://scripts/items.gd")
-const Data := preload("res://scripts/game_data.gd")
-const Tut := preload("res://scripts/tut_data.gd")
+const Items := preload("res://scripts/data/items.gd")
+const Data := preload("res://scripts/data/game_data.gd")
+const Tut := preload("res://scripts/data/tut_data.gd")
 const DIR := "user://test_lessons/"
 ## 나가는 문 바로 밖 (bg px)
 const OUT_AT := {"right": Vector2(1662, 470), "left": Vector2(10, 470), "top": Vector2(836, 10), "bottom": Vector2(836, 931)}
@@ -136,7 +137,7 @@ func _run() -> void:
 	for i in Tut.MAPS.size():
 		var m: Dictionary = Tut.MAPS[i]
 		for tex_name in [str(m["bg"]), str(m["npc"][1]), "portrait_" + str(m["npc"][1]), str(Data.MONSTERS[str(m["monsters"][0][0])]["sprite"])]:
-			if not ResourceLoader.exists("res://assets/sprites/%s.png" % tex_name):
+			if not Art.has(tex_name):
 				art_ok = false
 				print("    그림 없음: %s" % tex_name)
 	check(art_ok, "13장 모두 배경, 선생, 선생 얼굴, 몬스터 그림이 있음")

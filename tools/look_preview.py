@@ -1,4 +1,4 @@
-"""옷·도구 맞춤 미리보기: 게임(scripts/player.gd 의 _place_tool)과 같은 계산으로 도구를 주먹에 놓아 본다.
+"""옷·도구 맞춤 미리보기: 게임(scripts/actors/player.gd 의 _place_tool)과 같은 계산으로 도구를 주먹에 놓아 본다.
 
 줄 = 옷과 도구 번호 (같은 번호끼리), 칸 = 걷기 네 방향과 공격 장면들. → artifacts/look_preview.png
 TOOL_TUCK 이나 자리 표(tools/player_anchors.py)를 고칠 때 쓴다.
@@ -12,7 +12,9 @@ import re
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SP = os.path.join(ROOT, "assets", "sprites")
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 K = 3                    # 보기 좋게 키우는 배율
 TOOL_K = 0.5
 TUCK = 6.0
@@ -53,9 +55,9 @@ def main():
              ("attack", 0, 0), ("attack", 0, 1), ("attack", 1, 1), ("attack", 2, 1), ("attack", 3, 2)]
     rows = []
     for n in range(10):
-        walk = Image.open(os.path.join(SP, "player_walk_c%d.png" % n)).convert("RGBA")
-        attack = Image.open(os.path.join(SP, "player_attack_c%d.png" % n)).convert("RGBA")
-        tool = Image.open(os.path.join(SP, "tool_%d.png" % n)).convert("RGBA")
+        walk = Image.open(sprite_path("player_walk_c%d" % n)).convert("RGBA")
+        attack = Image.open(sprite_path("player_attack_c%d" % n)).convert("RGBA")
+        tool = Image.open(sprite_path("tool_%d" % n)).convert("RGBA")
         cells = []
         for kind, r, c in shots:
             if kind == "walk":

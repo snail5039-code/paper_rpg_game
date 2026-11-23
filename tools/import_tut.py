@@ -17,10 +17,12 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import map_v6_post as post  # noqa: E402
 import import_ui_v7 as ui  # noqa: E402
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7_raw")
-OUT = os.path.join(ROOT, "assets", "sprites")
 BG_W, BG_H = 1672, 941
 
 
@@ -39,7 +41,7 @@ def main():
         if not os.path.isfile(src):
             print("[없음] 50_tut_%d" % n)
             continue
-        cover(Image.open(src).convert("RGB"), BG_W, BG_H).save(os.path.join(OUT, "bg_tut_%d.png" % n))
+        cover(Image.open(src).convert("RGB"), BG_W, BG_H).save(sprite_path("bg_tut_%d" % n))
         done += 1
     print("완료: 배경 %d장" % done)
     faces()
@@ -71,7 +73,7 @@ def faces():
             top = im.crop((0, 0, im.width, round(im.height * FACE_PART)))
             k = FACE_H / top.height
             top = top.resize((max(1, round(top.width * k)), FACE_H), Image.LANCZOS)
-            top.save(os.path.join(OUT, "portrait_tnpc_%d.png" % n))
+            top.save(sprite_path("portrait_tnpc_%d" % n))
             done += 1
     print("완료: 얼굴 %d장" % done)
 

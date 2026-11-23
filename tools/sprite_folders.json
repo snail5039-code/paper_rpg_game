@@ -1,0 +1,12 @@
+{
+  "_설명": "assets/sprites 아래 하위 폴더 규칙. 이름이 '앞부분_' 으로 시작하면 그 폴더에 넣는다 (위에서부터 먼저 맞는 것). 맞는 게 없으면 etc. 게임(scripts/core/art.gd)은 폴더와 상관없이 이름으로 찾는다.",
+  "rules": [
+    ["backgrounds", ["bg", "ground", "mask", "page", "prologue", "opening", "shop"]],
+    ["buildings", ["bld", "deco", "furn", "portal", "prop", "door"]],
+    ["characters", ["player", "hat", "cv", "villager", "tnpc", "npc", "shopkeeper", "portrait", "emote", "mallang"]],
+    ["monsters", ["mon", "tm", "slime", "slimef", "slimee", "boss", "monster", "smudge"]],
+    ["items", ["equip", "set", "tool", "mat", "food", "item", "crop", "misc", "icon", "dish", "vgift", "forage", "unique", "life"]],
+    ["ui", ["ui", "hud", "menu", "key", "stat", "skill", "mark", "ult"]],
+    ["effects", ["fx", "forge", "dust"]]
+  ]
+}

@@ -18,11 +18,13 @@ from scipy import ndimage
 
 sys.path.insert(0, os.path.dirname(__file__))
 import map_v6_post as post  # noqa: E402  (chroma_key, drop_specks 를 같이 쓴다)
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7_raw")
 MID = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7")
-OUT = os.path.join(ROOT, "assets", "sprites")
 
 # 시트 이름: (칸 수 가로, 세로, [(저장 이름, 긴 변 크기)] 왼쪽 위부터)
 HAT_SCALE = 0.26     # 원본(가로 약 1620) 의 모자가 주인공 머리(약 64 텍셀)에 맞는 배율
@@ -77,7 +79,7 @@ SHEETS = {
     "75_set_hats": (3, 3, [("hat_set_%s_%d" % (s, v), "match:hat_%d_%d" % (sh, v)) for v in range(3) for s, sh in (("eraser", 2), ("crumple", 5), ("scribble", 3))]),
     # 세트 도구 (손에 드는 그림): 같은 모양의 원래 도구와 같은 긴 변으로 맞춘다
     "76_set_tools": (3, 1, [("tool_set_eraser", "match:tool_6"), ("tool_set_crumple", "match:tool_2"), ("tool_set_scribble", "match:tool_9")]),
-    # 직접 만드는 주민의 부품 (종이 인형): 몸 4, 옷 6, 얼굴 6. 겹치는 자리는 scripts/villager_maker.gd 가 몸 크기를 기준으로 정한다
+    # 직접 만드는 주민의 부품 (종이 인형): 몸 4, 옷 6, 얼굴 6. 겹치는 자리는 scripts/ui/villager_maker.gd 가 몸 크기를 기준으로 정한다
     "77_villager_parts": (4, 4, [("cv_body_%d" % i, 96) for i in range(4)] + [("cv_cloth_%d" % i, 96) for i in range(6)]
         + [("cv_face_%d" % i, 96) for i in range(6)]),
     "60_bld_forge": (5, 1, [("bld_forge_l1", BLD_SCALE), ("bld_forge_l2", BLD_SCALE), ("bld_forge", BLD_SCALE), ("bld_forge_l4", BLD_SCALE), ("bld_forge_l5", BLD_SCALE)]),
@@ -184,14 +186,14 @@ def main():
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
             if isinstance(size, str):      # "match:<그림 이름>": 그 그림과 같은 긴 변으로
-                ref = Image.open(os.path.join(OUT, size.split(":", 1)[1] + ".png"))
+                ref = Image.open(sprite_path(size.split(":", 1)[1]))
                 s = max(ref.size) / max(im.size)
             else:
                 s = size if size <= 1.0 else size / max(im.size)
             if not isinstance(size, str) and size < 0:
                 s = -size * 1774.0 / rgba.shape[1]
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
-            im.save(os.path.join(OUT, out_name + ".png"))
+            im.save(sprite_path(out_name))
             count += 1
     for name, (out_name, width, band) in FULL.items():
         if not wanted(name):
@@ -206,7 +208,7 @@ def main():
         y0 = (im.height - bh) // 2
         im = im.crop((0, y0, im.width, y0 + bh))
         im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
-        im.save(os.path.join(OUT, out_name + ".png"))
+        im.save(sprite_path(out_name))
         count += 1
     for name, out_name in COVER.items():
         if not wanted(name):
@@ -217,7 +219,7 @@ def main():
             continue
         im = Image.open(src).convert("RGB")
         im.save(os.path.join(MID, name + ".png"))
-        post.cover(im, 1672, 941).save(os.path.join(OUT, out_name + ".png"))
+        post.cover(im, 1672, 941).save(sprite_path(out_name))
         count += 1
     for name, (n, out_name, cw) in STRIPS.items():
         if not wanted(name):
@@ -240,7 +242,7 @@ def main():
         ys = np.where(rgba[..., 3].max(axis=1) > 0)[0]
         im = Image.fromarray(rgba[ys.min():ys.max() + 1], "RGBA")
         im = im.resize((cw * n, round(im.height * cw * n / im.width)), Image.LANCZOS)
-        im.save(os.path.join(OUT, out_name + ".png"))
+        im.save(sprite_path(out_name))
         count += 1
     print("완료: %d장" % count)
 

@@ -12,3 +12,9 @@ Thumbs.db
 # ChatGPT에서 받은 원본 (후처리 전)
 assets/generated_pixel_art/map_v6_raw/
 assets/generated_pixel_art/ui_v7_raw/
+
+# 미리보기·캡처 출력 (tools/*_preview.py 등)
+artifacts/
+# 게임이 쓰지 않는 옛 스프라이트
+assets/generated_pixel_art/early/unused_sprites/
+__pycache__/

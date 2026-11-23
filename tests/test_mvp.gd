@@ -3,7 +3,7 @@ extends Node
 ## 실행: godot --headless --path . res://tests/test_mvp.tscn
 
 const MainScene := preload("res://scenes/main.tscn")
-const Validator := preload("res://scripts/blueprint_validator.gd")
+const Validator := preload("res://scripts/drawing/blueprint_validator.gd")
 const S := 640.0 / 1672.0  # bg px → 월드
 
 var passed := 0
@@ -176,7 +176,7 @@ func _run() -> void:
 			# 기다리는 사이에 사라진 것(피해 숫자, 이미 주운 것)은 건너뛴다
 			if not is_instance_valid(c):
 				continue
-			if c.get_script() == preload("res://scripts/pickup.gd"):
+			if c.get_script() == preload("res://scripts/actors/pickup.gd"):
 				player.global_position = c.global_position
 				await frames(5)
 	check(kills == 3, "슬라임 3마리 처치 (%d)" % kills)
@@ -219,7 +219,7 @@ func _run() -> void:
 	GameState.exp = 0
 	player.set("max_hp", GameState.max_hp())
 	player.set("hp", GameState.max_hp())
-	var mat_drop: Node2D = preload("res://scripts/pickup.gd").new()
+	var mat_drop: Node2D = preload("res://scripts/actors/pickup.gd").new()
 	mat_drop.set("mat_id", 2)
 	world.get("actors").add_child(mat_drop)
 	mat_drop.global_position = player.global_position

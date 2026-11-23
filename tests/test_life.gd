@@ -1,13 +1,14 @@
 extends Node
+const Art := preload("res://scripts/core/art.gd")
 ## 포획·친구·합치기, 내 마을 짓기·넓히기, 쓰러짐·낮밤·피로도 테스트 + 화면 캡처.
 ## 실행: godot --headless --path . res://tests/test_life.tscn
 ##       godot --path . res://tests/test_life.tscn -- <캡처 폴더>
 
 const FieldScene := preload("res://scenes/field.tscn")
 const HomeScene := preload("res://scenes/home.tscn")
-const Data := preload("res://scripts/game_data.gd")
-const AiPixel := preload("res://scripts/ai_pixel.gd")
-const Items_ := preload("res://scripts/items.gd")
+const Data := preload("res://scripts/data/game_data.gd")
+const AiPixel := preload("res://scripts/drawing/ai_pixel.gd")
+const Items_ := preload("res://scripts/data/items.gd")
 
 var passed := 0
 var failed := 0
@@ -404,7 +405,7 @@ func _run() -> void:
 	var art_all := true
 	for bid2 in ["bld_house", "bld_shop", "bld_craft", "bld_storage", "bld_board", "bld_fishing", "bld_villager_a", "bld_villager_b", "bld_farm", "bld_diner"]:
 		for blv in [1, 2, 4, 5]:
-			if not ResourceLoader.exists("res://assets/sprites/%s_l%d.png" % [bid2, blv]):
+			if not Art.has("%s_l%d" % [bid2, blv]):
 				art_all = false
 				print("    그림 없음: %s_l%d" % [bid2, blv])
 	check(art_all, "건물 10종 모두 1·2·4·5단계 그림이 있음")
@@ -526,7 +527,7 @@ func _run() -> void:
 	check(bool(fishing.call("is_active")) and is_equal_approx(float(fishing.get("window")), 1.0), "낚시가 시작됨 (정성 낚시터는 입질 시간 1초)")
 	var angler: Node2D = GameState.player_ref
 	check(bool(angler.call("is_acting")) and not get_tree().paused, "낚시 창 없이 캐릭터가 낚싯대를 들고, 게임은 멈추지 않음")
-	check((angler.get("_tool") as Sprite2D).texture == preload("res://scripts/art.gd").tex("life_rod"), "손에 낚싯대가 보임")
+	check((angler.get("_tool") as Sprite2D).texture == preload("res://scripts/core/art.gd").tex("life_rod"), "손에 낚싯대가 보임")
 	check(not bool(fishing.call("pull")) and str(fishing.get("phase")) == "result", "입질 전에 채면 놓침")
 	for i in 400:
 		if str(fishing.get("phase")) == "bite":

@@ -11,7 +11,7 @@ ChatGPT 한 대화에서 차례로 받았다. 첫 메시지에 `ch1_v5/09_ui_com
 | `24_skill_fx.png` | 4칸 × 2줄 | 길게 긋기, 동그라미, 점 찍기(연필심 조각), 빗금 / 꾹 눌러 쓰기(충격), 쓱 지우기(지우개 가루 구름), 맞은 자리 불꽃, 필살기 별 | `fx_slash`, `fx_circle`, `fx_dot`, `fx_hatch`, `fx_press`, `fx_erase`, `fx_hit`, `fx_star` |
 | `25_ult_cutin.png` | 3:2 일러스트 | 주인공이 큰 연필로 점선 별을 그리는 필살기 컷인. 가운데 62% 띠만 잘라 쓴다 | `ult_cutin` |
 
-스킬 효과는 한 장짜리 그림이고, 움직임(돌기, 커지기, 사라지기)은 코드(`scripts/player.gd` 의 `_draw_skill_fx`)가 만든다.
+스킬 효과는 한 장짜리 그림이고, 움직임(돌기, 커지기, 사라지기)은 코드(`scripts/actors/player.gd` 의 `_draw_skill_fx`)가 만든다.
 
 ## 생활·보스 그림 (같은 대화에서 이어 받음)
 

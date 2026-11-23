@@ -11,7 +11,7 @@
 
 ## 실행
 
-Godot 4.7로 이 폴더를 열고 F5를 누른다. 시작 씬은 `scenes/main.tscn`이다.
+Godot 4.7로 이 폴더를 열고 F5를 누른다. 시작 씬은 `scenes/title.tscn`이다.
 
 ## 조작
 
@@ -37,53 +37,27 @@ Godot 4.7로 이 폴더를 열고 F5를 누른다. 시작 씬은 `scenes/main.ts
 ```
 godot --headless --path . res://tests/test_mvp.tscn
 ```
-이동·충돌, 회피, 대화, 전투, 슬라임 AI, 그리기·지우개·판정, 다리, 문 닦기, 페이지 넘김, 저장/불러오기를 자동으로 확인한다. 화면 캡처는 `res://tests/screenshot.tscn -- <출력폴더>` 로 저장한다.
+이동·충돌, 회피, 대화, 전투, 슬라임 AI, 그리기·지우개·판정, 다리, 문 닦기, 페이지 넘김, 저장/불러오기를 자동으로 확인한다. 화면 캡처는 `res://tests/shots/screenshot.tscn -- <출력폴더>` 로 저장한다.
 
-## 구조
+## 폴더 구조
 
-| 파일 | 역할 |
+| 폴더 | 내용 |
 |---|---|
-| `scripts/game_state.gd` | Autoload. 퀘스트·재료·저장·일시정지 |
-| `scripts/village.gd` | 첫 페이지: 배경 그림, 마스크 충돌, 배치, 다리 설계도 처리 |
-| `scripts/player.gd` | 이동·회피·공격·피격 |
-| `scripts/enemy_slime.gd` | 몬스터 1종 |
-| `scripts/npc.gd` | 하루: 대화·퀘스트·감정 표시 |
-| `scripts/goal.gd` | 빨간 문: 지우개 자국 닦기, 열림 |
-| `scripts/tutorial.gd` | 오프닝, 단계별 조작 안내, 괴물 등장, 페이지 넘김 |
-| `scripts/drawing_manager.gd` | 연필 모드 (선·지우개·안내선) |
-| `scripts/blueprint_validator.gd` | 설계도 판정 (따라 그리기 80% + 정확도 60%) |
-| `scripts/hud.gd` | HP·할 일·조작 안내·알림·대화창(초상화) |
-| `scripts/art.gd` | 스프라이트 로더 |
-| `tools/import_art.gd` | 원본 시트 → 게임용 스프라이트·충돌 마스크 변환 |
+| `scenes/` | 장면 (시작 화면, 마을, 사냥터, 내 마을, 방, 탑, 연습 페이지 등) |
+| `scripts/core/` | 전역 상태(`game_state.gd`, Autoload), 소리, 스프라이트 로더(`art.gd`), 시작 |
+| `scripts/data/` | 데이터 표: 재료·몬스터·건물(`game_data.gd`), 아이템(`items.gd`), 연습 페이지 맵, 수업 |
+| `scripts/maps/` | 맵 한 장씩: 1장 마을, 사냥터, 탑, 내 마을, 방, 연습 페이지, 시작 화면 |
+| `scripts/actors/` | 맵 위에 서는 것: 주인공, 몬스터, 친구, 주민, 줍는 것, 포탈, 내 마을 건물 |
+| `scripts/ui/` | 화면 위 창: HUD, 창(가방·스킬·문방구…), 강화소, 낚시, 지도, 그림판 |
+| `scripts/drawing/` | 연필 모드, 설계도 판정, 그린 그림 → 도트 |
+| `assets/sprites/<종류>/` | 게임이 쓰는 그림. 종류: backgrounds, buildings, characters, monsters, items, ui, effects |
+| `assets/generated_pixel_art/` | ChatGPT 에서 받은 원본 시트 (`*_raw` 는 저장소에 넣지 않음), `early/` 는 초기 시안 |
+| `tests/` | 자동 테스트 (`test_*.tscn`), `tests/shots/` 는 화면 캡처 도구 |
+| `tools/` | 그림 변환 도구. 스프라이트를 어느 종류 폴더에 넣을지는 `tools/sprite_folders.json` |
+| `docs/` | 기획 문서, 도트 프롬프트 |
+| `artifacts/` | 미리보기·캡처 출력 (저장소에 넣지 않음) |
 
-## 그래픽 (v4: 도트 + 크레용 질감)
-
-원본 시트는 `assets/generated_pixel_art/pixel-v4-*`, 게임이 실제로 쓰는 파일은 `assets/sprites/`에 있다.
-
-| 파일 | 내용 |
-|---|---|
-| `bg.png` | 마을 배경 한 장 (타일 없음) |
-| `mask_walk.png`, `mask_solid.png` | 충돌 마스크. 흰 칸이 각각 "걸을 수 있는 곳", "막힌 곳" |
-| `player_walk.png`, `npc_walk.png` | 4방향 × 걷기 4프레임 (행: 정면, 왼쪽, 오른쪽, 뒷면) |
-| `slime_*.png` | 기본, 납작, 점프, 맞음 |
-| `prop_bridge.png`, `prop_lead.png`, `prop_door.png` | 다리, 연필심, 빨간 문 |
-
-원본 시트나 충돌 영역을 바꿨으면 아래 두 줄로 다시 만든다.
-
-```
-godot --headless --path . --script tools/import_art.gd
-godot --headless --path . --import
-```
-
-튜토리얼 그림(`tutorial_v4` 폴더)만 다시 만들려면 첫 줄 끝에 `-- tutorial`을 붙인다.
-
-```
-godot --headless --path . --script tools/import_art.gd -- tutorial
-```
-
-- **충돌:** 강은 배경의 파란색을 읽어 자동으로 막는다. 나무 테두리와 집·덤불은 `tools/import_art.gd`의 `PLAY_RECT`, `SOLID_RECTS`에 배경 픽셀 좌표로 적는다.
-- **배치:** 시작 위치, 하루, 슬라임, 문, 다리 자리는 `scripts/village.gd` 위쪽 상수에 배경 픽셀 좌표로 적는다.
-- 스프라이트 파일이 없으면 캐릭터는 코드로 그린 임시 도형으로 나온다.
+게임은 스프라이트를 이름만으로 찾는다 (`Art.tex("bld_forge")`). 그림을 새로 넣을 때는 변환 도구가 `tools/sprites.py` 의 `sprite_path()` 로 알맞은 종류 폴더에 저장한다.
 
 ## 문서
 

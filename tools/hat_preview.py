@@ -1,6 +1,6 @@
 """모자 맞춤 미리보기: 모자 10종 × 앞·옆·뒤를 주인공 그림 위에 게임과 같은 계산으로 얹어 본다.
 
-scripts/player.gd 의 HAT_FIT (크기 배율, 머리 꼭대기에서 모자 아랫단까지 길이) 를 고칠 때 쓴다.
+scripts/actors/player.gd 의 HAT_FIT (크기 배율, 머리 꼭대기에서 모자 아랫단까지 길이) 를 고칠 때 쓴다.
 
   python3 tools/hat_preview.py            # artifacts/hat_preview.png 를 만든다
 """
@@ -10,7 +10,9 @@ import re
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SP = os.path.join(ROOT, "assets", "sprites")
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 
 
 def read_table(name):
@@ -27,7 +29,7 @@ def read_fit():
 def main():
     walk = read_table("WALK")
     fit = read_fit()
-    sheet = Image.open(os.path.join(SP, "player_walk.png")).convert("RGBA")
+    sheet = Image.open(sprite_path("player_walk")).convert("RGBA")
     fw, fh = sheet.width // 4, sheet.height // 4
     pad = 40
     out = Image.new("RGBA", ((fw + pad) * 10, (fh + pad) * 3), (120, 150, 190, 255))
@@ -37,7 +39,7 @@ def main():
             frame = sheet.crop((fw, row * fh, fw * 2, row * fh + fh))
             cell = Image.new("RGBA", (fw + pad, fh + pad), (0, 0, 0, 0))
             cell.alpha_composite(frame, (pad // 2, pad))
-            path = os.path.join(SP, "hat_%d_%d.png" % (shape, view))
+            path = sprite_path("hat_%d_%d" % (shape, view))
             if os.path.isfile(path):
                 hat = Image.open(path).convert("RGBA")
                 hat = hat.resize((max(1, round(hat.width * k)), max(1, round(hat.height * k))), Image.LANCZOS)

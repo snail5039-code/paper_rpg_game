@@ -1,4 +1,4 @@
-"""주인공 그림(걷기 4×4, 공격 3×4)의 프레임마다 머리 자리를 재서 scripts/player_anchors.gd 로 적는다.
+"""주인공 그림(걷기 4×4, 공격 3×4)의 프레임마다 머리 자리를 재서 scripts/data/player_anchors.gd 로 적는다.
 
 모자를 프레임마다 머리 위에 정확히 얹기 위한 표다. 주인공 그림이 바뀌면 다시 돌린다.
 
@@ -12,13 +12,16 @@ import os
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEAD_ROWS = 28          # 꼭대기에서 이만큼 아래까지를 머리(머리카락)로 본다 (텍셀). 팔이 들어가지 않게 짧게 잡는다
 
 
 def frames(name, cols, rows):
-    im = np.asarray(Image.open(os.path.join(ROOT, "assets", "sprites", name + ".png")).convert("RGBA")).astype(np.int32)
+    im = np.asarray(Image.open(sprite_path(name)).convert("RGBA")).astype(np.int32)
     fh, fw = im.shape[0] // rows, im.shape[1] // cols
     out = []
     for r in range(rows):
@@ -46,7 +49,7 @@ def tools(name, cols, rows):
 
     도구 그림을 이 자리에 같은 방향으로 놓는다 (옷마다 받은 그림에는 연필이 없고 주먹만 있다).
     """
-    im = np.asarray(Image.open(os.path.join(ROOT, "assets", "sprites", name + ".png")).convert("RGBA")).astype(np.int32)
+    im = np.asarray(Image.open(sprite_path(name)).convert("RGBA")).astype(np.int32)
     fh, fw = im.shape[0] // rows, im.shape[1] // cols
     out = []
     for r in range(rows):

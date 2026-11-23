@@ -4,11 +4,11 @@ extends Node
 ##       godot --path . res://tests/test_rpg.tscn -- <캡처 폴더>
 
 const MainScene := preload("res://scenes/main.tscn")
-const Items := preload("res://scripts/items.gd")
-const Data := preload("res://scripts/game_data.gd")
-const Art := preload("res://scripts/art.gd")
-const Pixel := preload("res://scripts/doodle_pixel.gd")
-const AiPixel := preload("res://scripts/ai_pixel.gd")
+const Items := preload("res://scripts/data/items.gd")
+const Data := preload("res://scripts/data/game_data.gd")
+const Art := preload("res://scripts/core/art.gd")
+const Pixel := preload("res://scripts/drawing/doodle_pixel.gd")
+const AiPixel := preload("res://scripts/drawing/ai_pixel.gd")
 const S := 640.0 / 1672.0
 const AIM := Vector2(10, 0)   # 조준 방향 (길이가 1보다 커야 조준으로 친다)
 
@@ -216,7 +216,7 @@ func _run() -> void:
 	await frames(2)
 	check(int(player.get("max_hp")) == GameState.max_hp(), "장비를 바꾸면 플레이어 수치에 바로 반영")
 	# 떨어진 장비 줍기
-	var drop: Node2D = preload("res://scripts/pickup.gd").new()
+	var drop: Node2D = preload("res://scripts/actors/pickup.gd").new()
 	drop.set("item", Items.make("shoe", 0, 1, 1))
 	world.get("actors").add_child(drop)
 	drop.global_position = player.global_position

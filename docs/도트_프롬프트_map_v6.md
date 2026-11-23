@@ -35,7 +35,7 @@ python tools/map_v6_post.py
 
 - 파일 이름: `17a_ch1_village.png`
 - 크기: 1672 × 941, 불투명 (가로 16:9)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png` **(필수: 이 그림을 고치는 요청이다)**
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png` **(필수: 이 그림을 고치는 요청이다)**
 
 ```text
 Edit the attached image with image generation (not code). Output ONE image.
@@ -47,7 +47,7 @@ EDIT INSTRUCTIONS: Keep the attached top-down pixel-art village map EXACTLY as i
 
 - 파일 이름: `17b_ch1_meadow.png`
 - 크기: 1672 × 941, 불투명 (가로 16:9)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -63,7 +63,7 @@ GATES: exactly ONE gate - at the center of the RIGHT edge. A dirt path enters fr
 
 - 파일 이름: `17c_ch1_crossroad.png`
 - 크기: 1672 × 941, 불투명 (가로 16:9)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -79,7 +79,7 @@ GATES: FOUR gates - one at the exact center of EACH edge (top, bottom, left, rig
 
 - 파일 이름: `17d_ch1_gridwoods.png`
 - 크기: 1672 × 941, 불투명 (가로 16:9)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -95,7 +95,7 @@ GATES: exactly ONE gate - at the center of the LEFT edge. A dirt path enters fro
 
 - 파일 이름: `17e_ch1_erasedroad.png`
 - 크기: 1672 × 941, 불투명 (가로 16:9)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -116,7 +116,7 @@ GATES: exactly ONE gate - at the center of the TOP edge. The road passes through
 
 - 파일 이름: `18a_ground_grass.png`
 - 크기: 512 × 512, 불투명 (정사각형)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -131,7 +131,7 @@ TEXTURE: crayon-coloured grass - light yellow-green with soft, short, evenly spr
 
 - 파일 이름: `18b_ground_path.png`
 - 크기: 512 × 512, 불투명 (정사각형)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -146,7 +146,7 @@ TEXTURE: crayon-coloured dirt path - light sandy apricot / peach, with soft even
 
 - 파일 이름: `18c_ground_water.png`
 - 크기: 512 × 512, 불투명 (정사각형)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -166,7 +166,7 @@ TEXTURE: crayon-coloured water - sky blue crayon hatching, with a handful of sma
 
 - 파일 이름: `19_portal.png`
 - 크기: 2172 × 724, 가로 3칸, 투명 (마젠타 바탕으로 받아 후처리)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -184,7 +184,7 @@ Cell 3 - JUST OPENED door: same as cell 1 plus a few short sparkle lines and sma
 
 - 파일 이름: `20a_buildings.png`
 - 크기: 2172 × 724, 가로 4칸, 투명 (마젠타 바탕으로 받아 후처리)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -203,7 +203,7 @@ Cell 4 - Fishing spot: a small wooden plank pier/deck with a fishing rod resting
 
 - 파일 이름: `20b_buildings.png`
 - 크기: 2172 × 724, 가로 4칸, 투명 (마젠타 바탕으로 받아 후처리)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -222,7 +222,7 @@ Cell 4 - Notice board: a wooden quest bulletin board on two posts with a tiny ro
 
 - 파일 이름: `21a_props.png`
 - 크기: 1280 × 512, 5칸 × 2줄, 투명 (마젠타 바탕으로 받아 후처리)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).
@@ -239,7 +239,7 @@ Row 2 (left to right): wooden fence segment running horizontally; wooden fence s
 
 - 파일 이름: `21b_props.png`
 - 크기: 1280 × 512, 5칸 × 2줄, 투명 (마젠타 바탕으로 받아 후처리)
-- 첨부: `assets/generated_pixel_art/pixel-v4-empty-village-background.png`
+- 첨부: `assets/generated_pixel_art/early/pixel-v4-empty-village-background.png`
 
 ```text
 Generate exactly ONE image as described below (use image generation, not code or SVG).

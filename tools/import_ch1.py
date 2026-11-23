@@ -13,9 +13,11 @@ import sys
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sprites import sprite_path
 
 SRC = "assets/generated_pixel_art/ch1_v5/"
-OUT = "assets/sprites/"
 TEX = 3.0
 
 
@@ -75,7 +77,7 @@ def cell_pieces(im, cols, rows, min_area=150):
 
 
 def save(im, name):
-    im.save(OUT + name + ".png")
+    im.save(sprite_path(name))
 
 
 def fit(im, w, h):
@@ -156,7 +158,6 @@ def scaled(im, s):
 
 
 def main():
-    os.makedirs(OUT, exist_ok=True)
 
     # 01 흰 자국: 마을 배경의 집 크기에 맞춘다 (배경 1672px = 640 월드)
     singles("01_white_marks", 4, 1, ["mark_house_big"], target_w_world=110)
@@ -188,7 +189,7 @@ def main():
 
     # 06 프롤로그 컷
     for i, n in enumerate(["06a_prologue_phone", "06b_prologue_room", "06c_prologue_drawer"]):
-        Image.open(SRC + n + ".png").convert("RGB").resize((1280, 720), Image.LANCZOS).save(OUT + "prologue_%d.png" % i)
+        Image.open(SRC + n + ".png").convert("RGB").resize((1280, 720), Image.LANCZOS).save(sprite_path("prologue_%d" % i))
 
     # 07 초상화 (기존 초상화와 같은 124×151)
     im = load("07_portraits_ch1")
@@ -224,7 +225,7 @@ def main():
     save(scaled(p, 42 * TEX / p.height), "shopkeeper")
     save(to_h(pcs[(0, 1)][0], 168), "portrait_shop_smile")
     save(to_h(pcs[(0, 2)][0], 168), "portrait_shop_think")
-    Image.open(SRC + "16b_shop_shelf.png").convert("RGB").resize((1280, 720), Image.LANCZOS).save(OUT + "shop_bg.png")
+    Image.open(SRC + "16b_shop_shelf.png").convert("RGB").resize((1280, 720), Image.LANCZOS).save(sprite_path("shop_bg"))
     print("완료")
 
 
