@@ -167,6 +167,9 @@ func _ready() -> void:
 	fish_spot.position = bg(FISH_SPOT)
 	actors.add_child(fish_spot)
 
+	# 아래쪽 문 표지판: 사냥터로 가는 길
+	_build_gate_sign()
+
 	# 몬스터
 	for sp in MONSTER_SPAWNS:
 		_spawn_monster(str(sp[0]), bg(sp[1]))
@@ -230,6 +233,47 @@ func _ready() -> void:
 
 
 # ---------- 아래쪽 문 ----------
+
+var gate_sign: Node2D
+
+
+## 아래쪽 문 옆 팻말과 깜빡이는 화살표 ("사냥터 ↓")
+func _build_gate_sign() -> void:
+	gate_sign = Node2D.new()
+	gate_sign.name = "GateSign"
+	gate_sign.position = bg(Vector2(SOUTH_GATE_X, BG_SIZE.y - 70))
+	gate_sign.z_index = 4
+	add_child(gate_sign)
+	var post := Node2D.new()
+	post.position = Vector2(34, 0)
+	gate_sign.add_child(post)
+	post.draw.connect(func() -> void:
+		post.draw_line(Vector2(0, 2), Vector2(0, -16), Color(0.45, 0.32, 0.2), 2.5)
+		post.draw_rect(Rect2(-30, -30, 60, 15), Color(0.93, 0.82, 0.6))
+		post.draw_rect(Rect2(-30, -30, 60, 15), Color(0.45, 0.32, 0.2), false, 1.2))
+	var label := Label.new()
+	label.text = "사냥터 ↓"
+	label.position = Vector2(34 - 30, -30)
+	label.size = Vector2(60, 15)
+	label.clip_text = false
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 8)
+	label.add_theme_color_override("font_color", Color(0.3, 0.22, 0.15))
+	gate_sign.add_child(label)
+	var arrow := Node2D.new()
+	gate_sign.add_child(arrow)
+	arrow.draw.connect(func() -> void:
+		var y := 6.0 + sin(Time.get_ticks_msec() / 220.0) * 3.0
+		var col := Color(0.4, 0.8, 0.45, 0.95)
+		arrow.draw_line(Vector2(0, y - 12), Vector2(0, y), col, 4.0)
+		arrow.draw_colored_polygon(PackedVector2Array([Vector2(0, y + 8), Vector2(-7, y - 1), Vector2(7, y - 1)]), col))
+	arrow.set_process(true)
+	var timer := Timer.new()
+	timer.wait_time = 0.05
+	timer.autostart = true
+	timer.timeout.connect(arrow.queue_redraw)
+	arrow.add_child(timer)
 
 var last_exit := ""
 var _leaving := false

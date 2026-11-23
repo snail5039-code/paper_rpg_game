@@ -110,8 +110,53 @@ func _run() -> void:
 	check(str(ex.get("_message")).begins_with("연필 붕어") and str(ex.get("_message")).contains("내 마을 물"), "누르면 이름과 사는 곳·때·희귀도 설명")
 	ex.call("_exhibit_pick", "fish", "f_minnow")
 	check(str(ex.get("_message")).begins_with("???"), "기증하지 않은 것은 이름을 가림")
+	var view: Control = ex.get("_view")
+	await frames(3)
+	check(is_instance_valid(view) and view.is_visible_in_tree() and (view.get("_hits") as Array).size() == 1,
+		"수조 속을 크게 보여 주고, 기증한 물고기 하나가 헤엄침")
+	var hit: Array = (view.get("_hits") as Array)[0]
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = (hit[0] as Rect2).get_center()
+	view.call("_gui_input", click)
+	check(str(ex.get("_message")).begins_with("연필 붕어") and str(view.get("selected")) == "f_carp", "헤엄치는 물고기를 누르면 설명")
+	ex.call("open")
 	hud.call("toggle_menu", "exhibit")
 	await frames(3)
+	for k in 9:      # 다른 전시대도 그려 본다 (표본장·꽃밭·진열대·액자·진열장)
+		hud.call("open_menu", "exhibit", str([2, 5, 7, 9, 15, 3, 6, 8, 18][k]))
+		await frames(2)
+		hud.call("toggle_menu", "exhibit")
+	check(not bool(hud.call("is_menu_open", "exhibit")), "다른 전시대도 열고 닫힘")
+
+	print("[창 바깥을 눌러 닫기]")
+	hud.call("toggle_stats")
+	hud.call("toggle_map")
+	hud.call("toggle_map")
+	check(not bool(hud.call("is_map_open")), "M 으로 지도 열고 닫기")
+	hud.call("toggle_stats")
+	check(bool(hud.call("is_stats_open")), "능력치 창 열림")
+	var outside := InputEventMouseButton.new()
+	outside.button_index = MOUSE_BUTTON_LEFT
+	outside.pressed = true
+	outside.position = Vector2(20, 20)
+	Input.parse_input_event(outside)
+	var up := outside.duplicate()
+	up.pressed = false
+	Input.parse_input_event(up)
+	await frames(3)
+	check(not bool(hud.call("is_stats_open")) and not tree.paused, "능력치: 창 바깥을 누르면 닫힘")
+	hud.call("toggle_map")
+	Input.parse_input_event(outside)
+	Input.parse_input_event(up)
+	await frames(3)
+	check(not bool(hud.call("is_map_open")), "지도: 창 바깥을 누르면 닫힘")
+	hud.call("toggle_menu", "bag")
+	Input.parse_input_event(outside)
+	Input.parse_input_event(up)
+	await frames(3)
+	check(not bool(hud.call("is_menu_open", "bag")), "가방: 창 바깥을 누르면 닫힘")
 
 	print("[박물관에서 저장·불러오기]")
 	GameState.save_game()
@@ -127,6 +172,18 @@ func _run() -> void:
 	check(scene_name() == "Home", "내 마을로 나옴 (%s)" % scene_name())
 	var hp: Node2D = tree.current_scene.get("player")
 	check(hp.global_position.distance_to(Vector2(700, 520)) < 60.0, "박물관 앞에 섬 (%.0f)" % hp.global_position.distance_to(Vector2(700, 520)))
+
+	print("[내 마을에서 1장 사냥터로]")
+	var field_portal: Node2D = null
+	for pt in tree.current_scene.get("portals"):
+		if str(pt.get("target_map")) == "ch1_crossroad":
+			field_portal = pt
+	check(field_portal != null and not bool(field_portal.get("locked")), "1장 사냥터 포탈이 열려 있음")
+	field_portal.call("interact")
+	await frames(30)
+	check(GameState.current_map == "ch1_crossroad", "포탈로 갈림길(사냥터)에 바로 감 (%s)" % GameState.current_map)
+	check(GameState.goto_map("home", ""), "내 마을로 돌아옴")
+	await frames(30)
 
 	print("[들판: 곤충, 연못 낚시, 채집]")
 	check(GameState.goto_map("ch1_meadow", "gate_right"), "들판으로 이동")

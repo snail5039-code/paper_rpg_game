@@ -646,9 +646,11 @@ func _build_stats(root: Control) -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0.1, 0.08, 0.08, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stats.add_child(dim)
+	_close_on_outside(dim, toggle_stats)
 	var win := _tex_rect(_stats, "ui_window", Vector2(110, 46), Vector2(420, 268))
+	win.mouse_filter = Control.MOUSE_FILTER_STOP
+	UI.icon_button(win, "ui_close", Vector2(396, 0), Vector2(20, 20), toggle_stats)
 
 	var title := Label.new()
 	title.text = "능력치"
@@ -683,9 +685,18 @@ func _build_stats(root: Control) -> void:
 
 	_stats_derived = _dark_label(win, Vector2(72, 192), Vector2(290, 34), 11)
 	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
-	foot.text = "1~4 또는 + 로 올리기   ·   C 닫기"
+	foot.text = "1~4 또는 + 로 올리기   ·   C 나 바깥을 눌러 닫기"
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+
+
+## 창 뒤의 어두운 바탕을 누르면 창을 닫는다 (창 바깥 클릭)
+static func _close_on_outside(dim: Control, close: Callable) -> void:
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			dim.accept_event()
+			close.call())
 
 
 func _dark_label(parent: Control, pos: Vector2, size: Vector2, font_size: int) -> Label:
@@ -736,9 +747,11 @@ func _build_map(root: Control) -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0.1, 0.08, 0.08, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_map.add_child(dim)
+	_close_on_outside(dim, toggle_map)
 	var win := _tex_rect(_map, "ui_window", Vector2(110, 46), Vector2(420, 268))
+	win.mouse_filter = Control.MOUSE_FILTER_STOP
+	UI.icon_button(win, "ui_close", Vector2(396, 0), Vector2(20, 20), toggle_map)
 	var title := _dark_label(win, Vector2(0, 14), Vector2(420, 24), 17)
 	title.text = "지도 · 1장"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -750,7 +763,7 @@ func _build_map(root: Control) -> void:
 	_map_view.size = Vector2(310, 190)
 	win.add_child(_map_view)
 	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
-	foot.text = "M  닫기"
+	foot.text = "공책 마을 아래쪽 길로 나가면 사냥터   ·   M 이나 바깥을 눌러 닫기"
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
 

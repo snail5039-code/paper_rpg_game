@@ -40,7 +40,7 @@ func _process(_delta: float) -> void:
 
 func interact() -> void:
 	if locked or target_map == "":
-		GameState.notify("아직 열리지 않은 페이지다.")
+		GameState.notify("공책 마을에서 하루에게 이야기를 먼저 들어 보자." if target_map != "" else "아직 열리지 않은 페이지다.")
 		return
 	# 끝없는 탑: 언제나 1층부터 (난이도 단계와 상관없다)
 	if target_map == "tower":

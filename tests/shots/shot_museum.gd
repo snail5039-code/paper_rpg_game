@@ -59,12 +59,14 @@ func _run() -> void:
 	await _shot("m8_donate.png")
 	hud.call("toggle_menu", "donate")
 	await _frames(3)
-	for spec in [[0, "fish", "fish_11"], [2, "bug", "fg_28"], [9, "mon", "m08"], [15, "gear", "tool_1"]]:
+	var groups := preload("res://scripts/data/museum_data.gd").groups()
+	for spec in [[0, "fish", "fish_11"], [2, "bug", ""], [5, "flower", ""], [7, "thing", ""], [9, "mon", "m08"], [15, "gear", ""]]:
 		hud.call("open_menu", "exhibit", str(spec[0]))
 		await _frames(4)
 		var ex: Control = hud.call("menu", "exhibit")
-		ex.call("_exhibit_pick", spec[1], spec[2])
-		await _frames(4)
+		var pick := str(spec[2]) if str(spec[2]) != "" else str((groups[spec[1]] as Array)[1])
+		ex.call("_exhibit_pick", spec[1], pick)
+		await _frames(20)
 		await _shot("m9_view_%s.png" % spec[1])
 		hud.call("toggle_menu", "exhibit")
 		await _frames(3)

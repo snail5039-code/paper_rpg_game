@@ -72,7 +72,7 @@ func _run() -> void:
 	GameState.quest = GameState.Quest.FIND_LEAD
 	GameState.add_exp(5)
 	var spots := {"c_start": Vector2(330, 500), "d_villagers": Vector2(600, 500), "e_field": Vector2(560, 690),
-		"f_field2": Vector2(800, 640), "g_west": Vector2(220, 680)}
+		"f_field2": Vector2(800, 640), "g_west": Vector2(220, 680), "g2_south_gate": Vector2(805, 860)}
 	for k in spots:
 		player.global_position = spots[k] * S
 		player.set("_invuln", 99.0)
@@ -113,6 +113,11 @@ func _run() -> void:
 	await _frames(6)
 	await _shot("l_stats.png")
 	hud.call("toggle_stats")
+	await _frames(4)
+	hud.call("toggle_map")
+	await _frames(6)
+	await _shot("l2_map.png")
+	hud.call("toggle_map")
 	await _frames(4)
 	var foe: Node2D = get_tree().get_nodes_in_group("enemies")[0]
 	player.global_position = foe.global_position + Vector2(-22, 0)

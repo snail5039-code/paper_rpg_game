@@ -50,7 +50,12 @@ func _ready() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0.1, 0.08, 0.08, 0.45)
 	dim.size = Vector2(640, 360)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP     # 창 바깥을 누르면 닫는다
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			dim.accept_event()
+			if not is_drawing():
+				close_requested.emit())
 	add_child(dim)
 	_win = TextureRect.new()
 	(_win as TextureRect).texture = Art.tex("ui_window")
@@ -59,7 +64,7 @@ func _ready() -> void:
 	_win.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_win.position = Vector2(110, 46)
 	_win.size = Vector2(420, 268)
-	_win.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_win.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_win)
 	UI.icon(_win, "ui_plaque", Vector2(150, 5), Vector2(120, 27), Color.WHITE, false)
 	_title_label = _label(_win, str(TITLES[kind]), Vector2(166, 10), Vector2(100, 20), 12)
@@ -82,6 +87,12 @@ func _ready() -> void:
 	var foot := _label(_win, str(CLOSE_HINT[kind]), Vector2(0, 243), Vector2(420, 14), 10)
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	foot.add_theme_color_override("font_color", INK_SOFT)
+	if kind == "exhibit":
+		# 전시대 크게 보기: 종이 창 대신 전시대 속을 들여다보는 화면
+		_win.visible = false
+		_view = ExhibitView.new()
+		_view.set("menus", self)
+		add_child(_view)
 	GameState.changed.connect(func() -> void:
 		if visible:
 			refresh())
@@ -167,6 +178,7 @@ func open() -> void:
 	selected = -1
 	_pending = ""
 	_message = ""
+	_exhibit_sel = ""
 	refresh()
 
 
@@ -1149,6 +1161,9 @@ func _donate(cat: String, id: String) -> void:
 # ---------- 박물관 전시대 크게 보기 (박물관 안, 전시대 앞에서 F) ----------
 
 const MuseumScript := preload("res://scripts/data/museum_data.gd")
+const ExhibitView := preload("res://scripts/ui/exhibit_view.gd")
+var _view: Control                 # 전시대 크게 보기 화면 (kind == "exhibit")
+var _exhibit_sel := ""             # 크게 보기에서 고른 것
 const MonsterBook := preload("res://scripts/data/monster_book.gd")
 const PLACE_KO := {"home": "내 마을 물", "ch1": "1장 강", "pond": "들판 연못"}
 const TIME_KO := {"day": "낮에만", "night": "밤에만", "any": "낮·밤 언제나"}
@@ -1158,37 +1173,10 @@ const ARCH_KO := {"hop": "통통 튀다 박치기", "dash": "다가와 몸을 �
 	"ambush": "숨어 있다가 튀어나옴", "grid": "직각으로만 움직임", "roll": "굴러서 돌진"}
 
 
-## ctx = 전시대 번호 (MuseumScript.DISPLAYS). 기증한 것은 크게, 아직인 것은 그림자로. 누르면 설명.
+## ctx = 전시대 번호 (MuseumScript.DISPLAYS). 전시대 속을 크게 보여 주고 (scripts/ui/exhibit_view.gd), 누르면 아래에 설명.
 func _refresh_exhibit() -> void:
-	var d: Array = MuseumScript.DISPLAYS[clampi(int(ctx), 0, MuseumScript.DISPLAYS.size() - 1)]
-	var group := str(d[2])
-	var cat := MuseumScript.cat_of(group)
-	var all: Array = MuseumScript.groups()[group]
-	var ids: Array = all.slice(int(d[3]), int(d[3]) + int(d[4]))
-	var cols := 7 if ids.size() > 15 else 5
-	var cell := minf(42.0, _body.size.x / cols)
-	var x0 := (_body.size.x - cell * cols) * 0.5
-	var scroll := ScrollContainer.new()
-	scroll.size = _body.size
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_body.add_child(scroll)
-	var grid := Control.new()
-	grid.custom_minimum_size = Vector2(_body.size.x - 12, ceilf(ids.size() / float(cols)) * cell)
-	scroll.add_child(grid)
-	var have := 0
-	for i in ids.size():
-		var id := str(ids[i])
-		var done := GameState.museum_has(cat, id)
-		have += 1 if done else 0
-		var pos := Vector2(x0 + (i % cols) * cell, (i / cols) * cell)
-		_icon(grid, "ui_slot", pos, cell - 3)
-		var ic := UI.icon(grid, "", pos + Vector2(5, 5), Vector2(cell - 13, cell - 13), Color.WHITE if done else Color(0.15, 0.13, 0.13, 0.3))
-		ic.texture = _exhibit_tex(group, id)
-		_hit(grid, pos, Vector2(cell - 3, cell - 3), _exhibit_pick.bind(group, id))
-	if _message == "":
-		_info.text = "이 전시대 %d / %d   (전시실 전체 %d / %d)
-하나를 누르면 설명이 나와요. 그림자는 아직 기증하지 않은 것이에요." % [
-			have, ids.size(), GameState.museum_count(cat), GameState.museum_entries(cat).size()]
+	if _view:
+		_view.call("setup", int(ctx), _message, _exhibit_sel)
 
 
 func _exhibit_tex(group: String, id: String) -> Texture2D:
@@ -1203,6 +1191,7 @@ func _exhibit_tex(group: String, id: String) -> Texture2D:
 
 
 func _exhibit_pick(group: String, id: String) -> void:
+	_exhibit_sel = id
 	_message = exhibit_text(group, id)
 	refresh()
 
