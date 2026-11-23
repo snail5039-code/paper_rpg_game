@@ -73,6 +73,10 @@ SHEETS = {
     "60_bld_pen": (5, 1, [("bld_pen_l1", BLD_SCALE), ("bld_pen_l2", BLD_SCALE), ("bld_pen", BLD_SCALE), ("bld_pen_l4", BLD_SCALE), ("bld_pen_l5", BLD_SCALE)]),
     "60_bld_museum": (5, 1, [("bld_museum_l1", BLD_SCALE), ("bld_museum_l2", BLD_SCALE), ("bld_museum", BLD_SCALE), ("bld_museum_l4", BLD_SCALE), ("bld_museum_l5", BLD_SCALE)]),
     "73_vgift": (3, 2, [("vgift_%d" % i, 64) for i in range(6)]),
+    # 세트 모자: 줄은 앞·옆·뒤, 칸은 지우개·구김·낙서. 같은 모양의 원래 모자(야구 모자 2, 종이 왕관 5, 털모자 3)와 같은 폭으로 맞춘다
+    "75_set_hats": (3, 3, [("hat_set_%s_%d" % (s, v), "match:hat_%d_%d" % (sh, v)) for v in range(3) for s, sh in (("eraser", 2), ("crumple", 5), ("scribble", 3))]),
+    # 세트 도구 (손에 드는 그림): 같은 모양의 원래 도구와 같은 긴 변으로 맞춘다
+    "76_set_tools": (3, 1, [("tool_set_eraser", "match:tool_6"), ("tool_set_crumple", "match:tool_2"), ("tool_set_scribble", "match:tool_9")]),
     "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
@@ -167,8 +171,12 @@ def main():
                 a[..., 0] -= spill
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
-            s = size if size <= 1.0 else size / max(im.size)
-            if size < 0:
+            if isinstance(size, str):      # "match:<그림 이름>": 그 그림과 같은 긴 변으로
+                ref = Image.open(os.path.join(OUT, size.split(":", 1)[1] + ".png"))
+                s = max(ref.size) / max(im.size)
+            else:
+                s = size if size <= 1.0 else size / max(im.size)
+            if not isinstance(size, str) and size < 0:
                 s = -size * 1774.0 / rgba.shape[1]
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             im.save(os.path.join(OUT, out_name + ".png"))

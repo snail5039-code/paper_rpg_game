@@ -44,12 +44,14 @@ def head_of(a):
 
 
 def one(num):
-    src = os.path.join(RAW, "40_cloth_%d.png" % num)
+    # num: 옷 번호(0~9) 또는 세트 이름("set_eraser"). 세트는 player_walk_set_<이름>.png 로 저장한다
+    tag = "c%d" % num if isinstance(num, int) else str(num)
+    src = os.path.join(RAW, "40_cloth_%s.png" % num)
     if not os.path.isfile(src):
         return False
     rgba, kc = post.chroma_key(Image.open(src))
     if rgba is None:
-        print("[실패] %d: 바탕이 마젠타가 아님" % num)
+        print("[실패] %s: 바탕이 마젠타가 아님" % num)
         return False
     rgba = post.drop_specks(rgba, min_area=30)
     # 가장자리에 남은 마젠타 물을 뺀다
@@ -75,7 +77,7 @@ def one(num):
                         b = [sl[1].start, sl[0].start, sl[1].stop, sl[0].stop]
                         box = b if box is None else [min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3])]
                 if box is None:
-                    print("[빈 칸] %d %s %d,%d" % (num, name, r, c))
+                    print("[빈 칸] %s %s %d,%d" % (num, name, r, c))
                     continue
                 im = Image.fromarray(rgba[box[1]:box[3], box[0]:box[2]], "RGBA")
                 im = im.resize((max(1, round(im.width / k)), max(1, round(im.height / k))), Image.LANCZOS)
@@ -86,13 +88,13 @@ def one(num):
                 cell.alpha_composite(im, (px, py)) if (px >= 0 and py >= 0) else cell.paste(im, (px, py), im)
                 sheet.alpha_composite(cell, (c * fw, r * fh))
                 report.append(im.height)
-        sheet.save(os.path.join(OUT, "player_%s_c%d.png" % (name, num)))
-    print("옷 %d: 배율 %.3f, 키 %d~%d" % (num, k, min(report), max(report)))
+        sheet.save(os.path.join(OUT, "player_%s_%s.png" % (name, tag)))
+    print("옷 %s: 배율 %.3f, 키 %d~%d" % (num, k, min(report), max(report)))
     return True
 
 
 def main():
-    nums = [int(x) for x in sys.argv[1:]] or range(10)
+    nums = [int(x) if x.isdigit() else x for x in sys.argv[1:]] or range(10)
     done = sum(1 for n in nums if one(n))
     print("완료: %d벌" % done)
 

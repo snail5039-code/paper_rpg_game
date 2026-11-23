@@ -69,13 +69,13 @@ const UNIQUES := {
 ##   아이콘 그림은 set_<id>_<부위>.png, 겉모습은 hat_set_<id>_<0~2>, player_walk_set_<id>, player_attack_set_<id>, tool_set_<id>
 const SETS := {
 	"eraser": {"name": "지우개", "boss": "boss_bug", "color": Color(1.0, 0.72, 0.78),
-		"shapes": {"tool": 6, "hat": 6, "cloth": 3, "shoe": 3, "bag": 2, "acc": 6},
+		"shapes": {"tool": 6, "hat": 2, "cloth": 3, "shoe": 3, "bag": 2, "acc": 6},
 		"bonus": {2: {"hp": 60}, 4: {"def": 6, "drop": 10}, 6: {"hp": 120, "fx": "set_eraser"}}},
 	"crumple": {"name": "구김", "boss": "boss_crumple", "color": Color(0.78, 0.86, 1.0),
 		"shapes": {"tool": 2, "hat": 5, "cloth": 7, "shoe": 7, "bag": 7, "acc": 2},
 		"bonus": {2: {"atk": 8}, 4: {"critdmg": 20, "crit": 4}, 6: {"atk": 16, "fx": "set_crumple"}}},
 	"scribble": {"name": "낙서", "boss": "boss_scribble", "color": Color(0.85, 1.0, 0.72),
-		"shapes": {"tool": 9, "hat": 7, "cloth": 9, "shoe": 9, "bag": 9, "acc": 8},
+		"shapes": {"tool": 9, "hat": 3, "cloth": 9, "shoe": 9, "bag": 9, "acc": 8},
 		"bonus": {2: {"mspd": 6}, 4: {"aspd": 10, "exp": 10}, 6: {"mp": 50, "fx": "set_scribble"}}},
 }
 const SET_DROP := {"mid": 0.2, "boss": 0.35, "field": 0.35}   # 보스를 잡을 때 그 보스의 세트 한 부위가 나올 확률
