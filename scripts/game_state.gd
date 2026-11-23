@@ -125,6 +125,7 @@ var difficulty: int = 0           # 사냥터 난이도 단계 (0 흐릿한 ~ 3 
 var max_difficulty: int = 0       # 고를 수 있는 가장 높은 단계 (대장을 잡으면 다음 단계가 열린다)
 var field_boss: Dictionary = {"day": 0, "map": "", "dead": false}
 var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
+var boss_bonus: Dictionary = {}      # 보스 다시 도전 보너스를 받은 날 ("종류:단계" → 날)
 var quick_slots: Array = ["bandage", "milk"]   # 1, 2 번 키에 넣은 소모품
 var current_map: String = "ch1"
 var visited: Array = ["ch1"]     # 가 본 맵 (지도에 그림으로 나온다)
@@ -1082,16 +1083,38 @@ func take_item(i: int) -> bool:
 
 
 ## 게시판: 날이 바뀌었으면 새 부탁 3개를 뽑는다 (몬스터 종 하나를 3~6마리)
+## 게시판 부탁의 종류: 몬스터 종(물리치기) 또는 "fish"(낚기), "forage"(채집)
+const BOARD_MONSTERS := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+const BOARD_AFF := 2              # 부탁을 끝내면 부탁한 주민의 호감도
+
+
 func board_refresh() -> void:
 	if board_day == day and board_quests.size() == 3:
 		return
 	board_day = day
 	board_quests = []
-	var kinds := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+	# 셋 중 둘은 물리치기, 하나는 물리치기·낚시·채집 중 하나
+	var kinds: Array = BOARD_MONSTERS.duplicate()
 	kinds.shuffle()
+	var picks: Array = [kinds[0], kinds[1], [kinds[2], "fish", "forage"][randi() % 3]]
+	var who: Array = residents()
+	who.shuffle()
 	for i in 3:
-		board_quests.append({"sp": kinds[i], "need": 3 + randi() % 4, "have": 0, "claimed": false})
+		var sp := str(picks[i])
+		var need := (2 + randi() % 2) if sp == "fish" else (3 + randi() % 3) if sp == "forage" else (3 + randi() % 4)
+		var by := str(who[i % who.size()]) if not who.is_empty() else ""
+		board_quests.append({"sp": sp, "need": need, "have": 0, "claimed": false, "who": by})
 	changed.emit()
+
+
+## 부탁 한 줄 ("삐뚤선 물리치기", "물고기 낚기", "채집하기")
+func board_text(q: Dictionary) -> String:
+	match str(q["sp"]):
+		"fish":
+			return "물고기 낚기"
+		"forage":
+			return "채집하기"
+	return "%s 물리치기" % Data.FRIENDS[str(q["sp"])]["name"] if Data.FRIENDS.has(str(q["sp"])) else str(q["sp"])
 
 
 func board_reward(q: Dictionary, what: String) -> int:
@@ -1102,9 +1125,13 @@ func board_reward(q: Dictionary, what: String) -> int:
 ## 몬스터를 물리칠 때마다 부른다
 func on_kill(kind: String) -> void:
 	lesson_note("kill")
-	var sp := Data.species_of(kind)
+	board_note(Data.species_of(kind))
+
+
+## 게시판 부탁이 하나 나아간다 (몬스터 종, "fish", "forage")
+func board_note(what: String) -> void:
 	for q in board_quests:
-		if board_day == day and str(q["sp"]) == sp and not bool(q["claimed"]):
+		if board_day == day and str(q["sp"]) == what and not bool(q["claimed"]):
 			q["have"] = int(q["have"]) + 1
 			changed.emit()
 
@@ -1118,8 +1145,21 @@ func board_claim(i: int) -> bool:
 	q["claimed"] = true
 	coins += board_reward(q, "coins")
 	add_exp(board_reward(q, "exp"))
+	# 부탁한 주민이 아직 내 마을에 살면 호감도가 오른다
+	var who := str(q.get("who", ""))
+	if who != "" and residents().has(who):
+		add_aff(who, BOARD_AFF)
 	changed.emit()
 	return true
+
+
+## 내 마을에 사는 주민들의 id
+func residents() -> Array:
+	var out: Array = []
+	for id in villagers:
+		if int(villagers[id]["q"]) == 3:
+			out.append(str(id))
+	return out
 
 
 ## 낚시: 그 낚시터(place: "home", "ch1")의 물고기 하나를 가방에 넣고 id 를 돌려준다.
@@ -1132,6 +1172,7 @@ func catch_fish(place: String = "home") -> String:
 	if not add_consumable(id):
 		return ""
 	lesson_note("fish")
+	board_note("fish")
 	return id
 
 
@@ -1211,17 +1252,28 @@ func plant(key: String, i: int, seed: String) -> bool:
 	return true
 
 
-## 심은 칸 전부에 물을 준다. 돌려주는 것: 물을 준 칸 수
+## 물이 필요한 칸인지 (심었고, 오늘 아직 물을 안 줬고, 다 자라지 않음)
+func plot_needs_water(p: Dictionary) -> bool:
+	return str(p["seed"]) != "" and not bool(p["watered"]) and not plot_ripe(p)
+
+
+## 밭 한 칸에 물을 준다 (내 마을에서는 물뿌리개를 들고 그 칸 앞에서 F)
+func water_plot(key: String, i: int) -> bool:
+	var plots := farm_plots(key)
+	if i < 0 or i >= plots.size() or not plot_needs_water(plots[i]):
+		return false
+	plots[i]["watered"] = true
+	changed.emit()
+	lesson_note("water")
+	return true
+
+
+## 심은 칸 전부에 물을 준다 (연습 페이지처럼 밭 그림이 없는 곳). 돌려주는 것: 물을 준 칸 수
 func water(key: String) -> int:
 	var n := 0
-	for p in farm_plots(key):
-		if str(p["seed"]) != "" and not bool(p["watered"]) and not plot_ripe(p):
-			p["watered"] = true
+	for i in farm_plots(key).size():
+		if water_plot(key, i):
 			n += 1
-	if n > 0:
-		changed.emit()
-	if n > 0:
-		lesson_note("water")
 	return n
 
 
@@ -1267,6 +1319,7 @@ func take_forage(key: String) -> String:
 	(foraged["taken"] as Array).append(key)
 	add_consumable(id)
 	lesson_note("forage")
+	board_note("forage")
 	return id
 
 
@@ -1435,6 +1488,7 @@ func field_boss_map() -> String:
 func on_boss_killed(kind: String) -> void:
 	bosses_beaten[kind] = int(bosses_beaten.get(kind, 0)) + 1
 	var role := str(Data.MONSTERS[kind].get("boss", ""))
+	boss_daily_bonus(kind, role)
 	if role == "field":
 		field_boss["dead"] = true
 		add_consumable("coating", 1, true)
@@ -1443,6 +1497,36 @@ func on_boss_killed(kind: String) -> void:
 		max_difficulty += 1
 		notify("대장을 물리쳤어요! \"%s\" 단계가 열렸어요. (내 마을의 문에서 고른다)" % Data.DIFFICULTY[max_difficulty]["name"])
 	changed.emit()
+
+
+## 보스 다시 도전: 보스마다, 난이도 단계마다 하루 한 번 코팅지·동전·지우개 가루를 더 준다.
+##  단계가 높을수록 많고, 대장과 필드 보스는 중간 보스의 두 배. 돌려주는 것: 받았는지
+func boss_daily_bonus(kind: String, role: String) -> bool:
+	if role == "" or current_map.begins_with("tut"):
+		return false
+	var key := "%s:%d" % [kind, difficulty]
+	if int(boss_bonus.get(key, 0)) == day:
+		return false
+	boss_bonus[key] = day
+	var reward := boss_bonus_reward(role, difficulty)
+	add_consumable("coating", int(reward["coating"]), true)
+	coins += int(reward["coins"])
+	dust += int(reward["dust"])
+	notify("오늘의 \"%s\" 단계 보너스: 코팅지 %d, 동전 %d, 지우개 가루 %d" % [
+		Data.DIFFICULTY[clampi(difficulty, 0, Data.DIFFICULTY.size() - 1)]["name"], int(reward["coating"]), int(reward["coins"]), int(reward["dust"])])
+	changed.emit()
+	return true
+
+
+static func boss_bonus_reward(role: String, d: int) -> Dictionary:
+	var m := 1 if role == "mid" else 2
+	var step := d + 1
+	return {"coating": 1 + (1 if role != "mid" and d >= 2 else 0), "coins": 40 * step * m, "dust": 2 * step * m}
+
+
+## 오늘 그 보스의 그 단계 보너스를 아직 받지 않았는지
+func boss_bonus_ready(kind: String, d: int = -1) -> bool:
+	return int(boss_bonus.get("%s:%d" % [kind, difficulty if d < 0 else d], 0)) != day
 
 
 ## 주민 집의 주민에게 말을 건다. 하루에 한 번 선물을 준다 (재료 하나 또는 동전). 돌려주는 것: 선물 설명 ("" 은 오늘 이미 받음)
@@ -1684,6 +1768,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
+		"boss_bonus": boss_bonus,
 		"quick_slots": quick_slots,
 		"custom_icons": custom_icons,
 		"current_map": current_map,
@@ -1775,7 +1860,8 @@ func load_game() -> bool:
 	if typeof(data.get("board_quests")) == TYPE_ARRAY:
 		for bq in data["board_quests"]:
 			if typeof(bq) == TYPE_DICTIONARY and Data.FRIENDS.has(str(bq.get("sp", ""))):
-				board_quests.append({"sp": str(bq["sp"]), "need": int(bq.get("need", 3)), "have": int(bq.get("have", 0)), "claimed": bool(bq.get("claimed", false))})
+				board_quests.append({"sp": str(bq["sp"]), "need": int(bq.get("need", 3)), "have": int(bq.get("have", 0)), "claimed": bool(bq.get("claimed", false)),
+					"who": str(bq.get("who", ""))})
 	gift_days = data["gift_days"] if typeof(data.get("gift_days")) == TYPE_DICTIONARY else {}
 	tips_seen = data["tips_seen"] if typeof(data.get("tips_seen")) == TYPE_DICTIONARY else {}
 	buffs = {}
@@ -1831,6 +1917,7 @@ func load_game() -> bool:
 	var fb: Variant = data.get("field_boss")
 	field_boss = {"day": int(fb.get("day", 0)), "map": str(fb.get("map", "")), "dead": bool(fb.get("dead", false))} if typeof(fb) == TYPE_DICTIONARY else {"day": 0, "map": "", "dead": false}
 	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
+	boss_bonus = data["boss_bonus"] if typeof(data.get("boss_bonus")) == TYPE_DICTIONARY else {}
 	var qs: Variant = data.get("quick_slots", [])
 	if typeof(qs) == TYPE_ARRAY and (qs as Array).size() == 2 and Items.CONSUMABLES.has(str(qs[0])) and Items.CONSUMABLES.has(str(qs[1])):
 		quick_slots = [str(qs[0]), str(qs[1])]
@@ -1929,6 +2016,7 @@ func _reset_state() -> void:
 	max_difficulty = 0
 	field_boss = {"day": 0, "map": "", "dead": false}
 	bosses_beaten = {}
+	boss_bonus = {}
 	_starting_gear()
 	menu_open = false
 	has_saved_position = false

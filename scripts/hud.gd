@@ -747,7 +747,7 @@ func _refresh() -> void:
 		for q in GameState.board_quests:
 			if not bool(q["claimed"]):
 				var done := int(q["have"]) >= int(q["need"])
-				lines.append("%s %d/%d%s" % [GameState.Data.FRIENDS[str(q["sp"])]["name"], mini(int(q["have"]), int(q["need"])), int(q["need"]), " 완료!" if done else ""])
+				lines.append("%s %d/%d%s" % [GameState.board_text(q).replace(" 물리치기", ""), mini(int(q["have"]), int(q["need"])), int(q["need"]), " 완료!" if done else ""])
 	_board_label.text = "게시판: " + ",  ".join(lines) if not lines.is_empty() else ""
 	_level_label.text = "필력 %d" % GameState.level
 	var full := GameState.level >= GameState.MAX_LEVEL

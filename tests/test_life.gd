@@ -564,7 +564,24 @@ func _run() -> void:
 	var d_farm := GameState.day
 	GameState.sleep()
 	check(int(GameState.farm_plots(farm_key)[0]["grown"]) == 0, "물을 주지 않으면 자라지 않음")
-	check(GameState.water(farm_key) == 2 and GameState.water(farm_key) == 0, "물은 하루에 한 번")
+	# 물뿌리개: 물이 필요한 칸 앞에 서서 F
+	var farm_obj: Node2D = null
+	for n in get_tree().get_nodes_in_group("home_object"):
+		if str(n.get("id")) == "bld_farm":
+			farm_obj = n
+	hp.global_position = farm_obj.global_position + (farm_obj.call("plot_pos", 0) as Vector2)
+	check(int(farm_obj.call("thirsty_plot_near", hp.global_position)) == 0, "칸 앞에 서면 그 칸을 고름")
+	farm_obj.call("interact")
+	await frames(2)
+	var plots_now := GameState.farm_plots(farm_key)
+	check(bool(plots_now[0]["watered"]) and not bool(plots_now[1]["watered"]) and not bool(hhud.call("is_menu_open", "farm")), "물뿌리개로 F: 그 칸에만 물을 줌 (창은 열리지 않음)")
+	await shot("life_16a_water.png")
+	check(GameState.water_plot(farm_key, 1) and not GameState.water_plot(farm_key, 1) and GameState.water(farm_key) == 0, "칸마다 하루 한 번")
+	hp.global_position = farm_obj.global_position + Vector2(0, 40)
+	farm_obj.call("interact")
+	await frames(2)
+	check(bool(hhud.call("is_menu_open", "farm")), "물 줄 칸이 없으면 밭 창이 열림")
+	hhud.call("toggle_menu", "farm")
 	GameState.sleep()
 	check(GameState.plot_ripe(GameState.farm_plots(farm_key)[0]) and not GameState.plot_ripe(GameState.farm_plots(farm_key)[1]), "연필 무는 하루, 당근은 이틀")
 	hhud.call("open_menu", "farm", farm_key)
@@ -615,6 +632,18 @@ func _run() -> void:
 	for fk in GameState.furniture:
 		furn1 += int(GameState.furniture[fk])
 	check(GameState.hearts("kid") == 2 and furn1 == furn0 + 1, "하트 2개가 되면 가구를 받음")
+	# 게시판 부탁에는 내 마을 주민의 이름이 붙고, 끝내면 그 주민과 가까워진다
+	GameState.board_day = 0
+	GameState.board_refresh()
+	var bq: Dictionary = GameState.board_quests[0]
+	check(str(bq["who"]) == "kid", "게시판 부탁에 주민 이름이 붙음")
+	var aff_b := int(kid["aff"])
+	for i in int(bq["need"]):
+		GameState.board_note(str(bq["sp"]))
+	check(GameState.board_claim(0) and int(kid["aff"]) == aff_b + GameState.BOARD_AFF, "부탁을 끝내면 그 주민 호감 +2")
+	GameState.board_quests[2] = {"sp": "fish", "need": 1, "have": 0, "claimed": false, "who": ""}
+	check(GameState.catch_fish("home") != "" and int(GameState.board_quests[2]["have"]) == 1, "물고기를 낚으면 낚기 부탁이 나아감")
+	check(GameState.board_text(GameState.board_quests[2]) == "물고기 낚기", "낚기 부탁의 이름")
 	await frames(3)
 	(by_id["bld_villager_a"] as Node).call("interact")
 	await frames(3)
@@ -631,6 +660,19 @@ func _run() -> void:
 	check(GameState.difficulty == 0 and not GameState.set_difficulty(1), "처음에는 흐릿한 단계만")
 	GameState.on_boss_killed("boss_crumple")
 	check(GameState.max_difficulty == 1 and GameState.set_difficulty(1), "대장을 잡으면 다음 단계가 열림")
+	# 보스 다시 도전: 보스마다, 단계마다 하루 한 번 보너스
+	var c_b := GameState.coins
+	var coat0 := GameState.consumable_count("coating")
+	var dust0 := GameState.dust
+	GameState.on_boss_killed("boss_bug")
+	check(GameState.consumable_count("coating") == coat0 + 1 and GameState.coins == c_b + 80 and GameState.dust == dust0 + 4,
+		"중간 보스, 지워지는 단계: 코팅지 1, 동전 80, 지우개 가루 4")
+	var c_b2 := GameState.coins
+	GameState.on_boss_killed("boss_bug")
+	check(GameState.coins == c_b2 and not GameState.boss_bonus_ready("boss_bug"), "같은 날 같은 단계는 한 번만")
+	check(not GameState.boss_bonus_ready("boss_crumple", 0) and GameState.boss_bonus_ready("boss_bug", 0) and GameState.boss_bonus_ready("boss_scribble"), "보스마다, 단계마다 따로 받음")
+	var rb: Dictionary = GameState.boss_bonus_reward("boss", 3)
+	check(int(rb["coating"]) == 2 and int(rb["coins"]) == 320, "대장의 빈 단계 보너스는 더 많음")
 	(home.get("portals")[0] as Node).call("interact")
 	await frames(3)
 	check(bool(hhud.call("is_menu_open", "portal")), "단계가 열리면 문에서 난이도를 고름")
@@ -683,7 +725,7 @@ func _run() -> void:
 	var coat := GameState.consumable_count("coating")
 	fb.call("take_damage", 999999, Vector2.RIGHT, false)
 	await frames(3)
-	check(GameState.field_boss_map() == "" and GameState.consumable_count("coating") == coat + 1 and gear_before >= 0, "필드 보스를 잡으면 코팅지를 주고 오늘은 다시 안 나옴")
+	check(GameState.field_boss_map() == "" and GameState.consumable_count("coating") == coat + 2 and gear_before >= 0, "필드 보스를 잡으면 코팅지(+ 오늘의 보스 보너스)를 주고 오늘은 다시 안 나옴")
 	f2.queue_free()
 	await frames(3)
 	GameState.difficulty = 0

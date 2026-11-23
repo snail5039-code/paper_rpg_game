@@ -6,6 +6,8 @@ extends StaticBody2D
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const RANGE := 44.0
+const PLOT_REACH := 18.0     # 이만큼 가까운 밭 칸에 물뿌리개로 물을 준다
+var _drop: Texture2D
 
 var id := "deco_bush"
 var fine := false
@@ -27,6 +29,7 @@ func _ready() -> void:
 	info = Data.BUILDS.get(id, Data.BUILDS["deco_bush"])
 	_star = Art.tex("fx_hit")
 	_key = Art.tex("key_f")
+	_drop = Art.tex("icon_water")
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var is_building := str(info["kind"]) == "building"
 	var tex := Art.tex(Data.build_sprite(id, lv) if is_building else id)
@@ -109,13 +112,59 @@ func interact() -> void:
 			elif hud:
 				hud.call("open_menu", "resident", who)
 		"farm":
-			if hud:
+			# 물이 필요한 칸 앞에 서 있으면 물뿌리개로 그 칸에 물을 준다. 아니면 밭 창을 연다.
+			var p := GameState.player_ref
+			var plot := thirsty_plot_near(p.global_position) if is_instance_valid(p) else -1
+			if plot >= 0:
+				water_plot(plot)
+			elif hud:
 				hud.call("open_menu", "farm", GameState.house_key({"x": position.x, "y": position.y}))
 		"cook":
 			if hud:
 				hud.call("open_menu", "cook", "")
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
+
+
+## 밭 칸 i 의 자리 (이 건물 기준). 3칸씩 줄을 짓는다.
+func plot_pos(i: int) -> Vector2:
+	var w := float(info["w"])
+	return Vector2(-w * 0.26 + (i % 3) * w * 0.26, -_height * 0.5 + (i / 3) * _height * 0.3)
+
+
+## pos(월드) 가까이에 있는, 물이 필요한 밭 칸 (-1 은 없음)
+func thirsty_plot_near(pos: Vector2) -> int:
+	if str(info.get("use", "")) != "farm":
+		return -1
+	var plots := GameState.farm_plots(GameState.house_key({"x": position.x, "y": position.y}))
+	var best := -1
+	var best_d := PLOT_REACH
+	for i in plots.size():
+		if not GameState.plot_needs_water(plots[i]):
+			continue
+		var d := (global_position + plot_pos(i)).distance_to(pos)
+		if d < best_d:
+			best = i
+			best_d = d
+	return best
+
+
+## 물뿌리개로 밭 칸 하나에 물을 준다 (캐릭터가 물뿌리개를 기울인다)
+func water_plot(i: int) -> bool:
+	var key := GameState.house_key({"x": position.x, "y": position.y})
+	if not GameState.water_plot(key, i):
+		return false
+	Sound.play("water")
+	var p := GameState.player_ref
+	if is_instance_valid(p) and p.has_method("act"):
+		var dir := (global_position + plot_pos(i) - p.global_position).normalized()
+		p.call("act", "life_can", dir if dir != Vector2.ZERO else Vector2.DOWN, 0.5)
+	var left := 0
+	for q in GameState.farm_plots(key):
+		if GameState.plot_needs_water(q):
+			left += 1
+	GameState.notify("%d번 칸에 물을 줬어요.%s" % [i + 1, " (남은 칸 %d)" % left if left > 0 else " 오늘 물 주기 끝!"])
+	return true
 
 
 ## 주민 집의 주민, 밭의 작물 그림을 지금 상태에 맞춘다
@@ -154,7 +203,7 @@ func _refresh_extra() -> void:
 		s.texture = tex
 		s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		s.scale = Vector2.ONE * (12.0 / tex.get_width())
-		s.position = Vector2(-w * 0.26 + (i % 3) * w * 0.26, -_height * 0.5 + (i / 3) * _height * 0.3)
+		s.position = plot_pos(i)
 		add_child(s)
 		_extra.append(s)
 
@@ -166,6 +215,13 @@ func _draw() -> void:
 		var s := 10.0 + sin(_t * 4.0) * 2.0
 		draw_texture_rect(_star, Rect2(Vector2(-s * 0.5, -_height - 6.0), Vector2(s, s)), false)
 	var p := GameState.player_ref
+	# 밭: 가까이 오면 물이 필요한 칸 위에 물방울을 띄운다
+	if _drop and str(info.get("use", "")) == "farm" and is_instance_valid(p) and p.global_position.distance_to(global_position) < RANGE + 30.0:
+		var plots := GameState.farm_plots(GameState.house_key({"x": position.x, "y": position.y}))
+		for i in plots.size():
+			if GameState.plot_needs_water(plots[i]):
+				var bob := sin(_t * 5.0 + i) * 1.5
+				draw_texture_rect(_drop, Rect2(plot_pos(i) + Vector2(-4, -14 + bob), Vector2(8, 8)), false)
 	if is_in_group("interactable") and _key and is_instance_valid(p) and p.global_position.distance_to(global_position) < RANGE:
 		var h := 10.0
 		var w := h * _key.get_width() / float(_key.get_height())

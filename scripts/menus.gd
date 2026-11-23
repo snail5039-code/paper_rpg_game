@@ -722,14 +722,16 @@ func _refresh_board() -> void:
 	var box := _list()
 	for i in GameState.board_quests.size():
 		var q: Dictionary = GameState.board_quests[i]
-		var name := str(Data.FRIENDS[str(q["sp"])]["name"])
-		var text := "%s 물리치기 %d/%d   동전 %d · 경험 %d" % [name, mini(int(q["have"]), int(q["need"])), int(q["need"]),
-			GameState.board_reward(q, "coins"), GameState.board_reward(q, "exp")]
+		var who := str(q.get("who", ""))
+		# 주민의 부탁이면 경험치 대신 호감을 적는다 (줄이 넘치지 않게. 경험치는 똑같이 받는다)
+		var text := "%s%s %d/%d   동전 %d · %s" % ["%s: " % GameState.villager_name(who) if who != "" else "", GameState.board_text(q),
+			mini(int(q["have"]), int(q["need"])), int(q["need"]), GameState.board_reward(q, "coins"),
+			"호감 +%d" % GameState.BOARD_AFF if who != "" else "경험 %d" % GameState.board_reward(q, "exp")]
 		var done := int(q["have"]) >= int(q["need"])
 		_row(box, "ui_stamp_0" if bool(q["claimed"]) else "ui_note", text,
 			[["받음" if bool(q["claimed"]) else "받기", _claim.bind(i), done and not bool(q["claimed"])]])
 	if _message == "":
-		_info.text = "%d일째의 부탁이에요. 날이 바뀌면 새 부탁 3개가 붙어요." % GameState.day
+		_info.text = "%d일째의 부탁이에요. 날이 바뀌면 새 부탁 3개가 붙어요.\n주민의 부탁을 끝내면 그 주민과 가까워져요." % GameState.day
 
 
 func _claim(i: int) -> void:
@@ -827,7 +829,10 @@ func _refresh_farm() -> void:
 	else:
 		_row(box, "icon_seed", "심을 씨앗: %s ×%d" % [Items.CONSUMABLES[_seed][0], GameState.consumable_count(_seed)],
 			[["다른 씨앗", _next_seed, seeds.size() > 1]])
-	_row(box, "icon_water", "물 주기 (심은 칸 전부, 하루 한 번)", [["물 주기", _water, true]])
+	# 내 마을의 밭은 물뿌리개를 들고 칸 앞에서 F 로 물을 준다. 밭 그림이 없는 곳(연습 페이지)은 여기서 준다.
+	var in_world := not GameState.object_at(ctx).is_empty()
+	if in_world:
+		_row(box, "icon_water", "물 주기: 물이 필요한 칸 앞에서 F", [])
 	var plots := GameState.farm_plots(ctx)
 	for i in plots.size():
 		var p: Dictionary = plots[i]
@@ -840,9 +845,10 @@ func _refresh_farm() -> void:
 			_row(box, str(Items.CONSUMABLES[crop][1]), "%d번 칸: %s  다 자랐어요!" % [i + 1, Items.CONSUMABLES[crop][0]], [["거두기", _harvest.bind(i), true]])
 		else:
 			_row(box, "crop_sprout", "%d번 칸: %s  %d/%d일  %s" % [i + 1, Items.CONSUMABLES[crop][0], int(p["grown"]), need,
-				"물 줌" if bool(p["watered"]) else "물이 필요해요"], [])
+				"물 줌" if bool(p["watered"]) else "물이 필요해요"],
+				[] if in_world or bool(p["watered"]) else [["물 주기", _water_one.bind(i), true]])
 	if _message == "":
-		_info.text = "물을 준 칸만 날이 바뀔 때 하루만큼 자라요."
+		_info.text = "물을 준 칸만 날이 바뀔 때 하루만큼 자라요.%s" % ("\n창을 닫고 칸 앞에 서면 물방울이 떠요. 칸마다 하루 한 번." if in_world else "")
 
 
 func _next_seed() -> void:
@@ -857,10 +863,10 @@ func _plant(i: int) -> void:
 	_farm_motion("life_rake", "dig", ok)
 
 
-func _water() -> void:
-	var n := GameState.water(ctx)
-	_message = "%d칸에 물을 줬어요." % n if n > 0 else "물을 줄 칸이 없어요."
-	_farm_motion("life_can", "water", n > 0)
+func _water_one(i: int) -> void:
+	var ok := GameState.water_plot(ctx, i)
+	_message = "%d번 칸에 물을 줬어요." % (i + 1) if ok else "물을 줄 수 없어요."
+	_farm_motion("life_can", "water", ok)
 
 
 func _harvest(i: int) -> void:
@@ -981,13 +987,21 @@ func _refresh_furnish() -> void:
 
 func _refresh_portal() -> void:
 	var box := _list()
+	var bonus_left: Array = []
 	for i in Data.DIFFICULTY.size():
 		var d: Dictionary = Data.DIFFICULTY[i]
 		var open := i <= GameState.max_difficulty
 		_row(box, "portal_open" if open else "portal_locked", "%s  필력 %d+  HP×%d 공격×%d 경험×%d" % [d["name"], int(d["level"]), int(d["hp"]), int(d["dmg"]), int(d["exp"])],
 			[["들어가기", _enter.bind(i), open]])
+		# 오늘 아직 보너스를 받을 수 있는 보스 수
+		if open:
+			var left := 0
+			for kind in Data.MONSTERS:
+				if str(Data.MONSTERS[kind].get("boss", "")) != "" and not str(kind).begins_with("tm") and GameState.boss_bonus_ready(str(kind), i):
+					left += 1
+			bonus_left.append("%s %d" % [d["name"], left])
 	if _message == "":
-		_info.text = "대장을 물리치면 다음 단계가 열려요. 단계가 높을수록 좋은 장비가 나와요."
+		_info.text = "대장을 물리치면 다음 단계가 열려요.\n오늘 남은 보스 보너스: %s" % ", ".join(bonus_left)
 
 
 func _enter(i: int) -> void:
