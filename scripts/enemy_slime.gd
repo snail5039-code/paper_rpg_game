@@ -311,6 +311,13 @@ func _die() -> void:
 		gear_n = 2 if boss == "boss" else (1 if boss == "field" or randf() < MID_BOSS_DROP_RATE * GameState.drop_mult() else 0)
 		GameState.add_coins(exp_reward)
 		GameState.on_boss_killed(kind)
+		# 세트 장비: 그 보스의 세트 한 부위 (중간 보스 20%, 대장·필드 보스 35%)
+		var set_item := GameState.roll_set_drop(kind, boss, int(tiers[1]))
+		if not set_item.is_empty():
+			var piece: Node2D = PickupScript.new()
+			piece.set("item", set_item)
+			piece.global_position = global_position + Vector2(-12, 12)
+			get_parent().add_child(piece)
 		# 유일 장비: 대장과 필드 보스가 마지막 단계("빈")에서만 떨어뜨린다
 		var unique_id := str(Data.MONSTERS[kind].get("unique", ""))
 		if unique_id != "" and tier >= Data.DIFFICULTY.size() - 1 and randf() < Items.UNIQUE_DROP_RATE * GameState.drop_mult():

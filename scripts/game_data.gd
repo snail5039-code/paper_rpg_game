@@ -225,6 +225,7 @@ const BUILDS := {
 	"bld_farm": {"name": "밭", "w": 70, "kind": "building", "use": "farm", "cost": {"lead": 10, "coins": 80}, "walk": true},
 	"bld_diner": {"name": "식당", "w": 70, "kind": "building", "use": "cook", "cost": {"lead": 20, "coins": 150}},
 	"bld_pen": {"name": "친구 우리", "w": 80, "kind": "building", "use": "pen", "cost": {"lead": 15, "coins": 120}, "walk": true},
+	"bld_museum": {"name": "박물관", "w": 76, "kind": "building", "use": "museum", "cost": {"lead": 25, "coins": 200}},
 	"deco_tree_round": {"name": "둥근 나무", "w": 30, "kind": "deco", "cost": {"coins": 20}},
 	"deco_tree_pine": {"name": "뾰족 나무", "w": 28, "kind": "deco", "cost": {"coins": 20}},
 	"deco_bush": {"name": "덤불", "w": 24, "kind": "deco", "cost": {"coins": 10}},
@@ -262,6 +263,32 @@ const VILLAGERS := {
 		"memory": ["풍선 준 사람, 생각났어!", "키가 크고… 손이 따뜻했어. 얼굴은 안 보여.", "나중에 만나면 내가 먼저 알아볼 거야."]},
 }
 const HEART_NEED := [10, 30, 60, 100, 150]
+
+## 직접 만드는 주민: 성격마다 좋아하는 선물(like), 하트 1개부터 주는 하루 선물(gift), 옛 기억 대신 들려주는 이야기
+const CUSTOM_MAX := 12
+
+## 도감 묶음과, 다 채우면 오르는 능력
+const DEX_NAMES := {"mon": "몬스터", "friend": "친구", "fish": "물고기", "crop": "작물", "gear": "장비", "mat": "재료"}
+const DEX_BONUS := {"mon": {"atk": 3}, "friend": {"hp": 30}, "fish": {"mp": 20}, "crop": {"def": 2}, "gear": {"crit": 2}, "mat": {"drop": 5}}
+const MUSEUM_STEPS := [25, 50, 75, 100]
+const PERSONAS := {
+	"glutton": {"name": "먹보", "like": "d_carp", "gift": "bread",
+		"memory": ["배고프면 그림도 삐뚤어져.", "네가 만든 요리, 냄새만 맡아도 알아.", "다음엔 같이 먹자!"]},
+	"angler": {"name": "낚시꾼", "like": "f_catfish", "gift": "f_minnow",
+		"memory": ["물을 칠한 자리엔 꼭 뭔가 살아.", "밤에만 나오는 메기가 있대.", "낚싯줄은 연필선이랑 닮았어."]},
+	"gardener": {"name": "꽃지기", "like": "c_flower", "gift": "s_flower",
+		"memory": ["색종이 꽃은 물을 좋아해.", "꽃 하나 심으면 마을이 한 장 더 밝아져.", "오늘은 어떤 색으로 칠할까?"]},
+	"collector": {"name": "수집가", "like": "j_bottle", "gift": "g_stone",
+		"memory": ["병 속 쪽지를 다 모으면 무슨 말이 될까?", "버려진 것도 다 쓸 데가 있어.", "네 가방 구경해도 돼?"]},
+}
+## 주민 부품 (assets/sprites 의 그림 이름). 몸 위에 옷, 그 위에 얼굴을 겹친다. 그림이 없는 부품은 건너뛴다.
+##  몸 그림이 아직 없을 때는 있는 주민 그림을 몸으로 쓴다.
+const CUSTOM_PARTS := {
+	"body": ["cv_body_0", "cv_body_1", "cv_body_2", "cv_body_3"],
+	"cloth": ["cv_cloth_0", "cv_cloth_1", "cv_cloth_2", "cv_cloth_3", "cv_cloth_4", "cv_cloth_5"],
+	"face": ["cv_face_0", "cv_face_1", "cv_face_2", "cv_face_3", "cv_face_4", "cv_face_5"],
+}
+const CUSTOM_BODY_FALLBACK := ["villager_0", "villager_1", "villager_2"]
 ## 날아간 풍선이 걸려 있는 곳 (화면, bg px)
 # ---------- 건물 단계 (내 마을) ----------
 ## 건물은 5단계까지 올린다. 새로 지으면 1단계(초가집). 그림은 3단계가 <id>.png, 나머지는 <id>_l<단계>.png.
@@ -278,7 +305,7 @@ const ROOM_SCALE := [0.62, 0.72, 0.82, 0.91, 1.0]   # 단계마다 방의 크기
 const BUILD_BUFF := {
 	"bld_house": "def", "bld_shop": "drop", "bld_craft": "atk", "bld_storage": "drop", "bld_board": "exp",
 	"bld_fishing": "mpregen", "bld_villager_a": "exp", "bld_villager_b": "exp", "bld_farm": "mpregen", "bld_diner": "atk",
-	"bld_pen": "exp",
+	"bld_pen": "exp", "bld_museum": "drop",
 }
 ## 친구 우리: 단계마다 친구 칸이 늘어난다 (우리가 없으면 FRIEND_BASE)
 const FRIEND_BASE := 30

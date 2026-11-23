@@ -705,6 +705,87 @@ func _run() -> void:
 	GameState.level = lv_keep
 	kid["aff"] = aff_keep
 	kid["acc"] = 0
+
+	print("[직접 그려 만드는 주민]")
+	GameState.pencil_lead = maxi(GameState.pencil_lead, 100)
+	GameState.coins = maxi(GameState.coins, 1000)
+	home.call("start_placing", "bld_villager_b")
+	check(bool(await home.call("place_at", Vector2(860, 600), 0.9)), "주민 집을 하나 더 지음")
+	var cv_key := "860_600"
+	var cv_house: Node = null
+	for n in get_tree().get_nodes_in_group("home_object"):
+		if str(n.get("id")) == "bld_villager_b":
+			cv_house = n
+	cv_house.call("interact")
+	check(not is_instance_valid(hhud.get("maker")), "빈 집에 F: 처음에는 알리기만")
+	cv_house.call("interact")
+	await frames(3)
+	var maker: Control = hhud.get("maker")
+	check(is_instance_valid(maker) and GameState.menu_open, "한 번 더 F: 새 주민 그리기 화면이 열림")
+	maker.call("_step", "body", 1)
+	maker.call("_set_persona", "angler")
+	(maker.get("_name") as LineEdit).text = "낚시왕"
+	await frames(2)
+	await shot("life_18b_maker.png")
+	maker.call("redraw")
+	await frames(2)
+	var mcanvas: Control = maker.get("_canvas")
+	mcanvas.set("strokes", [{"pts": PackedVector2Array([Vector2(0.3, 0.1), Vector2(0.7, 0.1), Vector2(0.5, 0.0)]), "c": 2}])
+	mcanvas.call("finish")
+	await frames(2)
+	check(str(maker.get("drawn")).begins_with("drawn_"), "덧그리면 덧그린 그림이 주민 그림이 됨")
+	maker.call("finish")
+	await frames(3)
+	var cv_id := GameState.resident_of(cv_key)
+	check(cv_id.begins_with("cv") and GameState.villager_name(cv_id) == "낚시왕" and not is_instance_valid(hhud.get("maker")), "이사 오기: 그 집에 내 주민이 삶")
+	check(str(GameState.villager_info(cv_id)["sprite"]).begins_with("drawn_") and str(GameState.villager_info(cv_id)["like"]) == "f_catfish", "성격(낚시꾼)에 따라 좋아하는 것이 정해짐")
+	check(bool(hhud.call("is_menu_open", "resident")), "다 만들면 주민 창이 열림")
+	await shot("life_18c_custom_resident.png")
+	hhud.call("toggle_menu", "resident")
+	GameState.add_aff(cv_id, 10)
+	check(GameState.villager_daily(cv_id) == "f_minnow", "하트 1개: 성격에 맞는 하루 선물")
+	check(GameState.residents().has(cv_id), "게시판 부탁을 줄 수 있는 주민이 됨")
+	await frames(10)
+	await shot("life_18d_custom_house.png")
+
+	print("[도감과 박물관]")
+	GameState.dex = {}
+	GameState.museum_claimed = {}
+	GameState.on_kill("slime_faded")
+	GameState.add_material(0)
+	check(GameState.dex_has("mon", "slime_faded") and GameState.dex_has("mat", "0") and not GameState.dex_has("mon", "slime_erased"), "물리친 몬스터와 얻은 재료가 도감에 적힘")
+	check(GameState.dex_entries("mon").size() == 15 and GameState.dex_entries("gear").size() == 60 and GameState.dex_entries("crop").size() == 8, "도감 묶음의 크기")
+	var atk_d0 := GameState.gear("atk")
+	for k in GameState.dex_entries("mon"):
+		GameState.dex_add("mon", str(k))
+	check(GameState.dex_count("mon") == 15 and GameState.gear("atk") == atk_d0 + 3, "몬스터 묶음을 다 채우면 공격력 +3")
+	check(not GameState.museum_ready("mon", 25), "박물관이 없으면 보상을 못 받음")
+	hhud.call("toggle_menu", "dex")
+	await frames(3)
+	check(bool(hhud.call("is_menu_open", "dex")), "도감 창이 열림")
+	await shot("life_24_dex.png")
+	hhud.call("toggle_menu", "dex")
+	home.call("start_placing", "bld_museum")
+	check(bool(await home.call("place_at", Vector2(1000, 600), 0.9)), "박물관을 지음")
+	var museum: Node = null
+	for n in get_tree().get_nodes_in_group("home_object"):
+		if str(n.get("id")) == "bld_museum":
+			museum = n
+	museum.call("interact")
+	await frames(3)
+	var dm: Control = hhud.call("menu", "dex")
+	check(bool(hhud.call("is_menu_open", "dex")) and str(dm.get("ctx")) == "museum", "박물관에 F: 도감 창이 박물관 모드로 열림")
+	dm.call("_set_tab", 0)
+	await frames(2)
+	await shot("life_24a_museum.png")
+	var c_m := GameState.coins
+	var coat_m := GameState.consumable_count("coating")
+	for pct in [25, 50, 75, 100]:
+		dm.call("_museum_claim", "mon", pct)
+	check(GameState.coins > c_m and GameState.consumable_count("coating") == coat_m + 1, "몬스터 묶음 25~100%% 보상을 받음 (동전 +%d)" % (GameState.coins - c_m))
+	check(not GameState.museum_claim("mon", 100), "같은 보상은 한 번만")
+	check(not GameState.museum_ready("fish", 25), "덜 채운 묶음은 받을 수 없음")
+	hhud.call("toggle_menu", "dex")
 	await frames(3)
 	(by_id["bld_villager_a"] as Node).call("interact")
 	await frames(3)
@@ -880,7 +961,7 @@ func _run() -> void:
 	GameState.max_difficulty = 0
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.friends.size() == 1 and GameState.companion == 0 and int(GameState.friends[0]["stars"]) == 1, "친구가 그대로")
-	check(GameState.home_objects.size() == 15 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
+	check(GameState.home_objects.size() == 17 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
 	check(GameState.villager_name("kid") == "봄이" and GameState.hearts("kid") == 2 and GameState.max_difficulty == 1, "주민과 난이도 단계가 그대로")
 	check(GameState.farm_plots("560_600")[1]["seed"] == "s_carrot" and GameState.room_items.size() == 2, "밭과 방이 그대로")
 	check(str(GameState.room_items[1].get("art", "")).begins_with("drawn_"), "액자에 건 그림도 그대로")
@@ -890,7 +971,7 @@ func _run() -> void:
 	home = HomeScene.instantiate()
 	add_child(home)
 	await frames(5)
-	check((home.get("objects") as Array).size() == 15 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
+	check((home.get("objects") as Array).size() == 17 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

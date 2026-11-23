@@ -16,9 +16,9 @@ signal build_chosen(id: String)   ## 짓기 창에서 고른 것 ("" 은 치우�
 
 const INK := Color(0.3, 0.25, 0.22)
 const INK_SOFT := Color(0.5, 0.42, 0.38)
-const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정"}
-const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": []}
-const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기"}
+const TITLES := {"bag": "가방", "skills": "스킬", "shop": "문방구", "friends": "친구", "build": "짓기", "storage": "창고", "board": "게시판", "pause": "도움말", "farm": "밭", "cook": "식당", "resident": "주민", "furnish": "꾸미기", "portal": "난이도", "slots": "캐릭터", "settings": "설정", "dex": "도감"}
+const TABS := {"bag": ["장비", "재료", "소모품"], "skills": [], "shop": ["사기", "팔기", "만들기", "강화", "씨앗", "가구"], "farm": [], "cook": [], "resident": [], "furnish": [], "portal": [], "friends": [], "build": ["건물", "소품"], "storage": ["넣기", "꺼내기"], "board": [], "pause": ["조작", "게임", "저장", "설정"], "slots": [], "settings": [], "dex": ["몬스터", "친구", "물고기", "작물", "장비", "재료"]}
+const CLOSE_HINT := {"bag": "I  닫기", "skills": "K  닫기", "shop": "Esc  닫기", "friends": "P  닫기", "build": "N  닫기", "storage": "Esc  닫기", "board": "Esc  닫기", "pause": "Esc  닫기", "farm": "Esc  닫기", "cook": "Esc  닫기", "resident": "Esc  닫기", "furnish": "N  닫기", "portal": "Esc  닫기", "slots": "Esc  닫기", "settings": "Esc  닫기", "dex": "J  닫기"}
 
 var kind := "bag"
 var tab := 0
@@ -232,7 +232,7 @@ func refresh() -> void:
 		(_tab_buttons[i] as Button).disabled = i == tab
 	_info.text = _message
 	if _title_label:
-		_title_label.text = "친구 우리" if kind == "friends" and ctx == "pen" else str(TITLES[kind])
+		_title_label.text = "친구 우리" if kind == "friends" and ctx == "pen" else ("박물관" if kind == "dex" and ctx == "museum" else str(TITLES[kind]))
 	match kind:
 		"bag": _refresh_bag()
 		"skills": _refresh_skills()
@@ -247,6 +247,7 @@ func refresh() -> void:
 		"resident": _refresh_resident()
 		"furnish": _refresh_furnish()
 		"portal": _refresh_portal()
+		"dex": _refresh_dex()
 		"slots": _refresh_slots()
 		"settings": _settings_rows(_list())
 
@@ -764,6 +765,7 @@ const HELP_KEYS := [
 	["Q  E  R", "스킬"], ["V", "필살기"], ["1  2", "소모품"], ["G", "친구 스킬"],
 	["I", "가방"], ["K", "스킬 배우기"], ["C", "능력치"], ["P", "친구"],
 	["M", "지도"], ["Tab", "연필 (낙서)"], ["B", "내 마을: 칠하기"], ["N", "내 마을: 짓기"],
+	["J", "도감"],
 ]
 const HELP_GAME := [
 	"피로도: 사냥터 화면마다 2 줄어요. 아침 6시나 내 집에서 자면 가득 차요.",
@@ -934,11 +936,11 @@ func _cook(dish: String) -> void:
 # ---------- 주민 ----------
 
 func _refresh_resident() -> void:
-	if not Data.VILLAGERS.has(ctx):
+	if not GameState.is_villager(ctx):
 		return
 	var box := _list()
 	var v := GameState.villager(ctx)
-	var info: Dictionary = Data.VILLAGERS[ctx]
+	var info: Dictionary = GameState.villager_info(ctx)
 	var like := str(info["like"])
 	var h := GameState.hearts(ctx)
 	_row(box, "", "이야기하기  (하루 한 번, 호감 +1)", [["이야기", _talk, int(v["talk_day"]) != GameState.day]])
@@ -987,9 +989,91 @@ func _take_acc() -> void:
 
 
 func _recall() -> void:
-	var mem: Array = Data.VILLAGERS[ctx]["memory"]
+	var mem: Array = GameState.villager_info(ctx)["memory"]
 	_message = "\"%s\"" % mem[_memory % mem.size()]
 	_memory += 1
+	refresh()
+
+
+# ---------- 도감 (J) 과 박물관 ----------
+
+const DEX_CATS := ["mon", "friend", "fish", "crop", "gear", "mat"]
+
+
+## 도감 칸 하나의 그림과 이름
+func _dex_look(cat: String, id: String) -> Array:
+	match cat:
+		"mon":
+			var cfg: Dictionary = Data.MONSTERS[id]
+			var tex: Texture2D = null
+			if str(cfg["art"]) == "strip":
+				var strip := Art.tex("mon_" + str(cfg["sprite"]))
+				if strip:
+					var at := AtlasTexture.new()
+					at.atlas = strip
+					at.region = Rect2(0, 0, strip.get_width() / 6.0, strip.get_height())
+					tex = at
+			elif str(cfg["art"]) == "single":
+				tex = Art.tex(str(cfg["sprite"]))
+			else:
+				tex = Art.tex(str(cfg["sprite"]) + "_idle")
+			return [tex, str(cfg["name"])]
+		"friend":
+			return [_friend_tex(id), str(Data.FRIENDS[id]["name"])]
+		"fish", "crop":
+			return [Art.tex(GameState.consumable_icon(id)), str(Items.CONSUMABLES[id][0])]
+		"gear":
+			var p := id.split("_")
+			return [Art.tex("equip_%s_%s" % [p[0], p[1]]), "%s (%s)" % [Items.SHAPES[p[0]][int(p[1])], Items.SLOT_NAMES[p[0]]]]
+		"mat":
+			return [Art.tex("mat_%s" % id), str(Data.MATERIALS[int(id)])]
+	return [null, id]
+
+
+func _refresh_dex() -> void:
+	var cat := str(DEX_CATS[clampi(tab, 0, DEX_CATS.size() - 1)])
+	var entries := GameState.dex_entries(cat)
+	var museum := ctx == "museum"
+	var top := 0.0
+	# 박물관에서 열면 채운 만큼 받는 보상 단추가 위에 붙는다
+	if museum:
+		for i in Data.MUSEUM_STEPS.size():
+			var pct := int(Data.MUSEUM_STEPS[i])
+			var got := GameState.museum_claimed.has("%s:%d" % [cat, pct])
+			var b := _button(_body, "%d%% %s" % [pct, "받음" if got else "받기"], Vector2(i * 74, 0), Vector2(70, 18), _museum_claim.bind(cat, pct))
+			b.disabled = not GameState.museum_ready(cat, pct)
+		top = 22.0
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, top)
+	scroll.size = _body.size - Vector2(0, top)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_body.add_child(scroll)
+	var grid := Control.new()
+	var cols := 8
+	var cell := 37.0
+	grid.custom_minimum_size = Vector2(_body.size.x - 12, ceilf(entries.size() / float(cols)) * cell)
+	scroll.add_child(grid)
+	for i in entries.size():
+		var id := str(entries[i])
+		var seen := GameState.dex_has(cat, id)
+		var pos := Vector2((i % cols) * cell, (i / cols) * cell)
+		_icon(grid, "ui_slot", pos, cell - 3)
+		var look := _dex_look(cat, id)
+		var ic := UI.icon(grid, "", pos + Vector2(5, 5), Vector2(cell - 13, cell - 13), Color.WHITE if seen else Color(0.15, 0.13, 0.13, 0.35))
+		ic.texture = look[0]
+		if seen:
+			_rc(_hit(grid, pos, Vector2(cell - 3, cell - 3), func() -> void: pass), {"title": str(look[1]), "icon": "", "text": "도감에 적힌 것: %s" % look[1]})
+	if _message == "":
+		var n := GameState.dex_count(cat)
+		_info.text = "%s %d / %d   다 채우면: %s%s\n%s" % [Data.DEX_NAMES[cat], n, entries.size(), GameState.dex_bonus_text(cat),
+			"  (받는 중!)" if n >= entries.size() else "",
+			"박물관: 채운 만큼 보상을 받아요." if museum else "만나거나 얻으면 적혀요. 박물관을 지으면 채운 만큼 보상을 받아요."]
+
+
+func _museum_claim(cat: String, pct: int) -> void:
+	var r := GameState.museum_reward(cat, pct)
+	_message = "동전 %d, 지우개 가루 %d%s 를 받았어요." % [int(r["coins"]), int(r["dust"]), ", 코팅지 1" if int(r["coating"]) > 0 else ""] \
+		if GameState.museum_claim(cat, pct) else "아직 받을 수 없어요."
 	refresh()
 
 

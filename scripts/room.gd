@@ -194,7 +194,7 @@ func _spawn_fixture() -> void:
 	if use == "villager":
 		# 주민 집에는 계산대 대신 주민이 서 있다
 		var who := GameState.resident_of(key)
-		var tex := Art.tex(str(Data.VILLAGERS[who]["sprite"])) if who != "" else null
+		var tex := Art.tex(str(GameState.villager_info(who)["sprite"])) if who != "" else null
 		if tex:
 			var body := Node2D.new()
 			body.position = FIX_POS + Vector2(0, -6)

@@ -45,6 +45,9 @@ const FX_TEXT := {
 	"v_brooch": "갓 구운 냄새: 소모품과 음식의 회복량 20% 증가",
 	"v_watch": "느긋한 시계: 사냥터 화면에 들어갈 때 피로도가 1 덜 든다",
 	"v_badge": "둥실둥실: 이동 속도 +10%",
+	"set_eraser": "지우개 세트: 받는 피해 15% 감소",
+	"set_crumple": "구김 세트: 치명타가 나면 HP 2 회복",
+	"set_scribble": "낙서 세트: 필살기 게이지가 50% 빨리 참",
 }
 ## 유일 장비: 대장과 필드 보스가 "빈" 단계에서만 떨어뜨린다. 옵션이 정해져 있다.
 ##   icon: 가방 아이콘 그림, held: 손에 드는 그림 (도구만), shape: 그림이 없을 때 대신 쓰는 모양
@@ -61,6 +64,52 @@ const UNIQUES := {
 	"v_badge": {"name": "풍선 아이의 풍선 배지", "slot": "acc", "shape": 8, "icon": "vgift_5", "level": 10,
 		"opts": [["mspd", 8], ["aspd", 8], ["atk", 6]]},
 }
+## 세트 장비 (1장): 보스마다 한 벌. 여섯 부위가 있고 2·4·6부위를 입으면 효과가 붙는다.
+##   shapes: 부위마다 그림이 없을 때 쓰는 모양 번호. bonus: 입은 부위 수 → 능력 (6부위는 고유 효과 fx 도)
+##   아이콘 그림은 set_<id>_<부위>.png, 겉모습은 hat_set_<id>_<0~2>, player_walk_set_<id>, player_attack_set_<id>, tool_set_<id>
+const SETS := {
+	"eraser": {"name": "지우개", "boss": "boss_bug", "color": Color(1.0, 0.72, 0.78),
+		"shapes": {"tool": 6, "hat": 6, "cloth": 3, "shoe": 3, "bag": 2, "acc": 6},
+		"bonus": {2: {"hp": 60}, 4: {"def": 6, "drop": 10}, 6: {"hp": 120, "fx": "set_eraser"}}},
+	"crumple": {"name": "구김", "boss": "boss_crumple", "color": Color(0.78, 0.86, 1.0),
+		"shapes": {"tool": 2, "hat": 5, "cloth": 7, "shoe": 7, "bag": 7, "acc": 2},
+		"bonus": {2: {"atk": 8}, 4: {"critdmg": 20, "crit": 4}, 6: {"atk": 16, "fx": "set_crumple"}}},
+	"scribble": {"name": "낙서", "boss": "boss_scribble", "color": Color(0.85, 1.0, 0.72),
+		"shapes": {"tool": 9, "hat": 7, "cloth": 9, "shoe": 9, "bag": 9, "acc": 8},
+		"bonus": {2: {"mspd": 6}, 4: {"aspd": 10, "exp": 10}, 6: {"mp": 50, "fx": "set_scribble"}}},
+}
+const SET_DROP := {"mid": 0.2, "boss": 0.35, "field": 0.35}   # 보스를 잡을 때 그 보스의 세트 한 부위가 나올 확률
+const SET_MIN_TIER := 2                                       # 세트 장비는 색칠 등급부터
+
+
+## 세트 장비 한 부위를 만든다 (등급은 난이도를 따르되 색칠 이상)
+static func make_set(set_id: String, slot: String, tier: int, level: int) -> Dictionary:
+	var s: Dictionary = SETS[set_id]
+	var item := make(slot, int(s["shapes"][slot]), clampi(maxi(tier, SET_MIN_TIER), 0, 4), level)
+	item["set"] = set_id
+	return item
+
+
+static func set_of(item: Dictionary) -> String:
+	return str(item.get("set", "")) if SETS.has(str(item.get("set", ""))) else ""
+
+
+## 세트 효과 설명 줄들 (입은 부위 수 n 을 주면 받는 줄에 표시)
+static func set_lines(set_id: String, n: int = -1) -> Array:
+	var s: Dictionary = SETS[set_id]
+	var out: Array = []
+	for need in [2, 4, 6]:
+		var b: Dictionary = s["bonus"][need]
+		var parts: Array = []
+		for k in b:
+			if str(k) == "fx":
+				parts.append(str(FX_TEXT[str(b[k])]))
+			else:
+				parts.append(stat_text(str(k), int(b[k])))
+		out.append("%s%d부위: %s" % ["✔ " if n >= need else "  ", need, ", ".join(parts)])
+	return out
+
+
 ## 주민 전용: 하트 4개에 배우는 조합법, 하트 5개에 받는 장신구
 const VILLAGER_RECIPES := {
 	"baker": ["단팥빵", "v_redbean", {0: 3, 4: 2}, 4],
@@ -288,6 +337,8 @@ static func item_name(item: Dictionary) -> String:
 	var base := "%s %s" % [TIER_NAMES[int(item["tier"])], SHAPES[str(item["slot"])][int(item["shape"])]]
 	if is_unique(item):
 		base = "★ " + str(UNIQUES[str(item["unique"])]["name"])
+	elif set_of(item) != "":
+		base = "◆ %s 세트 %s" % [SETS[set_of(item)]["name"], SLOT_NAMES[str(item["slot"])]]
 	return ("+%d " % plus if plus > 0 else "") + base
 
 
@@ -298,6 +349,10 @@ static func icon(item: Dictionary) -> String:
 		return own
 	if is_unique(item) and ResourceLoader.exists("res://assets/sprites/%s.png" % str(UNIQUES[str(item["unique"])]["icon"])):
 		return str(UNIQUES[str(item["unique"])]["icon"])
+	if set_of(item) != "":
+		var own_set := "set_%s_%s" % [set_of(item), str(item["slot"])]
+		if ResourceLoader.exists("res://assets/sprites/%s.png" % own_set):
+			return own_set
 	return "equip_%s_%d" % [str(item["slot"]), int(item["shape"])]
 
 
@@ -305,6 +360,8 @@ static func icon(item: Dictionary) -> String:
 static func tier_color(item: Dictionary) -> Color:
 	if is_unique(item):
 		return Color.WHITE if not icon(item).begins_with("equip_") else UNIQUE_COLOR
+	if set_of(item) != "":
+		return Color.WHITE if icon(item).begins_with("set_") else SETS[set_of(item)]["color"]
 	return TIER_COLORS[int(item["tier"])]
 
 
@@ -333,6 +390,9 @@ static func describe(item: Dictionary) -> String:
 		lines.append("  " + stat_text(str(o[0]), int(o[1])))
 	if fx_of(item) != "":
 		lines.append(str(FX_TEXT[fx_of(item)]))
+	if set_of(item) != "":
+		lines.append("%s 세트 효과" % SETS[set_of(item)]["name"])
+		lines.append_array(set_lines(set_of(item)))
 	if int(item.get("bonus", 0)) > 0:
 		lines.append("직접 그림 +%d%%" % int(item["bonus"]))
 	lines.append("필요 필력 %d" % int(item["level"]))

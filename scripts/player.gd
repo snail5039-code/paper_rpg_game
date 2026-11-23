@@ -303,23 +303,33 @@ func _refresh_look() -> void:
 	var eq: Dictionary = GameState.equipped
 	var key := ""
 	for sl in ["hat", "tool", "cloth"]:
-		key += str(eq[sl].get("shape", 0)) + str(eq[sl].get("unique", "")) + "," if eq.has(sl) else "-,"
+		key += str(eq[sl].get("shape", 0)) + str(eq[sl].get("unique", "")) + str(eq[sl].get("set", "")) + "," if eq.has(sl) else "-,"
 	if key == _look:
 		return
 	_look = key
 	_hat_shape = int(eq["hat"]["shape"]) if eq.has("hat") else -1
+	# 세트 장비는 자기 그림이 있으면 그것을 쓴다 (없으면 모양 번호의 그림)
+	var hat_set := Items.set_of(eq["hat"]) if eq.has("hat") else ""
 	for v in 3:
 		_hat_tex[v] = Art.tex("hat_%d_%d" % [_hat_shape, v]) if _hat_shape >= 0 else null
+		if hat_set != "" and Art.tex("hat_set_%s_%d" % [hat_set, v]):
+			_hat_tex[v] = Art.tex("hat_set_%s_%d" % [hat_set, v])
 	# 옷: 옷마다 걷기·공격 그림이 따로 있다 (없으면 기본 후드티)
 	var cloth := int(eq["cloth"]["shape"]) if eq.has("cloth") else 0
-	var walk := Art.tex("player_walk_c%d" % cloth)
-	var swing := Art.tex("player_attack_c%d" % cloth)
+	var cloth_set := Items.set_of(eq["cloth"]) if eq.has("cloth") else ""
+	var walk := Art.tex("player_walk_set_%s" % cloth_set) if cloth_set != "" else null
+	var swing := Art.tex("player_attack_set_%s" % cloth_set) if cloth_set != "" else null
+	if walk == null or swing == null:
+		walk = Art.tex("player_walk_c%d" % cloth)
+		swing = Art.tex("player_attack_c%d" % cloth)
 	if walk and _sprite:
 		_sprite.texture = walk
 	if swing and _attack_sprite:
 		_attack_sprite.texture = swing
 	# 도구: 안 들었으면 처음부터 들고 있던 연필
 	_tool_tex = Art.tex("tool_%d" % (int(eq["tool"]["shape"]) if eq.has("tool") else 0))
+	if eq.has("tool") and Items.set_of(eq["tool"]) != "" and Art.tex("tool_set_%s" % Items.set_of(eq["tool"])):
+		_tool_tex = Art.tex("tool_set_%s" % Items.set_of(eq["tool"]))
 	# 유일 도구는 자기 그림이 있다
 	if eq.has("tool") and Items.is_unique(eq["tool"]):
 		var own := Art.tex(str(Items.UNIQUES[str(eq["tool"]["unique"])].get("held", "")))
@@ -502,6 +512,9 @@ func _hit(enemy: Node2D, mult: float, dir: Vector2, ignore_defense: bool = false
 	if GameState.has_fx("u_pen") and hp < max_hp:
 		hp += 1
 		hp_changed.emit(hp, max_hp)
+	if bool(roll[1]) and GameState.has_fx("set_crumple") and hp < max_hp:
+		hp = mini(max_hp, hp + 2)
+		hp_changed.emit(hp, max_hp)
 
 
 ## 소모품을 쓸 수 없는 까닭을 알리고 false 를 돌려준다
@@ -512,7 +525,7 @@ func _cannot_use(why: String) -> bool:
 
 
 func _ult_gain() -> float:
-	return 1.3 if GameState.has_fx("spark") else 1.0
+	return (1.3 if GameState.has_fx("spark") else 1.0) * (1.5 if GameState.has_fx("set_scribble") else 1.0)
 
 
 func _heal_mult() -> float:
@@ -623,7 +636,7 @@ func is_dodging() -> bool:
 func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
-	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0)))
+	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0) * (0.85 if GameState.has_fx("set_eraser") else 1.0)))
 	stop_act()          # 맞으면 하던 생활 동작이 끊긴다
 	Sound.play("hurt")
 	if GameState.skill_rank("ult") > 0:

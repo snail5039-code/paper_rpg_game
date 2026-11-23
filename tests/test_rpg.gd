@@ -449,6 +449,46 @@ func _run() -> void:
 	opt_item["opts"] = [["drop", 20], ["exp", 50]]
 	GameState.equipped["acc"] = opt_item
 	check(is_equal_approx(GameState.drop_mult(), 1.2), "드롭률 옵션이 실제로 드롭에 반영됨")
+
+	print("[세트 장비]")
+	check(Items.SETS.size() == 3, "1장 세트는 세 벌")
+	var bosses_with_set := {}
+	for sid in Items.SETS:
+		bosses_with_set[str(Items.SETS[sid]["boss"])] = true
+	check(bosses_with_set.has("boss_bug") and bosses_with_set.has("boss_crumple") and bosses_with_set.has("boss_scribble"), "중간 보스·대장·필드 보스가 한 벌씩")
+	var piece := Items.make_set("eraser", "hat", 0, 5)
+	check(Items.set_of(piece) == "eraser" and int(piece["tier"]) == Items.SET_MIN_TIER and Items.item_name(piece) == "◆ 지우개 세트 모자", "세트 장비는 색칠 등급부터, 이름에 세트가 붙음")
+	check(Items.describe(piece).contains("2부위") and Items.describe(piece).contains("받는 피해 15%"), "설명에 세트 효과가 나옴")
+	GameState.equipped = {}
+	var hp0 := GameState.gear("hp")
+	piece["opts"] = []          # 무작위 옵션은 빼고 세트 효과만 잰다
+	GameState.equipped["hat"] = piece
+	check(GameState.set_count("eraser") == 1 and GameState.gear("hp") == hp0, "한 부위는 효과 없음")
+	GameState.equipped["shoe"] = Items.make_set("eraser", "shoe", 2, 5)
+	GameState.equipped["shoe"]["opts"] = []
+	check(GameState.gear("hp") == hp0 + 60, "2부위: 최대 HP +60")
+	for sl in ["tool", "cloth", "bag", "acc"]:
+		GameState.equipped[sl] = Items.make_set("eraser", sl, 2, 5)
+		GameState.equipped[sl]["opts"] = []
+	var cloth_hp := Items.main_value(GameState.equipped["cloth"])
+	check(GameState.set_count("eraser") == 6 and GameState.has_fx("set_eraser") and GameState.gear("hp") == hp0 + cloth_hp + 60 + 120, "6부위: HP +120 더, 받는 피해 15% 감소 효과")
+	check(not GameState.has_fx("set_crumple"), "다른 세트 효과는 꺼져 있음")
+	GameState.changed.emit()
+	await frames(2)
+	player.set("_invuln", 0.0)
+	player.set("hp", int(player.get("max_hp")))
+	var set_hp := int(player.get("hp"))
+	player.call("take_damage", GameState.defense() + 100, Vector2.RIGHT)
+	check(set_hp - int(player.get("hp")) == 85, "지우개 세트 6부위: 받는 피해 100 이 85 로")
+	player.set("hp", int(player.get("max_hp")))
+	var dropped := {}
+	for i in 60:
+		dropped = GameState.roll_set_drop("boss_crumple", "boss", 1)
+		if not dropped.is_empty():
+			break
+	check(Items.set_of(dropped) == "crumple", "대장을 잡으면 구김 세트가 나올 수 있음")
+	check(GameState.roll_set_drop("slime_faded", "", 1).is_empty(), "보통 몬스터는 세트를 떨어뜨리지 않음")
+	GameState.inventory.append(Items.make_set("scribble", "acc", 3, 1))
 	GameState.equipped = eq_kept
 	GameState.changed.emit()
 	await frames(2)

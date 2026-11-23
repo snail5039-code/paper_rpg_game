@@ -242,7 +242,7 @@ func _build_bars(root: Control) -> void:
 
 ## 가방(I), 스킬(K), 문방구 창은 scripts/menus.gd 가 그린다
 func _build_menus(root: Control) -> void:
-	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause", "farm", "cook", "resident", "furnish", "portal"]:
+	for k in ["bag", "skills", "shop", "friends", "build", "storage", "board", "pause", "farm", "cook", "resident", "furnish", "portal", "dex"]:
 		var m: Control = MenusScript.new()
 		m.set("kind", k)
 		root.add_child(m)
@@ -490,6 +490,24 @@ func ask_name(who: String) -> String:
 func submit_name(text: String = "") -> void:
 	if _name_box.visible:
 		name_done.emit(text if text != "" else _name_edit.text)
+
+
+## 새 주민 그리기 화면을 연다 (빈 주민 집에서). 다 만들면 그 주민 창을 연다.
+var maker: Control = null
+
+
+func open_villager_maker(key: String) -> void:
+	if is_instance_valid(maker):
+		return
+	maker = load("res://scripts/villager_maker.gd").new()
+	maker.call("setup", key)
+	add_child(maker)
+	GameState.set_menu_open(true)
+	maker.connect("done", func(id: String) -> void:
+		GameState.set_menu_open(false)
+		if id != "":
+			GameState.notify("%s 이(가) 이사 왔어요!" % GameState.villager_name(id))
+			open_menu("resident", id))
 
 
 func _build_name_box(root: Control) -> void:
@@ -867,7 +885,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_menu("friends")
 			get_viewport().set_input_as_handled()
 			return
-		for mk in ["build", "storage", "board", "farm", "cook", "resident", "furnish", "portal"]:
+		if kc == KEY_J:
+			if not is_menu_open("dex"):
+				(_menus["dex"] as Control).set("ctx", "")   # J 로 열면 보기만 (박물관에서 열면 보상도 받는다)
+			toggle_menu("dex")
+			get_viewport().set_input_as_handled()
+			return
+		for mk in ["build", "storage", "board", "farm", "cook", "resident", "furnish", "portal", "dex"]:
 			if is_menu_open(mk) and kc == KEY_ESCAPE:
 				toggle_menu(mk)
 				get_viewport().set_input_as_handled()

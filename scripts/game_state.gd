@@ -110,7 +110,10 @@ var save_dir: String = "user://"   # 캐릭터 칸, 공유 자료, 설정 파일
 const TITLE_SCENE := "res://scenes/title.tscn"
 ## 모든 캐릭터가 같이 쓰는 것 (내 마을, 창고, 밭, 가구, 주민). 캐릭터 칸으로 할 때는 shared.json 에 따로 저장한다.
 const SHARED_KEYS := ["home_cells", "home_doodles", "home_intro_seen", "home_sheets", "home_objects", "storage",
-	"farms", "furniture", "room_items", "rooms", "villagers", "gift_days", "balloons"]
+	"farms", "furniture", "room_items", "rooms", "villagers", "custom_villagers", "gift_days", "balloons", "dex", "museum_claimed"]
+var dex: Dictionary = {}              # 도감: 묶음("mon", "friend", "fish", "crop", "gear", "mat") → {id: true}
+var museum_claimed: Dictionary = {}   # 박물관에서 받은 보상 ("묶음:퍼센트" → true)
+var custom_villagers: Dictionary = {}   # 직접 만든 주민 (id "cv1"… → {"persona", "art"})
 var buffs: Dictionary = {}        # 요리 효과 (종류 → 남은 초)
 var farms: Dictionary = {}        # 밭(자리) → 칸 6개 {"seed", "grown", "watered"}
 var foraged: Dictionary = {"day": 0, "taken": []}   # 오늘 채집한 자리
@@ -486,21 +489,148 @@ func gear(key: String) -> int:
 		for o in item["opts"]:
 			if str(o[0]) == key:
 				total += int(o[1])
+	total += dex_stat(key)      # 도감 묶음을 다 채우면 오르는 능력
+	# 세트 효과: 같은 세트를 2·4·6부위 입으면 더해진다
+	for set_id in Items.SETS:
+		var n := set_count(str(set_id))
+		for need in [2, 4, 6]:
+			if n >= need:
+				total += int((Items.SETS[set_id]["bonus"][need] as Dictionary).get(key, 0))
 	return total
 
 
-## 입고 있는 장비에 그 고유 효과가 있는지 (Items.FX_TEXT 의 id)
+## 도감: 처음 만나거나 얻은 것을 적는다 (모든 캐릭터가 같이 쓴다)
+func dex_add(cat: String, id: String) -> void:
+	if not Data.DEX_NAMES.has(cat):
+		return
+	var book: Dictionary = dex.get(cat, {})
+	if book.has(id) or not dex_entries(cat).has(id):
+		return
+	book[id] = true
+	dex[cat] = book
+	if dex_count(cat) == dex_entries(cat).size():
+		notify("도감의 \"%s\" 묶음을 다 채웠어요! (%s)" % [Data.DEX_NAMES[cat], dex_bonus_text(cat)])
+	changed.emit()
+
+
+func dex_has(cat: String, id: String) -> bool:
+	return (dex.get(cat, {}) as Dictionary).has(id)
+
+
+func dex_count(cat: String) -> int:
+	var n := 0
+	for id in dex_entries(cat):
+		if dex_has(cat, str(id)):
+			n += 1
+	return n
+
+
+## 도감의 한 묶음에 들어가는 것들 (id 목록)
+static func dex_entries(cat: String) -> Array:
+	var out: Array = []
+	match cat:
+		"mon":
+			for k in Data.MONSTERS:
+				var ks := str(k)
+				if ks.ends_with("_faded") or ks.ends_with("_erased") or ks.begins_with("boss_"):
+					out.append(ks)
+		"friend":
+			for k in Data.FRIENDS:
+				if str(k) != "tm9":
+					out.append(str(k))
+		"fish":
+			for place in Items.FISH:
+				for pool in Items.FISH[place]:
+					for f in pool:
+						if not out.has(str(f)):
+							out.append(str(f))
+		"crop":
+			for s in Items.CROPS:
+				out.append(str(Items.CROPS[s][0]))
+		"gear":
+			for sl in Items.SLOTS:
+				for i in 10:
+					out.append("%s_%d" % [sl, i])
+		"mat":
+			for i in Data.MATERIALS.size():
+				out.append(str(i))
+	return out
+
+
+## 다 채운 묶음이 주는 능력 (gear() 에 더해진다)
+func dex_stat(key: String) -> int:
+	var total := 0
+	for cat in Data.DEX_BONUS:
+		if dex_count(str(cat)) >= dex_entries(str(cat)).size():
+			total += int((Data.DEX_BONUS[cat] as Dictionary).get(key, 0))
+	return total
+
+
+static func dex_bonus_text(cat: String) -> String:
+	var parts: Array = []
+	for k in Data.DEX_BONUS[cat]:
+		parts.append(Items.stat_text(str(k), int(Data.DEX_BONUS[cat][k])))
+	return ", ".join(parts)
+
+
+## 박물관 보상: 묶음마다 25·50·75·100% 를 채우면 한 번씩. 박물관 단계가 높을수록 많이.
+func museum_reward(_cat: String, pct: int) -> Dictionary:
+	var step := pct / 25
+	var mult := 1.0 + (build_level("bld_museum") - 3) * 0.1
+	return {"coins": roundi(50 * pow(2, step - 1) * mult), "dust": roundi(2 * pow(2, step - 1) * mult), "coating": 1 if pct == 100 else 0}
+
+
+func museum_ready(cat: String, pct: int) -> bool:
+	return build_level("bld_museum") > 0 and not museum_claimed.has("%s:%d" % [cat, pct]) \
+		and dex_count(cat) * 100 >= pct * dex_entries(cat).size()
+
+
+func museum_claim(cat: String, pct: int) -> bool:
+	if not museum_ready(cat, pct):
+		return false
+	museum_claimed["%s:%d" % [cat, pct]] = true
+	var r := museum_reward(cat, pct)
+	coins += int(r["coins"])
+	dust += int(r["dust"])
+	if int(r["coating"]) > 0:
+		add_consumable("coating", int(r["coating"]), true)
+	changed.emit()
+	return true
+
+
+## 그 세트를 몇 부위 입었는지
+func set_count(set_id: String) -> int:
+	var n := 0
+	for slot in equipped:
+		if Items.set_of(equipped[slot]) == set_id:
+			n += 1
+	return n
+
+
+## 입고 있는 장비에 그 고유 효과가 있는지 (Items.FX_TEXT 의 id). 세트 6부위 효과도 여기서 본다.
 func has_fx(id: String) -> bool:
 	for slot in equipped:
 		if Items.fx_of(equipped[slot]) == id:
 			return true
+	if id.begins_with("set_"):
+		var set_id := id.substr(4)
+		return Items.SETS.has(set_id) and set_count(set_id) >= 6
 	return false
+
+
+## 보스를 잡을 때 그 보스의 세트 장비가 나오는지 굴린다. 돌려주는 것: 장비 (나오지 않으면 빈 것)
+func roll_set_drop(kind: String, role: String, tier: int) -> Dictionary:
+	for set_id in Items.SETS:
+		if str(Items.SETS[set_id]["boss"]) == kind and randf() < float(Items.SET_DROP.get(role, 0.0)) * drop_mult():
+			return Items.make_set(str(set_id), str(Items.SLOTS[randi() % Items.SLOTS.size()]), tier, maxi(1, level))
+	return {}
 
 
 func add_item(item: Dictionary) -> bool:
 	if inventory.size() >= bag_size:
 		return false
 	inventory.append(item)
+	dex_add("gear", "%s_%d" % [str(item["slot"]), int(item["shape"])])
 	changed.emit()
 	return true
 
@@ -770,6 +900,7 @@ func add_friend(sp: String) -> bool:
 	if not Data.FRIENDS.has(sp) or friends.size() >= friend_cap():
 		return false
 	friends.append({"sp": sp, "lv": 1, "exp": 0, "stars": 0})
+	dex_add("friend", sp)
 	tip("friend", "친구는 옆에서 같이 싸워요. P: 친구 창, G: 친구 스킬")
 	if companion < 0:
 		companion = friends.size() - 1
@@ -1130,6 +1261,7 @@ func board_reward(q: Dictionary, what: String) -> int:
 func on_kill(kind: String) -> void:
 	lesson_note("kill")
 	board_note(Data.species_of(kind))
+	dex_add("mon", kind)
 
 
 ## 게시판 부탁이 하나 나아간다 (몬스터 종, "fish", "forage")
@@ -1176,6 +1308,7 @@ func catch_fish(place: String = "home") -> String:
 	if not add_consumable(id):
 		return ""
 	lesson_note("fish")
+	dex_add("fish", id)
 	board_note("fish")
 	return id
 
@@ -1296,6 +1429,7 @@ func harvest(key: String, i: int) -> String:
 		return ""
 	plots[i] = {"seed": "", "grown": 0, "watered": false}
 	add_consumable(crop, 2 if has_fine("bld_farm") else 1)
+	dex_add("crop", crop)
 	return crop
 
 
@@ -1437,7 +1571,43 @@ func known_recipes() -> Array:
 
 func villager_name(id: String) -> String:
 	var v := villager(id)
-	return str(v["name"]) if str(v["name"]) != "" else str(Data.VILLAGERS[id]["title"])
+	return str(v["name"]) if str(v["name"]) != "" else str(villager_info(id)["title"])
+
+
+## 주민의 정보: 이야기가 있는 주민은 Data.VILLAGERS, 직접 만든 주민은 고른 성격과 그린 그림으로 만든다.
+##   {"title", "sprite", "like", "gift", "memory"}
+func villager_info(id: String) -> Dictionary:
+	if Data.VILLAGERS.has(id):
+		return Data.VILLAGERS[id]
+	var c: Dictionary = custom_villagers.get(id, {})
+	var p: Dictionary = Data.PERSONAS.get(str(c.get("persona", "glutton")), Data.PERSONAS["glutton"])
+	return {"title": "%s 주민" % p["name"], "sprite": str(c.get("art", "villager_0")), "like": p["like"], "gift": p["gift"],
+		"memory": p["memory"], "custom": true}
+
+
+func is_villager(id: String) -> bool:
+	return Data.VILLAGERS.has(id) or custom_villagers.has(id)
+
+
+## 직접 그려 만든 주민이 그 집(key)에 이사 온다. 돌려주는 것: 새 주민의 id ("" 은 못 만듦)
+func create_villager(new_name: String, persona: String, art: String, key: String) -> String:
+	if custom_villagers.size() >= Data.CUSTOM_MAX or not Data.PERSONAS.has(persona) or resident_of(key) != "":
+		return ""
+	var o := object_at(key)
+	if o.is_empty() or str(Data.BUILDS[str(o["id"])].get("use", "")) != "villager":
+		return ""
+	var n := 1
+	while custom_villagers.has("cv%d" % n):
+		n += 1
+	var id := "cv%d" % n
+	custom_villagers[id] = {"persona": persona, "art": art}
+	var v := villager(id)
+	v["q"] = 3
+	v["house"] = key
+	v["name"] = new_name.strip_edges().left(8) if new_name.strip_edges() != "" else "새 주민"
+	changed.emit()
+	save_game()
+	return id
 
 
 ## 비어 있는 주민 집의 자리 ("" 은 없음)
@@ -1471,7 +1641,7 @@ func move_in(id: String, new_name: String) -> bool:
 		return false
 	v["q"] = 3
 	v["house"] = key
-	v["name"] = new_name.strip_edges().left(8) if new_name.strip_edges() != "" else str(Data.VILLAGERS[id]["title"])
+	v["name"] = new_name.strip_edges().left(8) if new_name.strip_edges() != "" else str(villager_info(id)["title"])
 	add_aff(id, 5)   # 부탁을 들어준 몫
 	save_game()
 	return true
@@ -1491,7 +1661,7 @@ func villager_talk(id: String) -> bool:
 ## 좋아하는 것을 선물한다 (+3). 하루에 한 번.
 func villager_give(id: String) -> bool:
 	var v := villager(id)
-	var like := str(Data.VILLAGERS[id]["like"])
+	var like := str(villager_info(id)["like"])
 	if int(v.get("give_day", 0)) == day or consumable_count(like) <= 0:
 		return false
 	consumables[like] = consumable_count(like) - 1
@@ -1506,7 +1676,7 @@ func villager_daily(id: String) -> String:
 	if hearts(id) < 1 or int(v["gift_day"]) == day:
 		return ""
 	v["gift_day"] = day
-	var gift := str(Data.VILLAGERS[id]["gift"])
+	var gift := str(villager_info(id)["gift"])
 	# 주민 집의 단계: 4단계부터 선물이 하나 더. 정성 집은 두 배.
 	var n := 1 + (1 if int(object_at(str(v["house"])).get("lv", 3)) >= 4 else 0)
 	add_consumable(gift, n * (2 if _house_fine(str(v["house"])) else 1), true)
@@ -1701,6 +1871,8 @@ func roll_damage(skill_mult: float = 1.0, target_defense: int = 0) -> Array:
 
 func add_material(id: int, amount: int = 1) -> void:
 	materials[id] = int(materials.get(id, 0)) + amount
+	if amount > 0:
+		dex_add("mat", str(id))
 	changed.emit()
 
 
@@ -1820,6 +1992,9 @@ func save_game() -> bool:
 		"rooms": rooms,
 		"room_ctx": room_ctx,
 		"villagers": villagers,
+		"custom_villagers": custom_villagers,
+		"dex": dex,
+		"museum_claimed": museum_claimed,
 		"balloons": balloons,
 		"difficulty": difficulty,
 		"max_difficulty": max_difficulty,
@@ -1957,10 +2132,22 @@ func load_game() -> bool:
 		for ri in data["room_items"]:
 			if typeof(ri) == TYPE_DICTIONARY and Items.FURNITURE.has(str(ri.get("id", ""))):
 				room_items.append(_furn_entry(ri))
+	dex = {}
+	if typeof(data.get("dex")) == TYPE_DICTIONARY:
+		for dk in data["dex"]:
+			if Data.DEX_NAMES.has(str(dk)) and typeof(data["dex"][dk]) == TYPE_DICTIONARY:
+				dex[str(dk)] = data["dex"][dk]
+	museum_claimed = data["museum_claimed"] if typeof(data.get("museum_claimed")) == TYPE_DICTIONARY else {}
+	custom_villagers = {}
+	if typeof(data.get("custom_villagers")) == TYPE_DICTIONARY:
+		for ck in data["custom_villagers"]:
+			var cv: Variant = data["custom_villagers"][ck]
+			if typeof(cv) == TYPE_DICTIONARY and Data.PERSONAS.has(str(cv.get("persona", ""))) and custom_villagers.size() < Data.CUSTOM_MAX:
+				custom_villagers[str(ck)] = {"persona": str(cv["persona"]), "art": str(cv.get("art", ""))}
 	villagers = {}
 	if typeof(data.get("villagers")) == TYPE_DICTIONARY:
 		for vk in data["villagers"]:
-			if Data.VILLAGERS.has(str(vk)) and typeof(data["villagers"][vk]) == TYPE_DICTIONARY:
+			if is_villager(str(vk)) and typeof(data["villagers"][vk]) == TYPE_DICTIONARY:
 				var src: Dictionary = data["villagers"][vk]
 				var v := villager(str(vk))
 				for field in v.keys():
@@ -2068,6 +2255,9 @@ func _reset_state() -> void:
 	rooms = {}
 	room_ctx = {}
 	villagers = {}
+	custom_villagers = {}
+	dex = {}
+	museum_claimed = {}
 	balloons = []
 	difficulty = 0
 	max_difficulty = 0

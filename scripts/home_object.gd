@@ -112,7 +112,14 @@ func interact() -> void:
 		"villager":
 			var who := GameState.resident_of(GameState.house_key({"x": position.x, "y": position.y}))
 			if who == "":
-				GameState.notify("빈 집이에요. 1장 마을 사람의 부탁을 들어주면 이사 와요.")
+				# 빈 집: 한 번 더 F 를 누르면 새 주민을 직접 그려서 데려온다
+				if GameState.custom_villagers.size() < Data.CUSTOM_MAX and _t - _asked <= 3.0 and hud:
+					_asked = -10.0
+					hud.call("open_villager_maker", GameState.house_key({"x": position.x, "y": position.y}))
+					return
+				_asked = _t
+				GameState.notify("빈 집이에요. 1장 마을 사람의 부탁을 들어주면 이사 와요.%s" % (
+					" 한 번 더 F: 새 주민을 직접 그리기" if GameState.custom_villagers.size() < Data.CUSTOM_MAX else ""))
 			elif hud:
 				hud.call("open_menu", "resident", who)
 		"farm":
@@ -129,6 +136,9 @@ func interact() -> void:
 		"pen":
 			if hud:
 				hud.call("open_menu", "friends", "pen")
+		"museum":
+			if hud:
+				hud.call("open_menu", "dex", "museum")
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
 
@@ -231,7 +241,7 @@ func _refresh_extra() -> void:
 		return
 	if str(info.get("use", "")) == "villager":
 		var who := GameState.resident_of(key)
-		want = str(Data.VILLAGERS[who]["sprite"]) if who != "" else ""
+		want = str(GameState.villager_info(who)["sprite"]) if who != "" else ""
 	else:
 		for p in GameState.farm_plots(key):
 			want += "%s%d%s," % [str(p["seed"]), int(p["grown"]), "w" if bool(p["watered"]) else ""]
