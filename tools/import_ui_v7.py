@@ -77,6 +77,9 @@ SHEETS = {
     "75_set_hats": (3, 3, [("hat_set_%s_%d" % (s, v), "match:hat_%d_%d" % (sh, v)) for v in range(3) for s, sh in (("eraser", 2), ("crumple", 5), ("scribble", 3))]),
     # 세트 도구 (손에 드는 그림): 같은 모양의 원래 도구와 같은 긴 변으로 맞춘다
     "76_set_tools": (3, 1, [("tool_set_eraser", "match:tool_6"), ("tool_set_crumple", "match:tool_2"), ("tool_set_scribble", "match:tool_9")]),
+    # 직접 만드는 주민의 부품 (종이 인형): 몸 4, 옷 6, 얼굴 6. 겹치는 자리는 scripts/villager_maker.gd 가 몸 크기를 기준으로 정한다
+    "77_villager_parts": (4, 4, [("cv_body_%d" % i, 96) for i in range(4)] + [("cv_cloth_%d" % i, 96) for i in range(6)]
+        + [("cv_face_%d" % i, 96) for i in range(6)]),
     "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)

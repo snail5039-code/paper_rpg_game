@@ -46,23 +46,55 @@ static func parts(kind: String) -> Array:
 	return out
 
 
-## 고른 부품을 겹친 그림 (몸 → 옷 → 얼굴, 아래 가운데 맞춤)
+## 부품을 겹치는 자리 (몸 그림의 크기를 기준으로). 옷: 몸 키의 52% 높이, 아래끝이 발. 얼굴: 몸 폭의 60%, 몸 위에서 36% 자리가 가운데.
+const BODY_H := 88
+const CLOTH_H := 0.52
+const CLOTH_BOTTOM := 1.01
+const FACE_W := 0.6
+const FACE_Y := 0.36
+
+
+static func _layer(name: String) -> Image:
+	var layer := Art.tex(name).get_image()
+	if layer.is_compressed():
+		layer.decompress()
+	layer = layer.duplicate()
+	layer.convert(Image.FORMAT_RGBA8)
+	return layer
+
+
+static func _scaled(layer: Image, k: float) -> Image:
+	layer.resize(maxi(1, roundi(layer.get_width() * k)), maxi(1, roundi(layer.get_height() * k)), Image.INTERPOLATE_BILINEAR)
+	return layer
+
+
+## 고른 부품을 겹친 그림 (몸 → 옷 → 얼굴). 몸 그림이 없으면(옛 주민 그림) 그것만 아래 가운데에 놓는다.
 func compose() -> Image:
 	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	for kind in ["body", "cloth", "face"]:
-		var list := parts(kind)
-		if list.is_empty():
-			continue
-		var tex := Art.tex(str(list[int(pick[kind]) % list.size()]))
-		var layer := tex.get_image()
-		if layer.is_compressed():
-			layer.decompress()
-		layer = layer.duplicate()
-		layer.convert(Image.FORMAT_RGBA8)
-		var k := minf(float(SIZE) / layer.get_width(), float(SIZE) / layer.get_height())
-		layer.resize(maxi(1, roundi(layer.get_width() * k)), maxi(1, roundi(layer.get_height() * k)), Image.INTERPOLATE_BILINEAR)
-		img.blend_rect(layer, Rect2i(Vector2i.ZERO, layer.get_size()), Vector2i((SIZE - layer.get_width()) / 2, SIZE - layer.get_height()))
+	var bodies := parts("body")
+	if bodies.is_empty():
+		return img
+	var body_name := str(bodies[int(pick["body"]) % bodies.size()])
+	var body := _layer(body_name)
+	body = _scaled(body, float(BODY_H) / body.get_height() if body_name.begins_with("cv_") else minf(float(SIZE) / body.get_width(), float(SIZE) / body.get_height()))
+	var bx := (SIZE - body.get_width()) / 2
+	var by := SIZE - 2 - body.get_height()
+	img.blend_rect(body, Rect2i(Vector2i.ZERO, body.get_size()), Vector2i(bx, by))
+	if not body_name.begins_with("cv_"):
+		return img
+	var bw := body.get_width()
+	var bh := body.get_height()
+	var clothes := parts("cloth")
+	if not clothes.is_empty():
+		var cl := _layer(str(clothes[int(pick["cloth"]) % clothes.size()]))
+		cl = _scaled(cl, CLOTH_H * bh / cl.get_height())
+		img.blend_rect(cl, Rect2i(Vector2i.ZERO, cl.get_size()), Vector2i((SIZE - cl.get_width()) / 2, roundi(by + bh * CLOTH_BOTTOM) - cl.get_height()))
+	var faces := parts("face")
+	if not faces.is_empty():
+		var fa := _layer(str(faces[int(pick["face"]) % faces.size()]))
+		fa = _scaled(fa, FACE_W * bw / fa.get_width())
+		img.blend_rect(fa, Rect2i(Vector2i.ZERO, fa.get_size()), Vector2i((SIZE - fa.get_width()) / 2, roundi(by + bh * FACE_Y - fa.get_height() * 0.5)))
 	return img
 
 

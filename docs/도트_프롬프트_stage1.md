@@ -76,6 +76,9 @@ Row 3 "SCRIBBLE set", lively scribble theme in light green with black squiggle l
 STYLE: ...(공통 그림체)
 ```
 
-## 75~76. 세트 겉모습, 주민 부품
+## 75~77. 세트 겉모습, 주민 부품 (받음)
 
-세트 장비의 겉모습(모자 앞·옆·뒤, 옷 걷기·공격, 도구)과 직접 만드는 주민의 부품(몸·옷·얼굴)은 위 그림이 다 들어온 뒤 기존 모자(33·34번)·옷(40번, `tools/cloth_ref.py`) 방식대로 이어서 받는다.
+- `75_set_hats.png` 3칸 × 3줄: 칸은 지우개·구김·낙서, 줄은 앞·옆(왼쪽을 봄)·뒤. 첨부: `artifacts/hat_ref.png`, `33_hats_a.png`, `74_set_icons.png` → `hat_set_<세트>_<0~2>`
+- `76_set_tools.png` 3칸: 손에 드는 도구 (촉이 위). 첨부: `41_tools.png` → `tool_set_<세트>`
+- `40_cloth_set_<세트>.png`: `artifacts/cloth_ref.png`(tools/cloth_ref.py)와 세트 아이콘을 붙여 "같은 배치, 같은 자세, 맨손, 옷만 바꿔서". 가져오기: `python3 tools/import_cloth.py set_eraser set_crumple set_scribble`
+- `77_villager_parts.png` 4칸 × 4줄 "종이 인형": 1줄 몸 4(얼굴 없음), 2줄과 3줄 앞 두 칸 옷 6, 나머지 얼굴 6. 첨부: `ch1_v5/08_villagers_ch1.png`. 겹치는 자리는 `scripts/villager_maker.gd` 의 CLOTH_*, FACE_*
