@@ -214,13 +214,26 @@ func _row(box: VBoxContainer, icon_name: String, text: String, buttons: Array, t
 		x -= w + 3.0
 		var b := _button(row, str(spec[0]), Vector2(x, 3), Vector2(w, 18), spec[1])
 		b.disabled = not bool(spec[2])
-	_label(row, text, Vector2(27, 5), Vector2(x - 29, 16), 9)
+	_fit(_label(row, text, Vector2(27, 5), Vector2(x - 29, 16), 9))
 	if not detail.is_empty():
 		var area := Control.new()
 		area.size = Vector2(x - 2, 24)
 		area.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(area)
 		_rc(area, detail)
+
+
+## 한 줄 글이 칸보다 길면: 글씨를 한 단계 줄이고, 그래도 길면 끝을 "…" 로 줄인다. 마우스를 올리면 전체 글이 보인다.
+func _fit(l: Label) -> void:
+	var font := l.get_theme_font("font")
+	if font.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x <= l.size.x:
+		return
+	l.add_theme_font_size_override("font_size", 8)
+	if font.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x > l.size.x:
+		l.clip_text = true
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		l.tooltip_text = l.text
+		l.mouse_filter = Control.MOUSE_FILTER_PASS
 
 
 func refresh() -> void:
@@ -336,8 +349,8 @@ func _materials_grid() -> void:
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var name_l := _label(_body, str(Data.MATERIALS[i]) if n > 0 else "?", pos + Vector2(-4, 39), Vector2(52, 12), 8)
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info.text = _message if _message != "" else "재료 %d / %d칸   필력 %d   연필심 %d   동전 %d   지우개 가루 %d" % [
-		GameState.bag_used("mat"), int(GameState.bag_sizes["mat"]), GameState.level, GameState.pencil_lead, GameState.coins, GameState.dust]
+	_info.text = _message if _message != "" else "재료 %d / %d칸   연필심 %d   동전 %d   가루 %d" % [
+		GameState.bag_used("mat"), int(GameState.bag_sizes["mat"]), GameState.pencil_lead, GameState.coins, GameState.dust]
 	_expand_buttons("mat")
 
 
@@ -481,7 +494,7 @@ func _learn(id: String) -> void:
 
 func _refresh_shop() -> void:
 	var box := _list()
-	var wallet := "동전 %d   연필심 %d   지우개 가루 %d" % [GameState.coins, GameState.pencil_lead, GameState.dust]
+	var wallet := "동전 %d  연필심 %d  가루 %d" % [GameState.coins, GameState.pencil_lead, GameState.dust]
 	if tab == 0:
 		for entry in Items.SHOP:
 			if typeof(entry) == TYPE_STRING:
@@ -630,9 +643,9 @@ func _refresh_friends() -> void:
 		var face := UI.icon(row, "", Vector2(4, 2), Vector2(20, 20), Data.FRIENDS[str(f["sp"])].get("tint", Color.WHITE))
 		face.texture = _friend_tex(str(f["sp"]))
 	if _message == "":
-		var where := "합치기: 같은 종끼리 별 +1 (능력 +15%%).  G 키: 친구 스킬" if in_pen else (
-			"합치기·섞기·보내기는 내 마을의 친구 우리에서 해요." if GameState.build_level("bld_pen") > 0 else "친구 우리를 지으면 합치기·섞기를 할 수 있어요. (짓기 N)")
-		_info.text = "친구 %d / %d   쓰러진 몬스터에게 F: 도화지에 다시 그려 주면 친구가 돼요.\n%s" % [
+		var where := "합치기: 같은 종끼리 별 +1 (능력 +15%%)  G: 친구 스킬" if in_pen else (
+			"합치기·섞기·보내기는 친구 우리에서 해요." if GameState.build_level("bld_pen") > 0 else "친구 우리를 지으면 합치기·섞기를 해요. (짓기 N)")
+		_info.text = "친구 %d / %d   쓰러진 몬스터에게 F: 다시 그려 주면 친구\n%s" % [
 			GameState.friends.size(), GameState.friend_cap(), where]
 
 
@@ -737,7 +750,10 @@ func _refresh_board() -> void:
 		var q: Dictionary = GameState.board_quests[i]
 		var who := str(q.get("who", ""))
 		# 주민의 부탁이면 경험치 대신 호감을 적는다 (줄이 넘치지 않게. 경험치는 똑같이 받는다)
-		var text := "%s%s %d/%d   동전 %d · %s" % ["%s: " % GameState.villager_name(who) if who != "" else "", GameState.board_text(q),
+		var who_name := GameState.villager_name(who) if who != "" else ""
+		if who_name.length() > 4:
+			who_name = who_name.left(4) + "…"
+		var text := "%s%s %d/%d  동전 %d · %s" % ["%s: " % who_name if who != "" else "", GameState.board_text(q).replace(" 물리치기", ""),
 			mini(int(q["have"]), int(q["need"])), int(q["need"]), GameState.board_reward(q, "coins"),
 			"호감 +%d" % GameState.BOARD_AFF if who != "" else "경험 %d" % GameState.board_reward(q, "exp")]
 		var done := int(q["have"]) >= int(q["need"])
@@ -779,7 +795,7 @@ const HELP_GAME := [
 func _refresh_pause() -> void:
 	if tab == 0:
 		for i in HELP_KEYS.size():
-			var pos := Vector2(4 + (i % 2) * 150, 8 + (i / 2) * 15)
+			var pos := Vector2(4 + (i % 2) * 150, 4 + (i / 2) * 14)
 			var k := _label(_body, str(HELP_KEYS[i][0]), pos, Vector2(52, 14), 9)
 			k.add_theme_color_override("font_color", Color(0.75, 0.35, 0.3))
 			_label(_body, str(HELP_KEYS[i][1]), pos + Vector2(54, 0), Vector2(94, 14), 9)
@@ -790,10 +806,10 @@ func _refresh_pause() -> void:
 		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info.text = ""
 	else:
-		_label(_body, "게임은 맵을 옮길 때와 잠잘 때 저절로 저장돼요.", Vector2(0, 6), Vector2(300, 14), 9)
 		if tab == 3:
 			_settings_rows(_list())
 			return
+		_label(_body, "게임은 맵을 옮길 때와 잠잘 때 저절로 저장돼요.", Vector2(0, 6), Vector2(300, 14), 9)
 		_button(_body, "처음 화면으로 (저장하고 나가기)", Vector2(60, 98), Vector2(180, 24), GameState.to_title)
 		_button(_body, "지금 저장하기", Vector2(60, 34), Vector2(180, 24), _save_now)
 		_button(_body, "저장하고 게임 끝내기", Vector2(60, 66), Vector2(180, 24), _quit)
