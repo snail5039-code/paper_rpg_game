@@ -13,6 +13,7 @@ const Items := preload("res://scripts/items.gd")
 const HP_FILL_W := 79.0
 const EXP_FILL_W := 640.0
 const STATUS_Y := 316.0   # 왼쪽 아래 상태 칸의 위쪽
+const QUICK_Y := 325.0    # 오른쪽 아래 단축 칸의 위쪽
 
 var quest_text_override := ""   # 비어 있지 않으면 "할 일" 대신 이 글을 보여 준다 (내 마을)
 var _hp_label: Label
@@ -112,7 +113,7 @@ func _ready() -> void:
 	_quest_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 
 	_hint_box = HBoxContainer.new()
-	_hint_box.position = Vector2(8, STATUS_Y - 20)
+	_hint_box.position = Vector2(170, 338)
 	_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint_box.add_theme_constant_override("separation", 3)
 	root.add_child(_hint_box)
@@ -271,27 +272,27 @@ func _build_menus(root: Control) -> void:
 
 ## 오른쪽 아래: 소모품 2칸(1, 2)과 스킬 3칸(Q, E, R)
 func _build_quickbar(root: Control) -> void:
-	var upos := Vector2(420, 292)
-	var frame := _tex_rect(root, "hud_slot_skill", upos, Vector2(34, 34))
-	var uicon := _tex_rect(root, "skill_ult", upos + Vector2(5, 5), Vector2(24, 24))
+	var upos := Vector2(446, QUICK_Y - 3)
+	var frame := _tex_rect(root, "hud_slot_skill", upos, Vector2(32, 32))
+	var uicon := _tex_rect(root, "skill_ult", upos + Vector2(5, 5), Vector2(22, 22))
 	var ushade := ColorRect.new()
 	ushade.color = Color(0.15, 0.12, 0.15, 0.6)
 	ushade.position = upos + Vector2(4, 4)
-	ushade.size = Vector2(26, 26)
+	ushade.size = Vector2(24, 24)
 	ushade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(ushade)
 	var ukey := _label(root, upos + Vector2(1, -5), 9)
 	ukey.text = "V"
 	_ult_slot = [frame, uicon, ushade, ukey]
 	# 친구 스킬 칸 (G): 같이 다니는 친구가 있을 때만 보인다
-	var fpos := Vector2(384, 296)
-	var fframe := _tex_rect(root, "hud_slot_skill", fpos, Vector2(30, 30))
-	var ficon := _tex_rect(root, "", fpos + Vector2(5, 5), Vector2(20, 20))
+	var fpos := Vector2(414, QUICK_Y)
+	var fframe := _tex_rect(root, "hud_slot_skill", fpos, Vector2(28, 28))
+	var ficon := _tex_rect(root, "", fpos + Vector2(5, 5), Vector2(18, 18))
 	ficon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	var fshade := ColorRect.new()
 	fshade.color = Color(0.15, 0.12, 0.15, 0.6)
 	fshade.position = fpos + Vector2(4, 4)
-	fshade.size = Vector2(22, 0)
+	fshade.size = Vector2(20, 0)
 	fshade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(fshade)
 	var fkey := _label(root, fpos + Vector2(1, -5), 9)
@@ -299,19 +300,19 @@ func _build_quickbar(root: Control) -> void:
 	_friend_slot = [fframe, ficon, fshade, fkey]
 	var keys := ["1", "2", "Q", "E", "R"]
 	for i in 5:
-		var pos := Vector2(462 + i * 34 + (8 if i >= 2 else 0), 296)
-		_tex_rect(root, "hud_slot_item" if i < 2 else "hud_slot_skill", pos, Vector2(30, 30))
-		var icon := _tex_rect(root, "", pos + Vector2(5, 5), Vector2(20, 20))
+		var pos := Vector2(484 + i * 30 + (6 if i >= 2 else 0), QUICK_Y)
+		_tex_rect(root, "hud_slot_item" if i < 2 else "hud_slot_skill", pos, Vector2(28, 28))
+		var icon := _tex_rect(root, "", pos + Vector2(5, 5), Vector2(18, 18))
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		var shade := ColorRect.new()
 		shade.color = Color(0.15, 0.12, 0.15, 0.6)
 		shade.position = pos + Vector2(4, 4)
-		shade.size = Vector2(22, 0)
+		shade.size = Vector2(20, 0)
 		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		root.add_child(shade)
 		var key_l := _label(root, pos + Vector2(1, -5), 9)
 		key_l.text = keys[i]
-		var num_l := _label(root, pos + Vector2(14, 17), 9)
+		var num_l := _label(root, pos + Vector2(12, 15), 9)
 		num_l.size = Vector2(16, 12)
 		num_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_quick.append([icon, shade, num_l])
@@ -341,14 +342,14 @@ func _refresh_quickbar() -> void:
 			(_friend_slot[1] as TextureRect).texture = fm.call("_friend_tex", _friend_sp)
 		var comp := get_tree().get_first_node_in_group("companion")
 		var fcd := float(comp.get("skill_cd")) if comp else 0.0
-		(_friend_slot[2] as ColorRect).size.y = 22.0 * clampf(fcd / 10.0, 0.0, 1.0)
+		(_friend_slot[2] as ColorRect).size.y = 20.0 * clampf(fcd / 10.0, 0.0, 1.0)
 	# 필살기 칸: 배운 뒤에만 보인다. 게이지가 차오르고, 가득 차면 반짝인다.
 	var has_ult := GameState.skill_rank("ult") > 0
 	for n in _ult_slot:
 		(n as Control).visible = has_ult
 	if has_ult and is_instance_valid(p):
 		var g := clampf(float(p.get("ult")) / 100.0, 0.0, 1.0)
-		(_ult_slot[2] as ColorRect).size.y = 26.0 * (1.0 - g)
+		(_ult_slot[2] as ColorRect).size.y = 24.0 * (1.0 - g)
 		var glow := 1.0 + 0.25 * sin(Time.get_ticks_msec() / 120.0) if g >= 1.0 else 1.0
 		(_ult_slot[1] as Control).modulate = Color(glow, glow, glow * 0.8, 1.0 if g >= 1.0 else 0.6)
 	for i in _quick.size():
@@ -375,7 +376,7 @@ func _refresh_quickbar() -> void:
 				cd = float((p.get("skill_cd") as Dictionary).get(sid, 0.0))
 				icon.modulate = Color(1, 1, 1, 1.0 if float(p.get("mp")) >= float(Items.SKILLS[sid]["mp"]) else 0.4)
 			if cd > 0.0:
-				shade.size.y = 22.0 * clampf(cd / float(Items.SKILLS[sid]["cd"]), 0.0, 1.0)
+				shade.size.y = 20.0 * clampf(cd / float(Items.SKILLS[sid]["cd"]), 0.0, 1.0)
 				num.text = str(ceili(cd))
 
 
@@ -856,15 +857,25 @@ func set_hints(items: Array) -> void:
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-			var h := 15.0
+			var h := 13.0
 			tr.custom_minimum_size = Vector2(h * icon.get_width() / icon.get_height(), h)
 			_hint_box.add_child(tr)
 		var l := Label.new()
 		l.text = str(it[1]) + "  "
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_style_label(l, 9)
+		_style_label(l, 8)
 		_hint_box.add_child(l)
+	_place_hints.call_deferred()
+
+
+## 조작 안내는 상태 칸과 단축 칸 사이 가운데 아래에 둔다
+func _place_hints() -> void:
+	_hint_box.reset_size()
+	var w := _hint_box.get_combined_minimum_size().x
+	var left := _status_panel.position.x + _status_panel.size.x + 6.0
+	var right := 408.0
+	_hint_box.position = Vector2(maxf(left, (left + right - w) / 2.0), 360.0 - 6.0 - _hint_box.get_combined_minimum_size().y)
 
 
 ## 알림은 겹치지 않게 차례로 보여 준다 (밀린 것이 있으면 조금 빨리 넘긴다)
