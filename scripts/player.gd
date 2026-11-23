@@ -516,7 +516,7 @@ func _ult_gain() -> float:
 
 
 func _heal_mult() -> float:
-	return 1.3 if GameState.has_fx("pocket") else 1.0
+	return (1.3 if GameState.has_fx("pocket") else 1.0) + (0.2 if GameState.has_fx("v_brooch") else 0.0)
 
 
 # ---------- 필살기 (V) ----------

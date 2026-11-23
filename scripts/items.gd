@@ -42,6 +42,9 @@ const FX_TEXT := {
 	"spark": "반짝임: 필살기 게이지가 30% 빨리 참",
 	"u_star": "구겨진 별: 치명타가 나면 필살기 게이지 +5",
 	"u_pen": "마르지 않는 잉크: 공격이 맞을 때마다 HP 1 회복",
+	"v_brooch": "갓 구운 냄새: 소모품과 음식의 회복량 20% 증가",
+	"v_watch": "느긋한 시계: 사냥터 화면에 들어갈 때 피로도가 1 덜 든다",
+	"v_badge": "둥실둥실: 이동 속도 +10%",
 }
 ## 유일 장비: 대장과 필드 보스가 "빈" 단계에서만 떨어뜨린다. 옵션이 정해져 있다.
 ##   icon: 가방 아이콘 그림, held: 손에 드는 그림 (도구만), shape: 그림이 없을 때 대신 쓰는 모양
@@ -50,7 +53,21 @@ const UNIQUES := {
 		"opts": [["critdmg", 40], ["atk", 14], ["aspd", 10]]},
 	"u_pen": {"name": "떠돌이의 만년필", "slot": "tool", "shape": 3, "icon": "unique_pen", "held": "tool_unique_pen",
 		"opts": [["crit", 8], ["aspd", 12], ["hp", 60]]},
+	# 주민 전용 장신구: 호감도 하트 5개가 되면 그 주민이 준다 (level: 필요 필력)
+	"v_brooch": {"name": "빵집 아주머니의 밀가루 브로치", "slot": "acc", "shape": 1, "icon": "vgift_3", "level": 10,
+		"opts": [["hp", 80], ["def", 4], ["drop", 10]]},
+	"v_watch": {"name": "지팡이 할아버지의 회중시계", "slot": "acc", "shape": 4, "icon": "vgift_4", "level": 10,
+		"opts": [["mp", 40], ["exp", 12], ["crit", 4]]},
+	"v_badge": {"name": "풍선 아이의 풍선 배지", "slot": "acc", "shape": 8, "icon": "vgift_5", "level": 10,
+		"opts": [["mspd", 8], ["aspd", 8], ["atk", 6]]},
 }
+## 주민 전용: 하트 4개에 배우는 조합법, 하트 5개에 받는 장신구
+const VILLAGER_RECIPES := {
+	"baker": ["단팥빵", "v_redbean", {0: 3, 4: 2}, 4],
+	"elder": ["지팡이 차", "v_tea", {2: 3, 6: 2}, 4],
+	"kid": ["풍선껌", "v_gum", {4: 3, 8: 2}, 4],
+}
+const VILLAGER_ACC := {"baker": "v_brooch", "elder": "v_watch", "kid": "v_badge"}
 const UNIQUE_COLOR := Color(1.0, 0.62, 0.55)
 const UNIQUE_LEVEL := 70
 const UNIQUE_DROP_RATE := 0.25
@@ -109,6 +126,9 @@ const CONSUMABLES := {
 	"s_corn": ["별사탕 옥수수 씨앗", "icon_seed", 24, "밭에 심으면 4일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
 	"s_grape": ["잉크 포도 씨앗", "icon_seed", 30, "밭에 심으면 5일 뒤에 거둔다 (하루 한 번 물 주기)", "", 0.0],
 	"coating": ["코팅지", "item_2", 300, "강화 실패 때 하락과 파괴를 한 번 막는다", "", 0.0],
+	"v_redbean": ["단팥빵", "vgift_0", 60, "빵집 아주머니의 비법. HP 60% 회복, 5분간 방어 +10%", "food", 0.0],
+	"v_tea": ["지팡이 차", "vgift_1", 60, "지팡이 할아버지의 차. MP 60% 회복, 10분간 MP 회복 2배", "food", 0.0],
+	"v_gum": ["풍선껌", "vgift_2", 50, "풍선 아이의 껌. HP 20% 회복, 10분간 경험치 +10%", "food", 0.0],
 }
 const QUICK_SLOTS := ["bandage", "milk"]   # 1, 2 번 키
 
@@ -122,6 +142,9 @@ const FOOD_FX := {
 	"d_corn": {"buff": "drop", "time": 600},
 	"d_juice": {"buff": "mpregen", "time": 600},
 	"d_stew": {"hp": 1.0, "mp": 1.0},
+	"v_redbean": {"hp": 0.6, "buff": "def", "time": 300},
+	"v_tea": {"mp": 0.6, "buff": "mpregen", "time": 600},
+	"v_gum": {"hp": 0.2, "buff": "exp", "time": 600},
 }
 const BUFF_NAMES := {"def": "방어 +10%", "exp": "경험치 +10%", "atk": "공격력 +10%", "drop": "드롭률 +10%", "mpregen": "MP 회복 2배"}
 
@@ -245,7 +268,7 @@ static func random_drop(level: int, max_tier: int = 1) -> Dictionary:
 ## 유일 장비를 만든다 (옵션이 정해져 있다)
 static func make_unique(id: String) -> Dictionary:
 	var u: Dictionary = UNIQUES[id]
-	return {"slot": str(u["slot"]), "shape": int(u["shape"]), "tier": 4, "level": UNIQUE_LEVEL, "plus": 0,
+	return {"slot": str(u["slot"]), "shape": int(u["shape"]), "tier": 4, "level": int(u.get("level", UNIQUE_LEVEL)), "plus": 0,
 		"opts": (u["opts"] as Array).duplicate(true), "unique": id}
 
 
@@ -281,7 +304,7 @@ static func icon(item: Dictionary) -> String:
 ## 아이콘에 입히는 색. 유일 장비의 그림은 색이 칠해져 있어서 그대로 둔다 (그림이 없을 때만 붉게).
 static func tier_color(item: Dictionary) -> Color:
 	if is_unique(item):
-		return Color.WHITE if icon(item).begins_with("unique_") else UNIQUE_COLOR
+		return Color.WHITE if not icon(item).begins_with("equip_") else UNIQUE_COLOR
 	return TIER_COLORS[int(item["tier"])]
 
 

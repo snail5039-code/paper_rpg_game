@@ -224,6 +224,7 @@ const BUILDS := {
 	"bld_villager_b": {"name": "주민 집 (초록 지붕)", "w": 70, "kind": "building", "use": "villager", "cost": {"lead": 20, "coins": 120}},
 	"bld_farm": {"name": "밭", "w": 70, "kind": "building", "use": "farm", "cost": {"lead": 10, "coins": 80}, "walk": true},
 	"bld_diner": {"name": "식당", "w": 70, "kind": "building", "use": "cook", "cost": {"lead": 20, "coins": 150}},
+	"bld_pen": {"name": "친구 우리", "w": 80, "kind": "building", "use": "pen", "cost": {"lead": 15, "coins": 120}, "walk": true},
 	"deco_tree_round": {"name": "둥근 나무", "w": 30, "kind": "deco", "cost": {"coins": 20}},
 	"deco_tree_pine": {"name": "뾰족 나무", "w": 28, "kind": "deco", "cost": {"coins": 20}},
 	"deco_bush": {"name": "덤불", "w": 24, "kind": "deco", "cost": {"coins": 10}},
@@ -277,7 +278,12 @@ const ROOM_SCALE := [0.62, 0.72, 0.82, 0.91, 1.0]   # 단계마다 방의 크기
 const BUILD_BUFF := {
 	"bld_house": "def", "bld_shop": "drop", "bld_craft": "atk", "bld_storage": "drop", "bld_board": "exp",
 	"bld_fishing": "mpregen", "bld_villager_a": "exp", "bld_villager_b": "exp", "bld_farm": "mpregen", "bld_diner": "atk",
+	"bld_pen": "exp",
 }
+## 친구 우리: 단계마다 친구 칸이 늘어난다 (우리가 없으면 FRIEND_BASE)
+const FRIEND_BASE := 30
+const FRIEND_PER_PEN_LV := 6
+const PEN_WANDER := 6               # 우리 안에서 돌아다니는 친구 수 (같이 다니는 친구는 빼고)
 const FARM_PLOTS_BY_LV := [2, 4, 6, 8, 10]
 const STORAGE_BY_LV := [36, 48, 60, 72, 84]
 

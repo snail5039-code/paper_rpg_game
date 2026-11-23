@@ -49,8 +49,8 @@ func interact() -> void:
 	if not GameState.has_paper():
 		GameState.notify("도화지가 있어야 다시 그려 줄 수 있어요. (문방구)")
 		return
-	if GameState.friends.size() >= GameState.FRIEND_MAX:
-		GameState.notify("친구가 너무 많아요. (최대 %d)" % GameState.FRIEND_MAX)
+	if GameState.friends.size() >= GameState.friend_cap():
+		GameState.notify("친구가 너무 많아요. (최대 %d. 친구 우리를 올리면 늘어나요)" % GameState.friend_cap())
 		return
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud == null:

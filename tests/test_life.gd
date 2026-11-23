@@ -313,10 +313,46 @@ func _run() -> void:
 	GameState.set_quick_slot(1, "g_berry")
 	check(str(GameState.quick_slots[1]) == "g_berry" and str(GameState.quick_slots[0]) == "milk", "같은 것을 다른 키에 넣으면 서로 바뀜")
 	GameState.quick_slots = ["bandage", "milk"]
-	GameState.friends = [{"sp": "dots", "lv": 1, "exp": 0, "stars": 0}, {"sp": "slime", "lv": 1, "exp": 0, "stars": 0}]
+	GameState.friends = [{"sp": "dots", "lv": 1, "exp": 0, "stars": 0}, {"sp": "slime", "lv": 1, "exp": 0, "stars": 0},
+		{"sp": "dots", "lv": 1, "exp": 0, "stars": 0}]
+	GameState.companion = 0
+
+	print("[친구 우리]")
+	check(GameState.friend_cap() == 30, "친구 우리가 없으면 친구 30")
 	hhud.call("toggle_menu", "friends")
 	await frames(2)
 	var fm: Control = hhud.call("menu", "friends")
+	var outside_buttons := 0
+	for row in (fm.get("_body") as Control).get_child(0).get_child(0).get_children():
+		for c in row.get_children():
+			if c is Button:
+				outside_buttons += 1
+	check(outside_buttons == 3, "우리 밖(P)에서는 동행 단추만 (%d개)" % outside_buttons)
+	fm.call("_merge", 0, false)
+	check(GameState.friends.size() == 3, "우리 밖에서는 합칠 수 없음")
+	hhud.call("toggle_menu", "friends")
+	GameState.pencil_lead = maxi(GameState.pencil_lead, 100)
+	GameState.coins = maxi(GameState.coins, 1000)
+	home.call("start_placing", "bld_pen")
+	check(bool(await home.call("place_at", Vector2(700, 600), 0.9)), "친구 우리를 지음")
+	check(GameState.friend_cap() == 36, "우리 1단계: 친구 36칸")
+	var pen: Node2D = null
+	for n in get_tree().get_nodes_in_group("home_object"):
+		if str(n.get("id")) == "bld_pen":
+			pen = n
+	await frames(30)
+	check((pen.get("_extra") as Array).size() == 2, "같이 다니지 않는 친구 둘이 우리 안을 돌아다님")
+	hp.global_position = pen.global_position + Vector2(0, 20)
+	await frames(20)
+	await shot("life_4a_pen.png")
+	pen.call("interact")
+	await frames(3)
+	check(bool(hhud.call("is_menu_open", "friends")) and str(fm.get("ctx")) == "pen", "우리에 F: 친구 창이 우리 모드로 열림")
+	fm.call("_merge", 0, false)
+	check(GameState.friends.size() == 2 and int(GameState.friends[0]["stars"]) == 1, "우리 안에서는 합칠 수 있음")
+	await shot("life_4b_pen_menu.png")
+	GameState.friends = [{"sp": "dots", "lv": 1, "exp": 0, "stars": 0}, {"sp": "slime", "lv": 1, "exp": 0, "stars": 0}]
+	fm.call("refresh")
 	fm.call("_release", 1)
 	check(GameState.friends.size() == 2, "보내기는 한 번 누르면 묻기만 함")
 	fm.call("_release", 1)
@@ -644,6 +680,31 @@ func _run() -> void:
 	GameState.board_quests[2] = {"sp": "fish", "need": 1, "have": 0, "claimed": false, "who": ""}
 	check(GameState.catch_fish("home") != "" and int(GameState.board_quests[2]["have"]) == 1, "물고기를 낚으면 낚기 부탁이 나아감")
 	check(GameState.board_text(GameState.board_quests[2]) == "물고기 낚기", "낚기 부탁의 이름")
+	# 하트 4개: 전용 조합법, 하트 5개: 전용 장신구
+	var aff_keep := int(kid["aff"])
+	var n_recipes := GameState.known_recipes().size()
+	GameState.add_aff("kid", 100 - int(kid["aff"]))
+	check(GameState.hearts("kid") == 4 and GameState.known_recipes().size() == n_recipes + 1, "하트 4개: 전용 조합법(풍선껌)을 배움")
+	var inv0 := GameState.inventory.size()
+	GameState.add_aff("kid", 50)
+	check(GameState.hearts("kid") == 5 and GameState.inventory.size() == inv0 + 1 and bool(kid["acc"]), "하트 5개: 전용 장신구를 받음")
+	check(not GameState.give_villager_acc("kid"), "장신구는 한 번만")
+	var badge: Dictionary = GameState.inventory[GameState.inventory.size() - 1]
+	check(str(badge.get("unique", "")) == "v_badge" and int(badge["level"]) == 10, "풍선 배지 (필요 필력 10)")
+	var ms0 := GameState.move_speed_mult()
+	var lv_keep := GameState.level
+	GameState.level = 10
+	GameState.equip(GameState.inventory.size() - 1)
+	check(GameState.has_fx("v_badge") and GameState.move_speed_mult() > ms0 + 0.15, "배지를 차면 이동 속도가 빨라짐 (옵션 8% + 효과 10%)")
+	hhud.call("open_menu", "resident", "kid")
+	await frames(3)
+	await shot("life_18a_resident_hearts.png")
+	hhud.call("toggle_menu", "resident")
+	GameState.unequip("acc")
+	GameState.inventory.pop_back()
+	GameState.level = lv_keep
+	kid["aff"] = aff_keep
+	kid["acc"] = 0
 	await frames(3)
 	(by_id["bld_villager_a"] as Node).call("interact")
 	await frames(3)
@@ -768,6 +829,35 @@ func _run() -> void:
 	room.call("use_bed")
 	check(GameState.day == d_room + 1, "한 번 더 누르면 잠")
 	check(bool(room.call("remove_at", Vector2(300, 192))) and GameState.furniture_count("furn_0") == 1, "치우면 가구가 가방으로 돌아옴")
+	# 액자: 앞에서 F 로 그림판을 열고, 그린 것이 액자 안에 걸린다
+	GameState.furniture["furn_6"] = 1
+	room.call("_on_chosen", "furn_6")
+	check(bool(room.call("place_at", Vector2(460, 200))), "액자를 놓음")
+	var fi := GameState.room_items.size() - 1
+	var fnode: Node2D = (room.get("items") as Array)[fi]
+	var fspot: Node = null
+	for c in fnode.get_children():
+		if str(c.get("mode")) == "frame":
+			fspot = c
+	check(fspot != null, "액자 앞에 F 자리가 있음")
+	(room.get("player") as Node2D).global_position = fnode.global_position + Vector2(0, 14)
+	await frames(2)
+	fspot.call("interact")
+	await frames(2)
+	var canvas: Control = room.get("_canvas")
+	check(is_instance_valid(canvas) and GameState.menu_open, "F 를 누르면 그림판이 열림")
+	canvas.set("strokes", [{"pts": PackedVector2Array([Vector2(0.2, 0.2), Vector2(0.8, 0.8)]), "c": 2},
+		{"pts": PackedVector2Array([Vector2(0.8, 0.2), Vector2(0.2, 0.8)]), "c": 7}])
+	canvas.call("_update")
+	await frames(2)
+	await shot("life_23a_frame_draw.png")
+	canvas.call("finish")
+	await frames(3)
+	var hung := str(GameState.room_items[fi].get("art", ""))
+	check(hung.begins_with("drawn_") and fnode.get_node_or_null("Picture") != null and not GameState.menu_open, "완성하면 그림이 액자에 걸림")
+	await frames(10)
+	await shot("life_23b_frame.png")
+	check(GameState._furn_entry(GameState.room_items[fi]).get("art", "") == hung, "건 그림은 저장됨")
 	room.queue_free()
 	await frames(3)
 	home = HomeScene.instantiate()
@@ -790,16 +880,17 @@ func _run() -> void:
 	GameState.max_difficulty = 0
 	check(GameState.load_game(), "불러오기 성공")
 	check(GameState.friends.size() == 1 and GameState.companion == 0 and int(GameState.friends[0]["stars"]) == 1, "친구가 그대로")
-	check(GameState.home_objects.size() == 14 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
+	check(GameState.home_objects.size() == 15 and GameState.home_sheets == 6, "지은 것과 넓힌 마을이 그대로")
 	check(GameState.villager_name("kid") == "봄이" and GameState.hearts("kid") == 2 and GameState.max_difficulty == 1, "주민과 난이도 단계가 그대로")
-	check(GameState.farm_plots("560_600")[1]["seed"] == "s_carrot" and GameState.room_items.size() == 1, "밭과 방이 그대로")
+	check(GameState.farm_plots("560_600")[1]["seed"] == "s_carrot" and GameState.room_items.size() == 2, "밭과 방이 그대로")
+	check(str(GameState.room_items[1].get("art", "")).begins_with("drawn_"), "액자에 건 그림도 그대로")
 	check(GameState.day > d0 + 3, "날짜가 그대로")
 	home.queue_free()
 	await frames(3)
 	home = HomeScene.instantiate()
 	add_child(home)
 	await frames(5)
-	check((home.get("objects") as Array).size() == 14 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
+	check((home.get("objects") as Array).size() == 15 and home.get("size") == Vector2(1920, 720), "다시 열어도 마을이 그대로")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

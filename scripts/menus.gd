@@ -37,6 +37,7 @@ var _seed := ""                # 밭에서 고른 씨앗
 var _memory := 0
 var _page := 0                # 가방 쪽 (한 쪽에 24칸)
 var _canvas: Control          # 직접 그려서 만들기 화면
+var _title_label: Label
 const PAGE := 24
 
 
@@ -59,8 +60,8 @@ func _ready() -> void:
 	_win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_win)
 	UI.icon(_win, "ui_plaque", Vector2(150, 5), Vector2(120, 27), Color.WHITE, false)
-	var title := _label(_win, str(TITLES[kind]), Vector2(166, 10), Vector2(100, 20), 12)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label = _label(_win, str(TITLES[kind]), Vector2(166, 10), Vector2(100, 20), 12)
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_fixed.append(UI.icon_button(_win, "ui_close", Vector2(396, 0), Vector2(20, 20), func() -> void: close_requested.emit()))
 	var x := 66.0
 	for i in (TABS[kind] as Array).size():
@@ -230,6 +231,8 @@ func refresh() -> void:
 	for i in _tab_buttons.size():
 		(_tab_buttons[i] as Button).disabled = i == tab
 	_info.text = _message
+	if _title_label:
+		_title_label.text = "친구 우리" if kind == "friends" and ctx == "pen" else str(TITLES[kind])
 	match kind:
 		"bag": _refresh_bag()
 		"skills": _refresh_skills()
@@ -503,7 +506,7 @@ func _refresh_shop() -> void:
 		if box.get_child_count() == 0:
 			_row(box, "", "팔 것이 없어요.", [])
 	elif tab == 2:
-		for recipe in Items.RECIPES:
+		for recipe in GameState.known_recipes():
 			var parts: Array = []
 			var mats: Dictionary = recipe[2]
 			for id in mats:
@@ -603,6 +606,7 @@ func _friend_tex(sp: String) -> Texture2D:
 
 func _refresh_friends() -> void:
 	var box := _list()
+	var in_pen := ctx == "pen"
 	if GameState.friends.is_empty():
 		_row(box, "icon_paper", "아직 친구가 없어요.", [])
 	for i in GameState.friends.size():
@@ -614,20 +618,26 @@ func _refresh_friends() -> void:
 			if not is_same(o, f) and str(o["sp"]) == str(f["sp"]):
 				same += 1
 		var buttons: Array = [["쉬기" if with else "동행", GameState.set_companion.bind(i), true]]
-		buttons.append(["합치기", _merge.bind(i, false), int(f["stars"]) < 5 and same >= GameState.merge_need(f)])
-		if GameState.cross_partner(i) >= 0:
-			buttons.append(["섞기", _merge.bind(i, true), true])
-		buttons.append(["보내기", _release.bind(i), true])
+		# 합치기·섞기·보내기는 친구 우리 안에서만 (P 로 연 창은 동행 바꾸기만)
+		if in_pen:
+			buttons.append(["합치기", _merge.bind(i, false), int(f["stars"]) < 5 and same >= GameState.merge_need(f)])
+			if GameState.cross_partner(i) >= 0:
+				buttons.append(["섞기", _merge.bind(i, true), true])
+			buttons.append(["보내기", _release.bind(i), true])
 		_row(box, "", text, buttons)
 		var row := box.get_child(box.get_child_count() - 1) as Control
 		var face := UI.icon(row, "", Vector2(4, 2), Vector2(20, 20), Data.FRIENDS[str(f["sp"])].get("tint", Color.WHITE))
 		face.texture = _friend_tex(str(f["sp"]))
 	if _message == "":
-		_info.text = "친구 %d / %d   쓰러진 몬스터에게 F: 도화지에 다시 그려 주면 친구가 돼요.\n합치기: 같은 종끼리 별 +1 (능력 +15%%).  G 키: 친구 스킬" % [
-			GameState.friends.size(), GameState.FRIEND_MAX]
+		var where := "합치기: 같은 종끼리 별 +1 (능력 +15%%).  G 키: 친구 스킬" if in_pen else (
+			"합치기·섞기·보내기는 내 마을의 친구 우리에서 해요." if GameState.build_level("bld_pen") > 0 else "친구 우리를 지으면 합치기·섞기를 할 수 있어요. (짓기 N)")
+		_info.text = "친구 %d / %d   쓰러진 몬스터에게 F: 도화지에 다시 그려 주면 친구가 돼요.\n%s" % [
+			GameState.friends.size(), GameState.friend_cap(), where]
 
 
 func _merge(i: int, cross: bool) -> void:
+	if ctx != "pen":
+		return
 	var name := GameState.friend_name(GameState.friends[i])
 	if cross:
 		_message = "새 친구가 태어났어요!" if GameState.merge_cross(i) else "섞을 수 없어요."
@@ -637,6 +647,8 @@ func _merge(i: int, cross: bool) -> void:
 
 
 func _release(i: int) -> void:
+	if ctx != "pen":
+		return
 	if not _sure("rel%d" % i, "%s 을(를) 보내면 다시 만날 수 없어요." % GameState.friend_name(GameState.friends[i])):
 		return
 	_message = "%s 을(를) 공책으로 돌려보냈어요." % GameState.friend_name(GameState.friends[i])
@@ -935,6 +947,16 @@ func _refresh_resident() -> void:
 	_row(box, GameState.consumable_icon(str(info["gift"])), "오늘의 선물: %s  (하트 1개부터)" % Items.CONSUMABLES[str(info["gift"])][0],
 		[["받기", _daily, h >= 1 and int(v["gift_day"]) != GameState.day]])
 	_row(box, "", "옛 기억  (하트 3개부터)", [["듣기", _recall, h >= 3]])
+	if Items.VILLAGER_RECIPES.has(ctx):
+		var r: Array = Items.VILLAGER_RECIPES[ctx]
+		_row(box, GameState.consumable_icon(str(r[1])), "전용 조합법: %s  (하트 4개, 조합대에서 만들기)%s" % [r[0], "  배움" if h >= 4 else ""], [], Color.WHITE if h >= 4 else Color(1, 1, 1, 0.45),
+			_use_detail(str(r[1])))
+	if Items.VILLAGER_ACC.has(ctx):
+		var u: Dictionary = Items.UNIQUES[str(Items.VILLAGER_ACC[ctx])]
+		var got := bool(v.get("acc", false))
+		_row(box, str(u["icon"]), "전용 장신구: %s  (하트 5개)%s" % [u["name"], "  받음" if got else ""],
+			[["받기", _take_acc, h >= 5 and not got]] if h >= 5 and not got else [], Color.WHITE if h >= 5 else Color(1, 1, 1, 0.45),
+			_item_detail(Items.make_unique(str(Items.VILLAGER_ACC[ctx]))))
 	var next := "다 채웠어요" if h >= 5 else "다음 하트까지 %d" % (int(Data.HEART_NEED[h]) - int(v["aff"]))
 	var head := "%s (%s)   %s%s   호감 %d  (%s)" % [GameState.villager_name(ctx), info["title"], "♥".repeat(h), "♡".repeat(5 - h), int(v["aff"]), next]
 	_info.text = head + ("\n" + _message if _message != "" else "")
@@ -956,6 +978,11 @@ func _give() -> void:
 func _daily() -> void:
 	var id := GameState.villager_daily(ctx)
 	_message = "%s 을(를) 받았어요." % Items.CONSUMABLES[id][0] if id != "" else "오늘은 이미 받았어요."
+	refresh()
+
+
+func _take_acc() -> void:
+	_message = "전용 장신구를 받았어요. (가방의 장비)" if GameState.give_villager_acc(ctx) else "가방이 가득 찼어요."
 	refresh()
 
 

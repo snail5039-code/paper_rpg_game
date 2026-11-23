@@ -862,6 +862,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if kc == KEY_P or (is_menu_open("friends") and kc == KEY_ESCAPE):
+			if not is_menu_open("friends"):
+				(_menus["friends"] as Control).set("ctx", "")   # P 로 열면 우리 밖: 동행 바꾸기만
 			toggle_menu("friends")
 			get_viewport().set_input_as_handled()
 			return

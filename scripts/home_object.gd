@@ -7,6 +7,8 @@ const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/game_data.gd")
 const RANGE := 44.0
 const PLOT_REACH := 18.0     # 이만큼 가까운 밭 칸에 물뿌리개로 물을 준다
+const PEN_SPEED := 9.0       # 우리 안의 친구가 걷는 빠르기
+const Companion := preload("res://scripts/companion.gd")
 var _drop: Texture2D
 
 var id := "deco_bush"
@@ -58,7 +60,7 @@ func _ready() -> void:
 	if str(info["kind"]) == "building":
 		add_to_group("interactable")
 	# 주민 집 앞에는 그 집에 사는 주민이 서 있다. 밭에는 자라는 작물이 보인다.
-	if str(info.get("use", "")) == "villager" or str(info.get("use", "")) == "farm":
+	if str(info.get("use", "")) == "villager" or str(info.get("use", "")) == "farm" or str(info.get("use", "")) == "pen":
 		GameState.changed.connect(_refresh_extra)
 		_refresh_extra()
 	add_to_group("home_object")
@@ -66,6 +68,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if str(info.get("use", "")) == "pen" and not _extra.is_empty():
+		_wander(delta)
 	if fine or is_in_group("interactable"):
 		queue_redraw()
 
@@ -122,6 +126,9 @@ func interact() -> void:
 		"cook":
 			if hud:
 				hud.call("open_menu", "cook", "")
+		"pen":
+			if hud:
+				hud.call("open_menu", "friends", "pen")
 		_:
 			GameState.notify("%s: 아직 준비 중이에요." % info["name"])
 
@@ -167,10 +174,61 @@ func water_plot(i: int) -> bool:
 	return true
 
 
+## 친구 우리: 같이 다니지 않는 친구들(최대 Data.PEN_WANDER)이 우리 안을 돌아다닌다
+func _refresh_pen() -> void:
+	var want := ""
+	var list: Array = []
+	for i in GameState.friends.size():
+		if i != GameState.companion and list.size() < Data.PEN_WANDER:
+			list.append(str(GameState.friends[i]["sp"]))
+	want = ",".join(list)
+	if want == _extra_state:
+		return
+	_extra_state = want
+	for c in _extra:
+		(c as Node).queue_free()
+	_extra = []
+	for sp in list:
+		var l: Array = Companion.look(str(sp))
+		if l[0] == null:
+			continue
+		var s := Art.make_sprite(self, l[0], Vector2.ZERO, int(l[1]), 1)
+		s.scale = Art.SCALE * 0.7
+		s.modulate = l[2]
+		s.position = _pen_spot()
+		s.set_meta("goal", _pen_spot())
+		_extra.append(s)
+
+
+## 우리 안의 아무 자리 (울타리 안쪽)
+func _pen_spot() -> Vector2:
+	var w := float(info["w"])
+	return Vector2(randf_range(-w * 0.34, w * 0.34), randf_range(-_height * 0.55, -_height * 0.12))
+
+
+## 우리 안의 친구들이 천천히 걸어 다닌다
+func _wander(delta: float) -> void:
+	for s in _extra:
+		var sp := s as Sprite2D
+		var goal: Vector2 = sp.get_meta("goal", sp.position)
+		if sp.position.distance_to(goal) < 1.0:
+			if randf() < delta * 0.6:
+				sp.set_meta("goal", _pen_spot())
+			continue
+		var step := (goal - sp.position).normalized() * PEN_SPEED * delta
+		sp.flip_h = step.x > 0
+		sp.position = goal if step.length() >= sp.position.distance_to(goal) else sp.position + step
+		if sp.hframes > 1:
+			sp.frame = int(_t * 6.0) % sp.hframes
+
+
 ## 주민 집의 주민, 밭의 작물 그림을 지금 상태에 맞춘다
 func _refresh_extra() -> void:
 	var key := GameState.house_key({"x": position.x, "y": position.y})
 	var want := ""
+	if str(info.get("use", "")) == "pen":
+		_refresh_pen()
+		return
 	if str(info.get("use", "")) == "villager":
 		var who := GameState.resident_of(key)
 		want = str(Data.VILLAGERS[who]["sprite"]) if who != "" else ""

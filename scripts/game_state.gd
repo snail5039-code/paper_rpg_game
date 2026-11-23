@@ -87,7 +87,6 @@ var bag_size: int:                # 장비 가방 칸 수
 var custom_icons: Dictionary = {} # 소모품 id → 내가 그린 아이콘 이름
 var friends: Array = []           # 친구 {"sp": 종, "lv": 레벨, "exp": 경험치, "stars": 별}
 var companion: int = -1           # 같이 다니는 친구 (friends 의 번호, -1 없음)
-const FRIEND_MAX := 30
 const FRIEND_EXP_SHARE := 0.3
 var clock: float = 480.0          # 게임 속 시각 (분, 0 ~ 1440). 08:00 에 시작
 var day: int = 1
@@ -369,7 +368,7 @@ func goto_map(map: String, tag: String = "") -> bool:
 		return false
 	# 사냥터 화면에 들어갈 때마다 피로도가 든다
 	if Data.FIELDS.has(map):
-		var tired := int(Data.FIELDS[map].get("fatigue", FATIGUE_PER_FIELD))
+		var tired := maxi(0, int(Data.FIELDS[map].get("fatigue", FATIGUE_PER_FIELD)) - (1 if has_fx("v_watch") else 0))
 		if fatigue < tired:
 			notify("너무 피곤해서 더 갈 수 없어요. 내 집에서 자거나 아침을 기다려요. (피로도 %d 필요)" % tired)
 			return false
@@ -461,7 +460,7 @@ func crit_mult() -> float:
 
 
 func move_speed_mult() -> float:
-	return 1.0 + gear("mspd") * 0.01
+	return 1.0 + gear("mspd") * 0.01 + (0.1 if has_fx("v_badge") else 0.0)
 
 
 func attack_speed_mult() -> float:
@@ -744,7 +743,7 @@ func capture_chance(score: float, kind: String, thick: bool) -> float:
 
 ## 도화지 한 장을 쓰고 다시 그리기를 굴린다. 돌려주는 것: "ok", "fail", "no_paper", "full"
 func try_capture(kind: String, score: float) -> String:
-	if friends.size() >= FRIEND_MAX:
+	if friends.size() >= friend_cap():
 		return "full"
 	var thick := consumable_count("paper") <= 0
 	var id := "paper_thick" if thick else "paper"
@@ -762,8 +761,13 @@ func try_capture(kind: String, score: float) -> String:
 	return "ok" if ok else "fail"
 
 
+## 데리고 있을 수 있는 친구 수: 친구 우리가 없으면 30, 우리 단계마다 +6 (5단계 60)
+func friend_cap() -> int:
+	return Data.FRIEND_BASE + Data.FRIEND_PER_PEN_LV * build_level("bld_pen")
+
+
 func add_friend(sp: String) -> bool:
-	if not Data.FRIENDS.has(sp) or friends.size() >= FRIEND_MAX:
+	if not Data.FRIENDS.has(sp) or friends.size() >= friend_cap():
 		return false
 	friends.append({"sp": sp, "lv": 1, "exp": 0, "stars": 0})
 	tip("friend", "친구는 옆에서 같이 싸워요. P: 친구 창, G: 친구 스킬")
@@ -1329,6 +1333,31 @@ func forage_left(key: String) -> bool:
 
 # ---------- 가구 ----------
 
+const FRAME_ID := "furn_6"       # 액자: 앞에서 F 로 내 낙서를 건다
+
+
+## 저장된 방 가구 하나 (액자에는 건 그림 이름 "art" 가 붙는다)
+static func _furn_entry(it: Dictionary) -> Dictionary:
+	var o := {"id": str(it["id"]), "x": float(it.get("x", 0)), "y": float(it.get("y", 0))}
+	if str(it.get("art", "")).begins_with("drawn_"):
+		o["art"] = str(it["art"])
+	return o
+
+
+## 방에 놓은 액자에 내가 그린 그림을 건다 (art: Art.save_drawn 이 돌려준 이름, "" 은 떼기)
+func hang_frame(key: String, id: String, index: int, art: String) -> bool:
+	var list := room_list(key, id)
+	if index < 0 or index >= list.size() or str(list[index]["id"]) != FRAME_ID:
+		return false
+	if art == "":
+		list[index].erase("art")
+	else:
+		list[index]["art"] = art
+	changed.emit()
+	save_game()
+	return true
+
+
 func furniture_count(id: String) -> int:
 	return int(furniture.get(id, 0))
 
@@ -1352,7 +1381,7 @@ func buy_furniture(id: String) -> bool:
 ## 주민의 상태. q: 0 아직 부탁을 듣지 않음, 1 부탁을 들음, 2 부탁을 들어줌 (집을 기다림), 3 내 마을에 삶
 func villager(id: String) -> Dictionary:
 	if not villagers.has(id):
-		villagers[id] = {"q": 0, "name": "", "house": "", "aff": 0, "talk_day": 0, "gift_day": 0, "progress": 0, "q_day": 0, "told": 0}
+		villagers[id] = {"q": 0, "name": "", "house": "", "aff": 0, "talk_day": 0, "gift_day": 0, "progress": 0, "q_day": 0, "told": 0, "acc": 0}
 	return villagers[id]
 
 
@@ -1370,13 +1399,40 @@ func add_aff(id: String, amount: int) -> void:
 	v["aff"] = int(v["aff"]) + amount
 	if hearts(id) > before:
 		notify("%s 와(과) 더 가까워졌어요. (하트 %d개)" % [villager_name(id), hearts(id)])
-		if hearts(id) == 2:
+		if before < 4 and hearts(id) >= 4 and Items.VILLAGER_RECIPES.has(id):
+			notify("%s 에게 \"%s\" 만드는 법을 배웠어요. (조합대의 만들기)" % [villager_name(id), Items.VILLAGER_RECIPES[id][0]])
+		if hearts(id) >= 5:
+			give_villager_acc(id)
+		if hearts(id) == 2 and before < 2:
 			# 하트 2개: 가구 하나를 선물로 받는다
 			var ids: Array = Items.FURNITURE.keys()
 			var fid := str(ids[(hash(id) + 3) % ids.size()])
 			add_furniture(fid)
 			notify("%s 을(를) 선물로 받았어요. (가구)" % Items.FURNITURE[fid][0])
 	changed.emit()
+
+
+## 하트 5개: 그 주민의 전용 장신구를 받는다 (한 번만). 가방이 가득 차면 다음에 말을 걸 때 다시 준다.
+func give_villager_acc(id: String) -> bool:
+	var v := villager(id)
+	if not Items.VILLAGER_ACC.has(id) or bool(v.get("acc", false)) or hearts(id) < 5:
+		return false
+	var item := Items.make_unique(str(Items.VILLAGER_ACC[id]))
+	if not add_item(item):
+		notify("%s 이(가) 선물을 주려는데 가방이 가득 찼어요. 자리를 비우고 다시 말을 걸어요." % villager_name(id))
+		return false
+	v["acc"] = true
+	notify("%s 에게서 \"%s\" 을(를) 받았어요!" % [villager_name(id), Items.UNIQUES[str(Items.VILLAGER_ACC[id])]["name"]])
+	return true
+
+
+## 만들 수 있는 조합법: 기본 조합법 + 하트 4개가 된 주민의 전용 조합법
+func known_recipes() -> Array:
+	var out: Array = Items.RECIPES.duplicate()
+	for id in Items.VILLAGER_RECIPES:
+		if villagers.has(id) and hearts(str(id)) >= 4:
+			out.append(Items.VILLAGER_RECIPES[id])
+	return out
 
 
 func villager_name(id: String) -> String:
@@ -1424,6 +1480,7 @@ func move_in(id: String, new_name: String) -> bool:
 ## 하루 한 번 말 걸기 (+1). 오늘 처음이면 true.
 func villager_talk(id: String) -> bool:
 	var v := villager(id)
+	give_villager_acc(id)   # 가방이 가득 차서 못 받은 장신구
 	if int(v["talk_day"]) == day:
 		return false
 	v["talk_day"] = day
@@ -1892,14 +1949,14 @@ func load_game() -> bool:
 			if typeof(data["rooms"][rk]) == TYPE_ARRAY:
 				for it in data["rooms"][rk]:
 					if typeof(it) == TYPE_DICTIONARY and Items.FURNITURE.has(str(it.get("id", ""))):
-						list.append({"id": str(it["id"]), "x": float(it.get("x", 0)), "y": float(it.get("y", 0))})
+						list.append(_furn_entry(it))
 			rooms[str(rk)] = list
 	room_ctx = data["room_ctx"] if typeof(data.get("room_ctx")) == TYPE_DICTIONARY else {}
 	room_items = []
 	if typeof(data.get("room_items")) == TYPE_ARRAY:
 		for ri in data["room_items"]:
 			if typeof(ri) == TYPE_DICTIONARY and Items.FURNITURE.has(str(ri.get("id", ""))):
-				room_items.append({"id": str(ri["id"]), "x": float(ri.get("x", 0)), "y": float(ri.get("y", 0))})
+				room_items.append(_furn_entry(ri))
 	villagers = {}
 	if typeof(data.get("villagers")) == TYPE_DICTIONARY:
 		for vk in data["villagers"]:

@@ -15,6 +15,9 @@ const HudScript := preload("res://scripts/hud.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
 const Companion := preload("res://scripts/companion.gd")
 const SpotScript := preload("res://scripts/room_spot.gd")
+const DoodleCanvas := preload("res://scripts/doodle_canvas.gd")
+const PICTURE_W := 17.0     # 액자 안에 거는 그림의 크기 (월드)
+const PICTURE_Y := -10.0    # 액자 안쪽의 가운데 (가구의 발에서 위로)
 
 const SIZE := Vector2(640, 360)
 const FULL_FLOOR := Rect2(56, 128, 528, 196)   # 걸을 수 있는 바닥 (5단계 방 기준)
@@ -51,6 +54,7 @@ var _bed_asked := -10.0
 var _t := 0.0
 var _bg: Texture2D
 var _key: Texture2D
+var _canvas: Control        # 액자 그림판
 
 
 ## 5단계 방 기준의 자리를 지금 방의 자리로 (방은 화면 가운데를 중심으로 줄어든다)
@@ -201,7 +205,49 @@ func _spawn_fixture() -> void:
 
 func _spawn_item(o: Dictionary) -> void:
 	# 러그는 밟고 지나갈 수 있다. 저장된 자리는 5단계 방 기준이다.
-	items.append(_make(str(o["id"]), at(Vector2(float(o["x"]), float(o["y"]))), str(o["id"]) != "furn_4"))
+	var node := _make(str(o["id"]), at(Vector2(float(o["x"]), float(o["y"]))), str(o["id"]) != "furn_4")
+	items.append(node)
+	# 액자: 앞에서 F 로 내 낙서를 건다. 건 그림은 액자 안에 보인다.
+	if str(o["id"]) == GameState.FRAME_ID:
+		var spot := Node2D.new()
+		spot.set_script(SpotScript)
+		spot.set("mode", "frame")
+		spot.position = Vector2(0, 8)
+		node.add_child(spot)
+		_show_picture(node, str(o.get("art", "")))
+
+
+## 액자 안의 그림을 바꾼다 (액자 그림의 안쪽: 가운데에서 조금 위)
+func _show_picture(node: Node2D, art: String) -> void:
+	var old := node.get_node_or_null("Picture")
+	if old:
+		old.queue_free()
+	var tex := Art.tex(art) if art != "" else null
+	if tex == null:
+		return
+	var pic := Sprite2D.new()
+	pic.name = "Picture"
+	pic.texture = tex
+	pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	pic.scale = Vector2.ONE * (PICTURE_W / tex.get_width())
+	pic.position = Vector2(0, PICTURE_Y)
+	node.add_child(pic)
+
+
+## 액자 앞에서 F: 그림판을 열고, 완성하면 그 액자에 건다
+func use_frame(spot: Node) -> void:
+	var i := items.find(spot.get_parent())
+	if i < 0 or is_instance_valid(_canvas):
+		return
+	_canvas = DoodleCanvas.new()
+	_canvas.call("setup", "액자에 걸 그림", "그린 그림이 액자 안에 도트로 걸려요." if str(stored()[i].get("art", "")) == "" else "새로 그리면 지금 그림과 바뀌어요.")
+	hud.add_child(_canvas)
+	GameState.set_menu_open(true)
+	_canvas.connect("done", func(art: String) -> void:
+		GameState.set_menu_open(false)
+		if art != "" and GameState.hang_frame(key, bld_id, i, art):
+			_show_picture(items[i] as Node2D, art)
+			GameState.notify("액자에 그림을 걸었어요."))
 
 
 ## 꾸미기 창에서 고른 것: "" 은 치우기, 그 밖은 놓을 가구
