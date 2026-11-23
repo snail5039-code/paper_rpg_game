@@ -69,7 +69,14 @@ SHEETS = {
     "60_bld_farmdiner": (4, 2, [("bld_%s_l%d" % (nm, lv), BLD_SCALE_2ROW) for nm in ("farm", "diner") for lv in (1, 2, 4, 5)]),
     # 유일 장비: 구겨진 별 아이콘, 만년필 아이콘, 손에 드는 만년필 (긴 도구와 같은 길이)
     "42_uniques": (3, 1, [("unique_star", 64), ("unique_pen", 64), ("tool_unique_pen", 74)]),
+    # 1단계 마무리 (docs/도트_프롬프트_stage1.md). 5단계를 한 줄로 받은 건물은 3단계가 기본 그림이다.
+    "60_bld_pen": (5, 1, [("bld_pen_l1", BLD_SCALE), ("bld_pen_l2", BLD_SCALE), ("bld_pen", BLD_SCALE), ("bld_pen_l4", BLD_SCALE), ("bld_pen_l5", BLD_SCALE)]),
+    "60_bld_museum": (5, 1, [("bld_museum_l1", BLD_SCALE), ("bld_museum_l2", BLD_SCALE), ("bld_museum", BLD_SCALE), ("bld_museum_l4", BLD_SCALE), ("bld_museum_l5", BLD_SCALE)]),
+    "73_vgift": (3, 2, [("vgift_%d" % i, 64) for i in range(6)]),
+    "74_set_icons": (6, 3, [("set_%s_%s" % (s, sl), 64) for s in ("eraser", "crumple", "scribble") for sl in ("tool", "hat", "cloth", "shoe", "bag", "acc")]),
 }
+# 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
+COVER = {"72_bg_tower_0": "bg_tower_0", "72_bg_tower_1": "bg_tower_1", "72_bg_tower_boss": "bg_tower_boss"}
 # 통짜 그림: (저장 이름, 가로, 가운데에서 남길 세로 비율)
 FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 1280, 1.0), "32_title": ("bg_title", 1280, 1.0),
         # 건물 안 방 배경 (내 집의 방과 같은 크기와 배치)
@@ -129,7 +136,14 @@ def gap_images(rgba, cols, rows):
 def main():
     os.makedirs(MID, exist_ok=True)
     count = 0
+    only = sys.argv[1:]      # 이름 앞부분을 주면 그 시트만 (예: python3 tools/import_ui_v7.py 60_bld_pen 72_)
+
+    def wanted(name):
+        return not only or any(name.startswith(p) for p in only)
+
     for name, (cols, rows, parts) in SHEETS.items():
+        if not wanted(name):
+            continue
         src = os.path.join(RAW, name + ".png")
         if not os.path.isfile(src):
             print("[없음] %s" % name)
@@ -160,6 +174,8 @@ def main():
             im.save(os.path.join(OUT, out_name + ".png"))
             count += 1
     for name, (out_name, width, band) in FULL.items():
+        if not wanted(name):
+            continue
         src = os.path.join(RAW, name + ".png")
         if not os.path.isfile(src):
             print("[없음] %s" % name)
@@ -171,6 +187,17 @@ def main():
         im = im.crop((0, y0, im.width, y0 + bh))
         im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
         im.save(os.path.join(OUT, out_name + ".png"))
+        count += 1
+    for name, out_name in COVER.items():
+        if not wanted(name):
+            continue
+        src = os.path.join(RAW, name + ".png")
+        if not os.path.isfile(src):
+            print("[없음] %s" % name)
+            continue
+        im = Image.open(src).convert("RGB")
+        im.save(os.path.join(MID, name + ".png"))
+        post.cover(im, 1672, 941).save(os.path.join(OUT, out_name + ".png"))
         count += 1
     print("완료: %d장" % count)
 
