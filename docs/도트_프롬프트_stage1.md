@@ -124,3 +124,15 @@ Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfect
 - 첨부: `assets/sprites/buildings/deco_signpost.png`
 - 결과: `deco_sign_hunt` (가운데가 빈 나무 팻말, 글자 "사냥터" 는 게임에서 얹는다), `ui_arrow_down` (아래를 가리키는 크레용 화살표). 공책 마을 아래쪽 문 (`scripts/maps/village.gd` 의 `_build_gate_sign`)
 - 2칸, 자홍 바탕: 1 판자 오른쪽 끝이 화살표 모양인 나무 팻말 (왼쪽 끝에 칼과 잎 무늬, 가운데는 비움), 2 연두 크레용으로 그린 굵은 아래 화살표. STYLE: ...(공통 그림체)
+
+## 88. 몬스터 공격 공통 효과 (`88_mon_fx.png`)
+
+- 첨부: `ui_v7/24_skill_fx.png` (주인공 스킬 효과 그림체)
+- 결과 (4×2): `fx_mon_alert` 예고 느낌표, `fx_mon_claw` 할퀴기, `fx_mon_impact` 맞힘 별, `fx_mon_dust` 먼지, `fx_mon_shock` 땅 충격파, `fx_mon_target` 보스 내리치기 자리, `fx_mon_speed` 돌진 속도선, `fx_mon_scribble` 낙서 뭉치
+- 쓰는 곳: `scripts/actors/enemy_slime.gd` (`_lunge_fx`, `_hit_fx`, `_show_target`, `_slam_fx`), `scripts/actors/mon_fx.gd`
+
+## 89. 몬스터마다 다른 맞힘 효과 (`89_mon_hit_a~c.png`, 같은 대화에서 이어서)
+
+- 결과 (각 4×2, `fx_hit_<이름>`): a lead shavings sticky band thorn spore crayon petal / b paint ink water bubble zap tack clip note / c popcorn confetti marks stamp tape paper chalk fade
+- 몬스터마다 [그림, 색, 크기] 는 `scripts/data/mon_fx_data.gd` 의 `HIT`
+- 프롬프트: "ONE more image, exactly the same style and layout (4 across, 2 rows, magenta background, each a themed HIT IMPACT burst exploding from the centre). Row 1: 1 … 8 …" 칸마다 영어로 하나씩 (예: "a big violet paint splat with round droplets flying out")

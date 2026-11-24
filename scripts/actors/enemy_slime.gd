@@ -12,6 +12,11 @@ const Fx := preload("res://scripts/actors/fx_frames.gd")
 const Data := preload("res://scripts/data/game_data.gd")
 const Items := preload("res://scripts/data/items.gd")
 const FallenScript := preload("res://scripts/actors/fallen.gd")
+const MonFx := preload("res://scripts/actors/mon_fx.gd")
+const MonsterBook := preload("res://scripts/data/monster_book.gd")
+const MonFxData := preload("res://scripts/data/mon_fx_data.gd")
+## 1장 기본 몬스터의 공격 방식 (2장부터는 monster_book.gd 의 SPECIES 에 적혀 있다)
+const BASE_ARCH := {"slime": "hop", "squiggle": "dash", "dots": "swarm", "grass": "ambush", "spider": "grid", "bug": "roll"}
 const EQUIP_DROP_RATE := 0.02   # 몬스터가 장비를 떨어뜨릴 확률 (세부설정 6)
 const MID_BOSS_DROP_RATE := 0.3 # 중간 보스. 대장과 필드 보스는 반드시 준다
 
@@ -38,6 +43,11 @@ var _roar_t := 4.0
 const ROAR_RANGE := 220.0
 const SLAM_RADIUS := 46.0
 const SLAM_WARN := 1.0
+
+var arch := "hop"             # 공격 방식: hop dash swarm ambush grid roll boss (효과가 달라진다)
+var _alert: Sprite2D          # 공격 예고 느낌표 (머리 위)
+var _target: Node2D           # 보스 내리치기 자리 표시
+var _trail_t := 0.0
 
 @export var use_placeholder_art := true
 @export var max_hp := 3
@@ -137,6 +147,13 @@ func _ready() -> void:
 			use_placeholder_art = false
 			_sprite = Art.make_sprite(self, _frames["idle"], FOOT)
 			_sprite.show_behind_parent = true
+	arch = _arch_of(kind)
+	_alert = Sprite2D.new()
+	_alert.texture = Art.tex("fx_mon_alert")
+	_alert.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_alert.visible = false
+	_alert.z_index = 20
+	add_child(_alert)
 	hp = max_hp
 	home = global_position
 	add_to_group("enemies")
@@ -148,6 +165,64 @@ func _ready() -> void:
 func _set_state(next: int) -> void:
 	state = next
 	_state_t = 0.0
+	if _alert:
+		_alert.visible = next == State.WINDUP and _alert.texture != null
+	if next == State.LUNGE:
+		_lunge_fx()
+
+
+## 이 몬스터의 공격 방식
+static func _arch_of(k: String) -> String:
+	if Data.MONSTERS.get(k, {}).has("boss"):
+		return "boss"
+	var sp := Data.species_of(k)
+	if MonsterBook.SPECIES.has(sp):
+		return str(MonsterBook.SPECIES[sp][2])
+	for base in BASE_ARCH:
+		if k.begins_with(str(base)):
+			return str(BASE_ARCH[base])
+	return "hop"
+
+
+## 머리 높이 (예고 느낌표 자리)
+func _head_y() -> float:
+	if _sprite and _sprite.texture:
+		var h := _sprite.texture.get_height() / float(maxi(1, _sprite.vframes)) * _sprite.scale.y
+		return FOOT.y - h - 4.0
+	return -26.0
+
+
+## 박치기를 시작할 때: 박치기 방식마다 다르게 (먼지, 속도선, 낙서가 튀어나옴)
+func _lunge_fx() -> void:
+	var par := get_parent()
+	var foot := global_position + FOOT
+	var back := -_lunge_dir.normalized()
+	match arch:
+		"hop", "boss":
+			MonFx.ground(par, "fx_mon_dust", foot + Vector2(0, -3), radius * 2.4, 0.4)
+		"roll":
+			MonFx.ground(par, "fx_mon_dust", foot + back * 6.0 + Vector2(0, -3), radius * 2.6, 0.45)
+		"ambush":
+			MonFx.pop(par, "fx_mon_scribble", global_position + Vector2(0, -radius), radius * 2.6, 0.35)
+			MonFx.ground(par, "fx_mon_dust", foot, radius * 2.2, 0.4)
+		_:
+			# 돌진: 뒤로 속도선 (그림의 선은 왼쪽으로 뻗는다 = 오른쪽으로 달릴 때의 뒤)
+			MonFx.pop(par, "fx_mon_speed", global_position + back * radius * 1.6 + Vector2(0, -radius * 0.6), radius * 2.6, 0.3,
+				_lunge_dir.angle(), 1.1)
+
+
+## 박치기가 맞았을 때: 작은 맞힘 별 + 그 몬스터만의 효과 (mon_fx_data.gd) + 방식에 따라 땅 충격파
+func _hit_fx(p: Node2D) -> void:
+	var par := get_parent()
+	var at := p.global_position + Vector2(0, -12)
+	var big := 1.0 if boss == "" else 1.4
+	MonFx.pop(par, "fx_mon_impact", at, 11.0 * big, 0.18, randf_range(-0.4, 0.4))
+	var own: Array = MonFxData.hit_of(kind)
+	var flip := _lunge_dir.x < 0.0
+	MonFx.pop(par, str(own[0]), at + _lunge_dir.normalized() * 3.0, 30.0 * float(own[2]) * big, 0.42,
+		randf_range(-0.25, 0.25), 1.3, flip, 31, own[1])
+	if arch in ["hop", "roll", "boss"]:
+		MonFx.ground(par, "fx_mon_shock", p.global_position + Vector2(0, 6), 30.0 * big, 0.4, 1.4)
 
 
 func _physics_process(delta: float) -> void:
@@ -195,9 +270,14 @@ func _physics_process(delta: float) -> void:
 		State.LUNGE:
 			hop = 1.0
 			move = _lunge_dir * lunge_speed
+			_trail_t -= delta
+			if arch == "roll" and _trail_t <= 0.0:      # 굴러가며 먼지를 남긴다
+				_trail_t = 0.1
+				MonFx.ground(get_parent(), "fx_mon_dust", global_position + FOOT, radius * 1.6, 0.35)
 			if not _lunge_hit and dist < contact_range:
 				_lunge_hit = true
 				p.call("take_damage", damage, _lunge_dir)
+				_hit_fx(p)
 			if _state_t >= lunge_time:
 				_set_state(State.REST)
 		State.REST:
@@ -252,6 +332,12 @@ func _physics_process(delta: float) -> void:
 		if state == State.WINDUP:
 			shake = Vector2(sin(_t * 70.0) * 1.2, 0)  # 부르르 떨며 예고
 		_sprite.position = FOOT + shake + Vector2(0, -hop * 5.0)
+	if _alert and _alert.visible:
+		# 예고 느낌표: 머리 위에서 톡 튀어나와 통통 뛴다
+		var tex_h := float(_alert.texture.get_height())
+		var k := minf(1.0, _state_t / 0.08)
+		_alert.scale = Vector2.ONE * (14.0 / tex_h) * (0.6 + 0.4 * k + 0.08 * sin(_t * 30.0))
+		_alert.position = Vector2(0, _head_y() - 7.0 - absf(sin(_t * 12.0)) * 2.0)
 	queue_redraw()
 
 
@@ -268,8 +354,10 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 	if _slam_every > 0.0:
 		if _slam_warn > 0.0:
 			_slam_warn -= delta
-			if _slam_warn <= 0.0 and p.global_position.distance_to(_slam_pos) <= SLAM_RADIUS:
-				p.call("take_damage", roundi(damage * 1.5), (p.global_position - _slam_pos).normalized())
+			if _slam_warn <= 0.0:
+				_slam_fx()
+				if p.global_position.distance_to(_slam_pos) <= SLAM_RADIUS:
+					p.call("take_damage", roundi(damage * 1.5), (p.global_position - _slam_pos).normalized())
 		else:
 			_slam_t -= delta
 			if _slam_t <= 0.0 and p.global_position.distance_to(global_position) < 170.0:
@@ -277,6 +365,7 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 				_slam_warn = SLAM_WARN
 				Sound.play("slam")
 				_slam_pos = p.global_position
+				_show_target()
 	if _summon != "" and not _summoned and hp <= max_hp / 2:
 		_summoned = true
 		for side in [-1, 1]:
@@ -414,15 +503,52 @@ func _pop_number(amount: int, crit: bool) -> void:
 	tw.chain().tween_callback(l.queue_free)
 
 
-## 내리치기 예고: 떨어질 자리에 빨간 동그라미가 차오른다
+## 내리치기 예고는 _show_target 이 바닥에 따로 둔다 (주인공보다 뒤에 그려지게)
 func _draw_slam() -> void:
-	if _slam_warn <= 0.0:
-		return
-	var c := _slam_pos - global_position
-	var k := 1.0 - _slam_warn / SLAM_WARN
-	draw_circle(c, SLAM_RADIUS, Color(0.9, 0.25, 0.25, 0.18))
-	draw_circle(c, SLAM_RADIUS * k, Color(0.9, 0.25, 0.25, 0.3))
-	draw_arc(c, SLAM_RADIUS, 0, TAU, 32, Color(0.9, 0.25, 0.25, 0.9), 2.0)
+	pass
+
+
+## 내리치기 예고: 떨어질 자리에 빨간 빗금 과녁(fx_mon_target)이 깜빡이며 안쪽이 차오른다
+func _show_target() -> void:
+	if is_instance_valid(_target):
+		_target.queue_free()
+	var tex := Art.tex("fx_mon_target")
+	_target = Node2D.new()
+	_target.position = _slam_pos
+	_target.z_index = -1
+	get_parent().add_child(_target)
+	var w := SLAM_RADIUS * 2.0
+	var h := w * (tex.get_height() / float(tex.get_width()) if tex else 0.45)
+	var made := Time.get_ticks_msec()
+	var t_node := _target
+	t_node.draw.connect(func() -> void:
+		var k := clampf((Time.get_ticks_msec() - made) / (SLAM_WARN * 1000.0), 0.0, 1.0)
+		var blink := 0.55 + 0.45 * absf(sin(k * PI * (3.0 + k * 5.0)))
+		if tex:
+			t_node.draw_texture_rect(tex, Rect2(-w * 0.5, -h * 0.5, w, h), false, Color(1, 1, 1, blink))
+		t_node.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, h / w))
+		t_node.draw_circle(Vector2.ZERO, w * 0.42 * k, Color(0.9, 0.2, 0.2, 0.28))
+		t_node.draw_set_transform(Vector2.ZERO))
+	var timer := Timer.new()
+	timer.wait_time = 1.0 / 30.0
+	timer.autostart = true
+	timer.timeout.connect(t_node.queue_redraw)
+	t_node.add_child(timer)
+	# 보스가 쓰러져도 과녁이 남지 않게
+	t_node.get_tree().create_timer(SLAM_WARN + 0.3).timeout.connect(func() -> void:
+		if is_instance_valid(t_node):
+			t_node.queue_free())
+
+
+## 내리쳤다: 과녁 자리에 충격파와 먼지, 큰 별
+func _slam_fx() -> void:
+	if is_instance_valid(_target):
+		_target.queue_free()
+	var par := get_parent()
+	MonFx.ground(par, "fx_mon_shock", _slam_pos, SLAM_RADIUS * 2.3, 0.5, 1.25)
+	MonFx.ground(par, "fx_mon_dust", _slam_pos + Vector2(-SLAM_RADIUS * 0.6, -4), 30.0, 0.5)
+	MonFx.ground(par, "fx_mon_dust", _slam_pos + Vector2(SLAM_RADIUS * 0.6, -4), 30.0, 0.5)
+	MonFx.pop(par, "fx_mon_impact", _slam_pos + Vector2(0, -10), 34.0, 0.3)
 
 
 ## 공격 예고: 움츠리는 동안 머리 위에 빨간 느낌표

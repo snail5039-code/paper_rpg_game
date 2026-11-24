@@ -97,6 +97,13 @@ SHEETS = {
     # 박물관 가구 (비어 있음, 전시물은 게임이 넣는다): 수조, 곤충 표본장, 꽃 화단, 진열 탁자, 코르크 판, 유리 진열장, 안내 데스크, 부엉이 관장
     # 공책 마을 아래쪽 문: 사냥터 팻말(가운데가 비어 있어 글자를 얹는다), 아래를 가리키는 크레용 화살표
     "87_gate_sign": (2, 1, [("deco_sign_hunt", 150), ("ui_arrow_down", 72)]),
+    # 몬스터 공격 효과: 예고 느낌표, 할퀴기, 맞힘 별, 먼지, 땅 충격파, 보스 내리치기 자리, 돌진 속도선, 낙서 뭉치
+    "88_mon_fx": (4, 2, [("fx_mon_alert", 96), ("fx_mon_claw", 120), ("fx_mon_impact", 120), ("fx_mon_dust", 110),
+                         ("fx_mon_shock", 200), ("fx_mon_target", 200), ("fx_mon_speed", 120), ("fx_mon_scribble", 110)]),
+    # 몬스터마다 다른 맞힘 효과 (scripts/data/mon_fx_data.gd 가 몬스터에 하나씩 정한다)
+    "89_mon_hit_a": (4, 2, [("fx_hit_%s" % n, 120) for n in ["lead", "shavings", "sticky", "band", "thorn", "spore", "crayon", "petal"]]),
+    "89_mon_hit_b": (4, 2, [("fx_hit_%s" % n, 120) for n in ["paint", "ink", "water", "bubble", "zap", "tack", "clip", "note"]]),
+    "89_mon_hit_c": (4, 2, [("fx_hit_%s" % n, 120) for n in ["popcorn", "confetti", "marks", "stamp", "tape", "paper", "chalk", "fade"]]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)

@@ -130,6 +130,26 @@ func _run() -> void:
 				missing.append("%s_%s" % [sp, form])
 	check(Book.SPECIES.size() == 84 and missing.is_empty(), "새 몬스터 84종 모두 두 모습 그림이 있음 (없는 것: %s)" % str(missing))
 
+	print("[몬스터마다 다른 공격 효과]")
+	var FxData := preload("res://scripts/data/mon_fx_data.gd")
+	var no_fx: Array = []
+	var combos := {}
+	for k in Data.MONSTERS:
+		if bool(Data.MONSTERS[k].get("dummy", false)) or str(k).begins_with("dummy") or str(k) == "tm5":
+			continue
+		var own: Array = FxData.hit_of(str(k))
+		if not FxData.HIT.has(str(k)) and not FxData.HIT.has(str(k).split("_")[0]):
+			no_fx.append(k)
+		elif not preload("res://scripts/core/art.gd").has(str(own[0])):
+			no_fx.append("%s(%s 그림 없음)" % [k, own[0]])
+		combos[str(own)] = true
+	check(no_fx.is_empty(), "모든 몬스터에 자기 공격 효과가 정해져 있고 그림도 있음 (빠진 것: %s)" % str(no_fx))
+	check(combos.size() >= 80, "공격 효과 조합이 몬스터마다 거의 다름 (%d가지)" % combos.size())
+	for a in ["fx_mon_alert", "fx_mon_claw", "fx_mon_impact", "fx_mon_dust", "fx_mon_shock", "fx_mon_target", "fx_mon_speed", "fx_mon_scribble"]:
+		if not preload("res://scripts/core/art.gd").has(a):
+			no_fx.append(a)
+	check(no_fx.is_empty(), "예고·돌진·내리치기 공통 효과 그림 8종이 있음")
+
 	print("[시작 장비와 수치]")
 	check(GameState.equipped.has("tool") and GameState.attack_power() == 10, "낙서 연필을 들고 시작, 공격력 10")
 	check(GameState.consumable_count("bandage") == 2, "반창고 2개를 갖고 시작")
