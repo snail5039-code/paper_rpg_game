@@ -138,6 +138,11 @@ SHEETS = {
 UPRIGHT = {"life_net": 45}
 # 애니메이션처럼 칸마다 크기와 가운데가 같아야 하는 줄: 시트 → (칸 수 가로, 세로, 줄, 저장 이름 앞, 한 칸의 긴 변)
 EVEN = {"99_boss_burst": (6, 2, 0, "fx_boss_pop_", 220)}
+# 보스마다 다른 쓰러짐 (99_boss_burst_<테마>): 가위표, 지우개똥 벌레, 구깃이, 큰 낙서, 큰나무, 왕버섯, 애벌레
+BURST_THEMES = ["x", "eraser", "crumple", "scribble", "oak", "mush", "worm"]
+for _th in BURST_THEMES:
+    SHEETS["99_boss_burst_" + _th] = (6, 2, [("", 0)] * 6 + [("boss_debris_%s_%d" % (_th, i), 64) for i in range(6)])
+    EVEN["99_boss_burst_" + _th] = (6, 2, 0, "fx_boss_pop_%s_" % _th, 220)
 # 칸을 자르지 않고 그대로 이어 붙이는 애니메이션 띠: (칸 수, 저장 이름, 한 칸의 가로)
 STRIPS = {"79_aura": (4, "fx_aura", 120)}
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
@@ -233,7 +238,7 @@ def main():
             if out_name != "fx_erase":   # 가장자리에 남은 마젠타 물을 뺀다 (분홍 지우개 가루는 그대로 둔다)
                 a = np.asarray(im).astype(np.int16)
                 # 회색 쇠붙이(강화 연출)는 분홍 물이 잘 보여서 더 세게 뺀다
-                spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + (4 if out_name.startswith("forge_") else 25))).clip(0)
+                spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + (4 if out_name.startswith(("forge_", "boss_debris")) else 25))).clip(0)
                 a[..., 0] -= spill
                 a[..., 2] -= spill
                 im = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
@@ -261,6 +266,11 @@ def main():
         cw, ch = im.width / cols, im.height / rows
         for c in range(cols):
             cell = im.crop((round(c * cw), round(row * ch), round((c + 1) * cw), round((row + 1) * ch)))
+            a = np.asarray(cell).astype(np.int16)        # 마젠타 물을 세게 뺀다 (가는 선 사이에 분홍이 남는다)
+            spill = (np.minimum(a[..., 0], a[..., 2]) - (a[..., 1] + 4)).clip(0)
+            a[..., 0] -= spill
+            a[..., 2] -= spill
+            cell = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
             s = size / max(cell.size)
             cell.resize((round(cell.width * s), round(cell.height * s)), Image.LANCZOS).save(sprite_path(prefix + str(c)))
             count += 1

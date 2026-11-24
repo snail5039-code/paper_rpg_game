@@ -7,6 +7,11 @@ var _dir := ""
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# 캡처 창이 키보드·마우스를 받지 않게 (다른 창에서 치던 글자가 들어가 설정이 바뀌는 일이 있었다)
+	get_window().set_flag(Window.FLAG_NO_FOCUS, true)
+	get_window().gui_disable_input = true
+	GameState.save_dir = OS.get_user_data_dir().path_join("shot_tmp/")
+	DirAccess.make_dir_recursive_absolute(GameState.save_dir)
 	_run.call_deferred()
 
 

@@ -458,7 +458,7 @@ func _die() -> void:
 		get_parent().add_child(fallen)
 	if boss != "" and _sprite and _sprite.texture:
 		# 보스: 그림이 조각나 터지며 흩어지고, 전리품이 사방으로 튀어 오른다
-		BossBurst.spawn(get_parent(), _sprite)
+		BossBurst.spawn(get_parent(), _sprite, str(Data.MONSTERS.get(kind, {}).get("sprite", "")))
 		_pop_loot(get_parent(), first_loot)
 	else:
 		var vanish := Art.tex("slime_vanish")

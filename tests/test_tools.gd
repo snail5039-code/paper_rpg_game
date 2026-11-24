@@ -5,6 +5,7 @@ extends Node
 const FieldScene := preload("res://scenes/field.tscn")
 const Items := preload("res://scripts/data/items.gd")
 const Data := preload("res://scripts/data/game_data.gd")
+const ArtLib := preload("res://scripts/core/art.gd")
 
 var passed := 0
 var failed := 0
@@ -194,6 +195,17 @@ func _run() -> void:
 	check((burst.get("_bits") as Array).size() >= 18 and (burst.get("_pop") as Array).all(func(t): return t != null), "보스가 번쩍인 뒤 터짐 그림 6장과 종이·잉크 조각으로 터짐")
 	await frames(140)
 	check(not is_instance_valid(burst), "터진 조각은 잠시 뒤 사라짐")
+	var theme_ok := true
+	for sp in BossBurst.SPRITE_THEME:
+		var th := str(BossBurst.SPRITE_THEME[sp])
+		for i in 6:
+			if not ArtLib.has("fx_boss_pop_%s_%d" % [th, i]) or not ArtLib.has("boss_debris_%s_%d" % [th, i]):
+				theme_ok = false
+				print("    그림 없음: %s %d" % [th, i])
+	check(theme_ok, "보스 7마리가 저마다 터짐 그림 6장과 조각 6개를 가짐")
+	var b2: Node2D = BossBurst.spawn(f, spr, "boss_3")
+	check(str(b2.get("theme")) == "oak", "큰나무 할아범은 잎·도토리로 터짐")
+	b2.queue_free()
 	spr.queue_free()
 	f.queue_free()
 	await frames(3)

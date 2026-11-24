@@ -1,8 +1,10 @@
 extends Node2D
-## 보스가 쓰러질 때: 보스가 하얗게 번쩍이며 부풀었다가, 종이와 잉크로 크게 터진다 (그림 fx_boss_pop_0~5).
-## 구겨진 종이, 찢어진 공책 조각, 잉크 방울, 반짝이(그림 boss_debris_0~5)가 사방으로 튀어 땅에 떨어지고,
-## 잉크 얼룩은 땅에 잠깐 남는다.
-## BossBurst.spawn(부모, 보스 Sprite2D) 로 부른다. 대화가 떠서 게임이 멈춰도 끝까지 보인다.
+## 보스가 쓰러질 때: 보스가 하얗게 번쩍이며 부풀었다가 크게 터지고 (그림 6장), 조각 6가지가 사방으로 튄다.
+## 보스마다 그림과 조각이 다르다 (THEMES): 가위표는 빨간 크레용, 지우개똥 벌레는 지우개 가루, 큰나무는 잎과 도토리…
+##   그림: fx_boss_pop_<테마>_0~5, boss_debris_<테마>_0~5. 테마 그림이 없으면 공통 종이·잉크(fx_boss_pop_0~5, boss_debris_0~5).
+## 조각의 움직임: 보통은 튀어 올라 떨어져 한 번 튀고 멈춘다. splat 은 땅에 철퍽 퍼지고, drift 는 나풀나풀 천천히 내려오고,
+##   rise 는 위로 떠오르며 사라지고, spark 는 반짝인다.
+## BossBurst.spawn(부모, 보스 Sprite2D, 보스 그림 이름) 으로 부른다. 대화가 떠서 게임이 멈춰도 끝까지 보인다.
 
 const Art := preload("res://scripts/core/art.gd")
 const SWELL := 0.16           # 번쩍이며 부푸는 시간
@@ -11,6 +13,20 @@ const POP_FRAMES := 6
 const LIFE := 2.4
 const GRAVITY := 300.0
 const DEBRIS := 22
+## 보스 그림 이름 → 테마
+const SPRITE_THEME := {"tm_13": "x", "boss_0": "eraser", "boss_1": "crumple", "boss_2": "scribble",
+	"boss_3": "oak", "boss_4": "mush", "boss_5": "worm"}
+## 테마마다 조각(0~5)의 움직임
+const THEMES := {
+	"": {"splat": [3, 4], "spark": [5], "drift": [], "rise": []},
+	"x": {"splat": [3], "spark": [5], "drift": [], "rise": [4]},
+	"eraser": {"splat": [], "spark": [5], "drift": [], "rise": [3, 4]},
+	"crumple": {"splat": [], "spark": [5], "drift": [1, 2], "rise": []},
+	"scribble": {"splat": [3], "spark": [5], "drift": [], "rise": [4]},
+	"oak": {"splat": [], "spark": [5], "drift": [0, 1], "rise": []},
+	"mush": {"splat": [], "spark": [5], "drift": [], "rise": [2, 3]},
+	"worm": {"splat": [0, 1, 2], "spark": [5], "drift": [], "rise": []},
+}
 
 var _boss_tex: Texture2D      # 보스의 지금 모습 (프레임 하나)
 var _boss_src := Rect2()
@@ -23,10 +39,13 @@ var _bits: Array = []         # [{tex, pos, vel, rot, spin, size, ground, landed
 var _center := Vector2.ZERO
 var _t := 0.0
 var _launched := false
+var theme := ""
 
 
-static func spawn(parent: Node, sprite: Sprite2D, _tint: Color = Color.BLACK) -> Node2D:
+static func spawn(parent: Node, sprite: Sprite2D, sprite_name: String = "") -> Node2D:
 	var b: Node2D = load("res://scripts/actors/boss_burst.gd").new()
+	var th := str(SPRITE_THEME.get(sprite_name, ""))
+	b.set("theme", th if Art.has("fx_boss_pop_%s_0" % th) else "")
 	b.global_position = sprite.global_position
 	b.z_index = 30
 	b.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -46,10 +65,11 @@ func _setup(sprite: Sprite2D) -> void:
 		_boss_flip = sprite.flip_h
 		_center = _boss_rect.get_center()
 		_pop_size = maxf(96.0, maxf(_boss_rect.size.x, _boss_rect.size.y) * 2.0)
+	var pre := "" if theme == "" else theme + "_"
 	for i in POP_FRAMES:
-		_pop.append(Art.tex("fx_boss_pop_%d" % i))
+		_pop.append(Art.tex("fx_boss_pop_%s%d" % [pre, i]))
 	for i in 6:
-		_debris_tex.append(Art.tex("boss_debris_%d" % i))
+		_debris_tex.append(Art.tex("boss_debris_%s%d" % [pre, i]))
 	Sound.play("hit", 0.5, 4.0)
 
 
@@ -64,11 +84,19 @@ func _launch() -> void:
 			continue
 		var a := randf_range(PI * 1.05, PI * 1.95) if i % 3 else randf() * TAU     # 대부분 위쪽으로
 		var spd := randf_range(90, 210)
-		var sz := randf_range(9, 15) if kind != 5 else randf_range(7, 11)
+		var th: Dictionary = THEMES.get(theme, THEMES[""])
+		var how := "fall"
+		for k in ["splat", "spark", "drift", "rise"]:
+			if (th[k] as Array).has(kind):
+				how = k
+		var sz := randf_range(9, 15) if how != "spark" else randf_range(7, 11)
+		if how == "drift" or how == "rise":
+			spd *= 0.6
 		_bits.append({"tex": tex, "pos": _center + Vector2(randf_range(-6, 6), randf_range(-6, 6)),
 			"vel": Vector2.from_angle(a) * spd + Vector2(randf_range(-30, 30), -40),
-			"rot": randf() * TAU, "spin": randf_range(-9, 9) if kind != 3 else 0.0, "size": sz,
-			"ground": floor_y + randf_range(-6, 14), "landed": -1.0, "ink": kind == 3 or kind == 4, "spark": kind == 5})
+			"rot": randf() * TAU, "spin": randf_range(-9, 9) if how != "splat" else 0.0, "size": sz,
+			"ground": floor_y + randf_range(-6, 14), "landed": -1.0, "how": how, "seed": randf() * TAU,
+			"ink": how == "splat", "spark": how == "spark"})
 
 
 func _process(delta: float) -> void:
@@ -79,11 +107,17 @@ func _process(delta: float) -> void:
 		if float(b["landed"]) >= 0.0:
 			b["landed"] = float(b["landed"]) + delta
 			continue
-		b["vel"] = (b["vel"] as Vector2) + Vector2(0, GRAVITY * delta)
+		var how := str(b["how"])
+		if how == "drift":           # 잎·종이처럼 나풀나풀: 공기에 걸려 천천히, 좌우로 흔들리며
+			b["vel"] = (b["vel"] as Vector2) * (1.0 - delta * 3.0) + Vector2(sin(_t * 6.0 + float(b["seed"])) * 70.0 * delta, 60.0 * delta)
+		elif how == "rise":          # 가루·포자처럼 위로 떠오른다
+			b["vel"] = (b["vel"] as Vector2) * (1.0 - delta * 2.5) + Vector2(sin(_t * 4.0 + float(b["seed"])) * 30.0 * delta, -40.0 * delta)
+		else:
+			b["vel"] = (b["vel"] as Vector2) + Vector2(0, GRAVITY * delta)
 		b["pos"] = (b["pos"] as Vector2) + (b["vel"] as Vector2) * delta
 		b["rot"] = float(b["rot"]) + float(b["spin"]) * delta
 		var p: Vector2 = b["pos"]
-		if (b["vel"] as Vector2).y > 0.0 and p.y >= float(b["ground"]):
+		if how != "rise" and (b["vel"] as Vector2).y > 0.0 and p.y >= float(b["ground"]):
 			# 땅에 닿으면 한 번 통 튀고 멈춘다 (잉크는 철퍽 퍼진다)
 			if bool(b["ink"]) or absf((b["vel"] as Vector2).y) < 70.0:
 				b["landed"] = 0.0
@@ -117,6 +151,8 @@ func _draw() -> void:
 		if landed >= 0.0 and bool(b["ink"]):
 			sq = Vector2(1.0 + minf(landed * 6.0, 0.6), maxf(0.45, 1.0 - landed * 4.0))   # 철퍽
 		var a := fade
+		if str(b["how"]) == "rise":
+			a *= 1.0 - clampf((_t - SWELL) / 1.4, 0.0, 1.0)
 		if bool(b["spark"]):
 			a *= 0.6 + 0.4 * sin(_t * 30.0 + sz)
 		var w := sz * tex.get_width() / float(tex.get_height())
