@@ -14,6 +14,7 @@ const MonsterScene := preload("res://scenes/enemy.tscn")
 const SpotScript := preload("res://scripts/actors/pickup_spot.gd")
 const BugScript := preload("res://scripts/actors/bug.gd")
 const TreeScript := preload("res://scripts/actors/tree.gd")
+const Ch1Story := preload("res://scripts/maps/ch1_story.gd")
 const FORAGE_SPOTS := 4
 const TREE_SPOTS := 3           # 흔들거나 벨 수 있는 나무 (대장 방에는 없다)
 const BUG_SLOTS := 3            # 화면에 들어올 때마다 곤충 자리 셋 (자리마다 70%)
@@ -111,6 +112,12 @@ func _ready() -> void:
 	add_child(hud)
 	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"]])
 	_tips.call_deferred()
+	# 1장 뒷이야기 "흰 집" (빨간 문을 지난 뒤)
+	if Ch1Story.active_here(field_id):
+		var story1: Node = Ch1Story.new()
+		story1.name = "Ch1Story"
+		story1.set("map_id", field_id)
+		add_child(story1)
 	# 2장: 이야기와 색이 빠지는 경계
 	if Data.chapter_of(field_id) == "ch2":
 		var story: Node = load("res://scripts/maps/ch2_story.gd").new()
@@ -299,6 +306,9 @@ func tree_spots() -> Array:
 		for m in cfg["monsters"]:
 			if (m[1] as Vector2).distance_to(at) < 70.0:
 				ok = false
+		for sp in (Ch1Story.SPOTS.get(field_id, {}) as Dictionary).values():
+			if (sp as Vector2).distance_to(at) < 150.0:
+				ok = false
 		if ok:
 			out.append(at)
 	return out
@@ -403,6 +413,11 @@ func _physics_process(_delta: float) -> void:
 	if side == "" or not gates.has(side):
 		return
 	# 2장 대장 방은 덩굴이까지 만난 뒤에 열린다
+	# 1장 대장 방은 빈 우편함의 이야기를 들은 뒤에 열린다 (예전에 구깃이를 이긴 적이 있으면 그대로 열려 있다)
+	if str(gates[side]) == "ch1_bossroom" and GameState.quest == GameState.Quest.CLEARED and GameState.ch1_step < 6 and not GameState.bosses_beaten.has("boss_crumple"):
+		player.global_position.y -= 24.0
+		GameState.notify("구겨진 종이 더미가 길을 막고 있다. 길 끝의 우편함에게 먼저 가 보자.")
+		return
 	if str(gates[side]) == "ch2_bossroom" and GameState.ch2_step < 5:
 		player.global_position.y -= 24.0
 		GameState.notify("큰 뿌리가 길을 막고 있다. 숲의 친구들을 먼저 만나 보자.")

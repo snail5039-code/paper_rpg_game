@@ -13,6 +13,7 @@ const HudScript := preload("res://scripts/ui/hud.gd")
 const GoalScript := preload("res://scripts/actors/goal.gd")
 const TutorialScript := preload("res://scripts/maps/tutorial.gd")
 const Lessons := preload("res://scripts/data/lessons.gd")
+const Ch1Story := preload("res://scripts/maps/ch1_story.gd")
 var lessons: Node
 const PlayerScene := preload("res://scenes/player.tscn")
 const Companion := preload("res://scripts/actors/companion.gd")
@@ -223,6 +224,13 @@ func _ready() -> void:
 	tutorial.set("goal", goal)
 	tutorial.set("drawing", drawing)
 	add_child(tutorial)
+
+	# 1장 뒷이야기 "흰 집" (빨간 문을 지나 빈 페이지에 다녀온 뒤)
+	if Ch1Story.active_here("ch1"):
+		var story1: Node = Ch1Story.new()
+		story1.name = "Ch1Story"
+		story1.set("map_id", "ch1")
+		add_child.call_deferred(story1)
 
 	# 하루의 수업 (새 캐릭터만): 할 일을 하나씩 준다
 	lessons = Lessons.new()

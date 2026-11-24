@@ -128,6 +128,10 @@ SHEETS = {
                             ("life_axe", 80), ("life_icon_axe_0", 64), ("life_icon_axe_1", 64), ("life_icon_axe_2", 64)]),
     # 보스가 쓰러질 때: 둘째 줄의 조각 6개 (첫 줄 터짐 6장은 아래 EVEN 으로 자른다)
     "99_boss_burst": (6, 2, [("", 0)] * 6 + [("boss_debris_%d" % i, 64) for i in range(6)]),
+    # 1장 뒷이야기 "흰 집": 허수, 이정표 아저씨, 빈 우편함, 노란 우편 가방 / 얼굴 넷(구깃이 포함) / 편지 조각, 우표, 구겨진 편지, 편지
+    "100_ch1_people": (4, 3, [("npc_heosu", 120), ("npc_signpost", 124), ("npc_mailbox", 112), ("story_bag", 72),
+                              ("portrait_heosu", 168), ("portrait_signpost", 168), ("portrait_mailbox", 168), ("portrait_crumple", 168),
+                              ("story_scrap", 48), ("story_stamp", 48), ("story_crumpled", 48), ("story_letter", 48)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
@@ -154,7 +158,10 @@ FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 128
         "61_room_storage": ("bg_room_storage", 1280, 1.0), "61_room_diner": ("bg_room_diner", 1280, 1.0),
         "61_room_villager": ("bg_room_villager", 1280, 1.0), "85_bg_museum": ("bg_room_museum", 1280, 1.0),
         # 게임에 들어갈 때의 불러오기 화면
-        "98_loading_flat": ("bg_loading", 1280, 1.0)}
+        "98_loading_flat": ("bg_loading", 1280, 1.0),
+        # 1장 뒷이야기 그림책 장면
+        "101_ch1_page_0": ("ch1_page_0", 1280, 1.0), "101_ch1_page_1": ("ch1_page_1", 1280, 1.0),
+        "101_ch1_page_2": ("ch1_page_2", 1280, 1.0), "101_ch1_page_3": ("ch1_page_3", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):

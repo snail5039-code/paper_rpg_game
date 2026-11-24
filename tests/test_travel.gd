@@ -37,6 +37,7 @@ func _run() -> void:
 	tree.current_scene = null   # 장면이 바뀔 때 이 노드가 같이 지워지지 않게
 	GameState.save_path = "user://test_travel_save.json"
 	GameState.quest = GameState.Quest.CLEARED
+	GameState.ch1_step = 8          # 1장 뒷이야기는 끝낸 것으로 (마을에 들어가면 그림책 장면이 나와 멈춘다)
 	GameState.bridge_built = true
 	GameState.intro_seen = true
 	GameState.home_intro_seen = true

@@ -103,7 +103,9 @@ func _refresh() -> void:
 	var hud: Node = field.get("hud")
 	if hud == null:
 		return
-	hud.set("quest_text_override", "%s   ·   %s" % [field.call("_title_text"), todo(GameState.ch2_step)])
+	var id := str(field.get("field_id"))
+	# 대장과 싸우는 동안에는 위쪽 가운데의 대장 체력 막대와 겹치지 않게 할 일을 빼고 이름만
+	hud.set("quest_text_override", str(field.call("_title_text")) if id.ends_with("bossroom") and GameState.ch2_step == 5 else "%s   ·   %s" % [field.call("_title_text"), todo(GameState.ch2_step)])
 	hud.call("_refresh")
 
 
