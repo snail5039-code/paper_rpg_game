@@ -8,7 +8,16 @@ const MATERIALS := [
 	"말랑 조각", "말랑 눈알", "삐뚤선 토막", "곧은 선",
 	"점 가루", "굵은 점", "풀잎 낙서", "모눈 조각",
 	"모눈 실", "네모 눈", "지우개똥", "몽당 지우개",
+	# 2장 색연필 숲 (12~21)
+	"회색 털", "도토리 깍지", "연필밥", "초록 색연필심", "덩굴 선",
+	"가시", "색 빠진 갓", "나무 진", "깃 선", "노란 색연필심",
 ]
+## 2장 몬스터가 떨어뜨리는 재료 [흔한 재료, 확률, 드문 재료, 확률] (monster_book.gd 는 만들어진 표라서 여기서 덧씌운다)
+const CH2_DROPS := {
+	"m11": [12, 0.6, 13, 0.12], "m12": [14, 0.6, 15, 0.12], "m13": [16, 0.6, 17, 0.12], "m14": [18, 0.6, 15, 0.12],
+	"m15": [19, 0.5, 14, 0.2], "m16": [20, 0.6, 21, 0.12], "m17": [12, 0.6, 21, 0.12], "m18": [16, 0.5, 21, 0.12],
+	"m19": [14, 0.6, 19, 0.15], "m20": [19, 0.6, 17, 0.15],
+}
 
 ## 몬스터 종류. 수치는 docs/몬스터.md 의 1장 기준값("흐릿한" 단계)을 따른다.
 ##  art   : "frames" = 낱장 4자세(<sprite>_idle/squash/jump/hurt), "strip" = 6칸 시트(mon_<sprite>)
@@ -119,17 +128,17 @@ const MONSTERS_CH1 := {
 	# 2장 색연필 숲의 보스: 중간 보스(버섯 골짜기), 대장(큰나무 뿌리), 필드 보스(하루 한 번 2장 화면 중 한 곳)
 	"boss_mushking": {
 		"name": "색 빠진 왕버섯", "art": "single", "sprite": "boss_4", "hp": 280, "speed": 30.0, "damage": 11,
-		"radius": 22.0, "exp": 110, "def": 3, "drops": [10, 1.0, 11, 0.6], "lunge_time": 0.5, "lunge_speed": 180.0,
+		"radius": 22.0, "exp": 110, "def": 3, "drops": [18, 1.0, 15, 0.6], "lunge_time": 0.5, "lunge_speed": 180.0,
 		"boss": "mid", "scale": 1.0, "summon": "m14_faded", "aggro": 150.0, "chapter": 2,
 	},
 	"boss_oak": {
 		"name": "큰나무 할아범", "art": "single", "sprite": "boss_3", "hp": 520, "speed": 26.0, "damage": 14,
-		"radius": 28.0, "exp": 260, "def": 5, "drops": [6, 1.0, 7, 1.0], "lunge_time": 0.45, "lunge_speed": 190.0,
+		"radius": 28.0, "exp": 260, "def": 5, "drops": [19, 1.0, 13, 1.0], "lunge_time": 0.45, "lunge_speed": 190.0,
 		"boss": "boss", "scale": 1.1, "slam": 5.0, "summon": "m13_faded", "aggro": 230.0, "chapter": 2,
 	},
 	"boss_colorworm": {
 		"name": "색 먹는 애벌레", "art": "single", "sprite": "boss_5", "hp": 380, "speed": 50.0, "damage": 12,
-		"radius": 24.0, "exp": 190, "def": 3, "drops": [0, 1.0, 1, 1.0], "lunge_time": 0.4, "lunge_speed": 240.0,
+		"radius": 24.0, "exp": 190, "def": 3, "drops": [21, 1.0, 20, 1.0], "lunge_time": 0.4, "lunge_speed": 240.0,
 		"boss": "field", "scale": 1.0, "slam": 7.0, "aggro": 160.0, "chapter": 2,
 	},
 	"bug_erased": {
@@ -327,12 +336,36 @@ const FRIENDS_BASE := {
 	"grassmallang": {"name": "풀말랑", "kind": "slime_faded", "power": 1.6, "skill": "풀밭 깔기", "tint": Color(0.7, 1.0, 0.7)},
 	"linespider": {"name": "줄거미", "kind": "spider_faded", "power": 1.6, "skill": "줄 치기", "tint": Color(1.0, 0.85, 0.6)},
 	"snowflake": {"name": "눈송이", "kind": "dots_faded", "power": 1.6, "skill": "얼리기", "tint": Color(0.75, 0.9, 1.0)},
+	# 2장 이야기 친구 (scripts/maps/ch2_story.gd 에서 다시 그려 주면 생긴다)
+	"kongkong": {"name": "콩콩이", "kind": "m11_faded", "power": 1.5, "skill": "도토리 쏘기", "story": true},
+	"vine": {"name": "덩굴이", "kind": "m13_faded", "power": 1.5, "skill": "덩굴 묶기", "story": true},
+	# 2장 합치기로만 나오는 친구
+	"acornfox": {"name": "도토리 여우", "kind": "m17_faded", "power": 1.7, "skill": "도토리 꼬리치기"},
+	"mossvine": {"name": "덩굴 이끼곰", "kind": "m20_faded", "power": 1.7, "skill": "덩굴 끌어안기"},
+	"petalshroom": {"name": "꽃잎 버섯", "kind": "m14_faded", "power": 1.7, "skill": "꽃가루 뿌리기"},
 }
 ## 몬스터 90종: 위의 1장·연습 페이지·보스 표 + scripts/data/monster_book.gd 의 84종 (2~9장, 1장의 새 4종)
-static var MONSTERS: Dictionary = MONSTERS_CH1.merged(Book.MONSTERS)
+static var MONSTERS: Dictionary = _with_drops(MONSTERS_CH1.merged(Book.MONSTERS))
+
+
+## 2장 몬스터에 재료를 붙인다 (많이 지워진 모습은 조금 더 잘 떨어뜨린다)
+static func _with_drops(all: Dictionary) -> Dictionary:
+	for k in all:
+		var sp := str(k).split("_")[0]
+		if CH2_DROPS.has(sp):
+			var d: Array = (CH2_DROPS[sp] as Array).duplicate()
+			if str(k).ends_with("_erased"):
+				d[1] = minf(1.0, float(d[1]) + 0.2)
+				d[3] = minf(1.0, float(d[3]) + 0.13)
+			var m: Dictionary = (all[k] as Dictionary).duplicate()   # 표 안의 사전은 읽기 전용이라 복사해서 바꾼다
+			m["drops"] = d
+			all[k] = m
+	return all
 static var FRIENDS: Dictionary = FRIENDS_BASE.merged(Book.FRIENDS)
 ## 다른 종끼리 합치기: [재료, 재료, 새 종]. 둘 다 별 2개 이상이어야 한다.
-const MERGES := [["slime", "grass", "grassmallang"], ["squiggle", "spider", "linespider"], ["dots", "bug", "snowflake"]]
+const MERGES := [["slime", "grass", "grassmallang"], ["squiggle", "spider", "linespider"], ["dots", "bug", "snowflake"],
+	# 2장: 회색 다람쥐 + 크레용 여우, 가시 덩굴 + 이끼 곰, 색 빠진 버섯 + 꽃잎 요정
+	["m11", "m17", "acornfox"], ["m13", "m20", "mossvine"], ["m14", "m18", "petalshroom"]]
 
 
 ## 몬스터 종류("slime_faded") → 친구 종("slime")
@@ -392,6 +425,11 @@ const VILLAGERS := {
 		"memory": ["그 흰 자국 말이다. 날마다 그 앞에 서 있었지.", "이름은 끝내 못 찾았어. 그래도 누가 서 있었다는 건 내가 안다.", "잊지 않는 사람이 하나라도 있으면, 다 지워진 건 아니란다."]},
 	"kid": {"title": "풍선 아이", "sprite": "villager_2", "like": "g_berry", "gift": "candy",
 		"memory": ["풍선 준 사람, 생각났어!", "키가 크고… 손이 따뜻했어. 얼굴은 안 보여.", "나중에 만나면 내가 먼저 알아볼 거야."]},
+	# 2장 숲 입구 마을
+	"painter": {"title": "색칠 곰 아저씨", "sprite": "villager_3", "like": "c_flower", "gift": "s_flower", "chapter": 2,
+		"memory": ["내 털이 원래 무슨 색이었는지 생각났어. 꿀 색이었단다.", "반쪽은 아직 회색이지만… 반쪽이라도 기억나니 다행이지.", "다 잊는 것보다 반이라도 아픈 게 낫더라."]},
+	"weaver": {"title": "덩굴 할머니", "sprite": "villager_4", "like": "j_bottle", "gift": "g_stone", "chapter": 2,
+		"memory": ["이 숄은 누가 짜 준 거였는데.", "실 끝을 잡고 따라가 봐도 매듭에서 끊겨 있어.", "그래도 따뜻하니, 짜 준 사람 마음은 남은 거겠지."]},
 }
 const HEART_NEED := [10, 30, 60, 100, 150]
 

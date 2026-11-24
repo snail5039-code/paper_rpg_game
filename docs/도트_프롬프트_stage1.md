@@ -212,3 +212,13 @@ SCENE - 'Before the Great Tree': a dirt path runs straight from the top gate dow
 ```text
 SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by enormous twisting tree roots instead of a tree row (roots form the border on all sides except the gate). The roots in the lower half are partly erased: white eraser-rubbed gaps, missing segments, dotted outlines where root used to be, grey and uncoloured. Fallen leaves on the ground. The clearing in the middle is wide open and empty. GATES: exactly ONE gate at the center of the TOP edge with a dirt path entering. No other openings.
 ```
+
+
+## 94~95. 2장 사람·얼굴·친구·재료 (`94_ch2_people`, `94_ch2_portraits`, `95_ch2_mats`, `81_friend_<종>`)
+
+- 한 대화에서 차례로 요청했다. 그림마다 참고 그림을 새로 첨부: 사람은 1장 주민·선생 그림, 얼굴은 하루·선생·할아버지 얼굴, 재료는 1장 재료 아이콘 12개, 친구는 `81_friend_grassmallang` 시트(자홍 바탕).
+- `94_ch2_people` (4칸): `npc_gutungi` 귀퉁이(접힌 페이지 귀퉁이 머리, 낙서 머리카락, 줄무늬 목도리, 뺨에 반창고), `villager_3` 색칠 곰 아저씨(앞치마 반쪽이 회색), `villager_4` 덩굴 할머니(덩굴 숄, 바구니), `villager_5` 되풀이 주민(버섯 모자, 입이 흐릿함).
+- `94_ch2_portraits` (3칸): `portrait_gutungi_smirk`, `portrait_gutungi_quiet`, `portrait_oak` (가슴까지, 정면).
+- `95_ch2_mats` (5×2): `mat_12`~`mat_21` 회색 털, 도토리 깍지, 연필밥, 초록 색연필심, 덩굴 선, 가시, 색 빠진 갓, 나무 진, 깃 선, 노란 색연필심.
+- `81_friend_<종>` (6칸, 기본·움직임 둘·예고·공격·맞음): `kongkong` 콩콩이(살짝 큰 도토리 모자), `vine` 덩굴이(색 빠진 잎 + 새 잎 하나), `acornfox` 도토리 여우, `mossvine` 덩굴 이끼곰, `petalshroom` 꽃잎 버섯. 가져오기 `python3 tools/import_friends.py`.
+- 공통 그림체 문장: "chunky pixel art coloured with crayon / coloured-pencil texture, pixel blocks clearly visible; thick slightly wobbly dark-grey pencil outlines; soft pastel colours; no gloss, no gradients, no drop shadows, no glow, NO text. Match the attached reference image's style and proportions exactly."

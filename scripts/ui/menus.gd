@@ -357,16 +357,22 @@ func _refresh_bag() -> void:
 
 
 func _materials_grid() -> void:
+	# 재료가 두 줄보다 많으면 (2장부터) 굴려서 본다
+	var list := _list()
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(_body.size.x - 12, ceilf(Data.MATERIALS.size() / 6.0) * 62)
+	holder.mouse_filter = Control.MOUSE_FILTER_PASS
+	list.add_child(holder)
 	for i in Data.MATERIALS.size():
-		var pos := Vector2(4 + (i % 6) * 49, (i / 6) * 62)
+		var pos := Vector2(2 + (i % 6) * 47, (i / 6) * 62)
 		var n := GameState.material_count(i)
-		_icon(_body, "ui_slot", pos + Vector2(3, 0), 38)
-		_icon(_body, "mat_%d" % i, pos + Vector2(9, 6), 26, Color(1, 1, 1, 1) if n > 0 else Color(0.2, 0.2, 0.2, 0.25))
+		_icon(holder, "ui_slot", pos + Vector2(3, 0), 38)
+		_icon(holder, "mat_%d" % i, pos + Vector2(9, 6), 26, Color(1, 1, 1, 1) if n > 0 else Color(0.2, 0.2, 0.2, 0.25))
 		if n > 0:
-			_rc(_hit(_body, pos + Vector2(3, 0), Vector2(38, 38), func() -> void: pass), _mat_detail(i))
-		var count := _label(_body, str(n) if n > 0 else "", pos + Vector2(20, 24), Vector2(22, 12), 9)
+			_rc(_hit(holder, pos + Vector2(3, 0), Vector2(38, 38), func() -> void: pass), _mat_detail(i))
+		var count := _label(holder, str(n) if n > 0 else "", pos + Vector2(20, 24), Vector2(22, 12), 9)
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var name_l := _label(_body, str(Data.MATERIALS[i]) if n > 0 else "?", pos + Vector2(-4, 39), Vector2(52, 12), 8)
+		var name_l := _label(holder, str(Data.MATERIALS[i]) if n > 0 else "?", pos + Vector2(-4, 39), Vector2(52, 12), 8)
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info.text = _message if _message != "" else "재료 %d / %d칸   연필심 %d   동전 %d   가루 %d" % [
 		GameState.bag_used("mat"), int(GameState.bag_sizes["mat"]), GameState.pencil_lead, GameState.coins, GameState.dust]

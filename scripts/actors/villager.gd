@@ -14,7 +14,15 @@ const ASK := {
 	"baker": "저기, 가게 간판이 지워졌는데… 다시 그려 줄 수 있니? (다시 말을 걸면 그리기)",
 	"elder": "저 흰 자국이 누구였는지, 이름이라도 찾아 줄 수 있겠니? (내일 다시 말 걸기)",
 	"kid": "내 풍선 세 개가 날아가 버렸어! 찾아 줄래? (들판, 갈림길, 모눈 숲)",
+	"painter": "우리 집 지붕이 반쯤 색이 빠졌어. 다시 칠해 줄 수 있겠니? (다시 말을 걸면 칠하기)",
+	"weaver": "숄을 고치고 싶은데 실이 모자라. 숲에서 덩굴 선을 세 개만 구해 줄래?",
 }
+const WEAVER_NEED := 3
+const VINE_MAT := 16          # 덩굴 선 (game_data.gd 의 MATERIALS)
+
+## 되풀이 주민: 만날 때마다 같은 말을 한 글자씩 짧게 한다. 다 줄면 입만 벙긋거린다.
+const ECHO_LINE := "이 숲은 원래 아주 예쁜 색이었어요"
+var echo := false
 
 var _emote: Sprite2D
 var _talking := false
@@ -49,11 +57,23 @@ func interact() -> void:
 	if _talking or lines.is_empty():
 		return
 	_talking = true
-	if vid == "":
+	if echo:
+		await GameState.say(speaker, [echo_text(GameState.ch2_echo, GameState.ch2_step)])
+		GameState.ch2_echo += 1
+		GameState.save_game()
+	elif vid == "":
 		await GameState.say(speaker, lines)
 	else:
 		await _quest_talk()
 	_talking = false
+
+
+## 되풀이 주민의 말: n 번째 만남이면 끝에서 n 글자를 뺀다. 2장을 끝내면 말이 없다.
+static func echo_text(n: int, step: int) -> String:
+	var keep := ECHO_LINE.length() - n
+	if step >= 6 or keep <= 0:
+		return "(입만 벙긋거린다)"
+	return ECHO_LINE.substr(0, keep) + "…"
 
 
 ## 이야기가 있는 주민: 부탁 → 들어주기 → (내 마을에 집이 있으면) 이름을 지어 주고 이사
@@ -86,6 +106,26 @@ func _quest_talk() -> void:
 					await GameState.say(speaker, ["밤새 찾아봤단다. 이름표도, 편지도, 벽의 낙서도.", "…없더구나. 어디에도.", "그래도 찾아 준다고 해 줘서 고맙다."])
 				else:
 					await GameState.say(speaker, ["나도 좀 더 찾아보마. 내일 다시 오렴."])
+			elif vid == "painter" and hud:
+				# 색이 빠진 지붕을 다시 칠한다 (지붕 모양을 따라 그리기)
+				var panel2: Control = hud.call("trace_panel")
+				panel2.call("start", "곰 아저씨네 지붕 다시 칠하기", [
+					PackedVector2Array([Vector2(220, 230), Vector2(320, 140), Vector2(420, 230)]),
+					PackedVector2Array([Vector2(250, 205), Vector2(390, 205)]),
+					PackedVector2Array([Vector2(275, 180), Vector2(365, 180)])], 9.0)
+				var s2: float = await panel2.finished
+				if s2 >= 0.5:
+					v["q"] = 2
+					await GameState.say(speaker, ["오오, 지붕에 색이 돌아왔어!", "…내 털은 아직 반쪽이 회색이지만. 그래도 집이라도 칠해졌으니 됐다."])
+				else:
+					await GameState.say(speaker, ["음, 아직 회색이 더 많구나. 한 번 더 칠해 줄래?"])
+			elif vid == "weaver":
+				if GameState.material_count(VINE_MAT) >= WEAVER_NEED:
+					GameState.add_material(VINE_MAT, -WEAVER_NEED)
+					v["q"] = 2
+					await GameState.say(speaker, ["덩굴 선이구나. 고맙다, 고마워.", "이걸로 끊긴 데를 이으면… 그래, 매듭은 그대로지만 따뜻하겠어."])
+				else:
+					await GameState.say(speaker, ["덩굴 선이 %d개 더 있어야 해. 절벽의 가시 덩굴이 갖고 있을 거야." % (WEAVER_NEED - GameState.material_count(VINE_MAT))])
 			elif vid == "kid":
 				if GameState.balloons.size() >= 3:
 					v["q"] = 2

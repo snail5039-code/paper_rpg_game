@@ -109,6 +109,64 @@ func _ready() -> void:
 	add_child(hud)
 	hud.call("set_hints", [["key_wasd", "이동"], ["key_mouse_l", "공격"], ["key_space", "회피"]])
 	_tips.call_deferred()
+	# 2장: 이야기와 색이 빠지는 경계
+	if Data.chapter_of(field_id) == "ch2":
+		var story: Node = load("res://scripts/maps/ch2_story.gd").new()
+		story.name = "Ch2Story"
+		add_child(story)
+		if DRAIN_MAPS.has(field_id):
+			_color_drain()
+
+
+# ---------- 2장: 색이 빠지는 경계 ----------
+## 화면 오른쪽부터 색이 빠진다. 이 화면에 머무는 동안 경계가 천천히 다가온다 (나갔다 오면 처음 자리).
+const DRAIN_MAPS := ["ch2_path", "ch2_grove", "ch2_cliff", "ch2_mushroom", "ch2_bigtree"]
+const DRAIN_START := 0.9        # 처음 경계 (화면 가로의 비율)
+const DRAIN_END := 0.55         # 가장 가까이 오는 곳
+const DRAIN_SPEED := 0.0016     # 1초에 다가오는 비율
+var drain: ColorRect
+var _drain_x := DRAIN_START
+
+const DRAIN_SHADER := "shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
+uniform float edge_x = 600.0;
+uniform float soft = 18.0;
+varying vec2 local_pos;
+void vertex() { local_pos = VERTEX; }
+void fragment() {
+	vec4 c = textureLod(screen_tex, SCREEN_UV, 0.0);
+	float wob = sin(local_pos.y * 0.045) * 9.0 + sin(local_pos.y * 0.13 + TIME * 0.6) * 3.0;
+	float t = smoothstep(edge_x - soft, edge_x + soft, local_pos.x + wob);
+	float g = dot(c.rgb, vec3(0.3, 0.59, 0.11));
+	vec3 grey = mix(vec3(g), vec3(0.94, 0.92, 0.87), 0.3);
+	COLOR = vec4(mix(c.rgb, grey, t * 0.88), 1.0);
+}"
+
+
+func _color_drain() -> void:
+	drain = ColorRect.new()
+	drain.name = "ColorDrain"
+	drain.size = BG_SIZE * WORLD_PER_BG
+	drain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drain.z_index = 50
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = DRAIN_SHADER
+	mat.shader = sh
+	drain.material = mat
+	add_child(drain)
+	_set_drain(DRAIN_START)
+
+
+func _set_drain(ratio: float) -> void:
+	_drain_x = ratio
+	if drain:
+		(drain.material as ShaderMaterial).set_shader_parameter("edge_x", drain.size.x * ratio)
+
+
+func _process(delta: float) -> void:
+	if drain and not GameState.menu_open and not GameState.dialogue_open and _drain_x > DRAIN_END:
+		_set_drain(maxf(DRAIN_END, _drain_x - DRAIN_SPEED * delta))
 
 
 ## 이 화면의 내용 (FIELDS 표). 끝없는 탑(scripts/maps/tower.gd)은 층마다 만들어 쓴다.
@@ -301,6 +359,11 @@ func _physics_process(_delta: float) -> void:
 		side = "right"
 	var gates: Dictionary = cfg["gates"]
 	if side == "" or not gates.has(side):
+		return
+	# 2장 대장 방은 덩굴이까지 만난 뒤에 열린다
+	if str(gates[side]) == "ch2_bossroom" and GameState.ch2_step < 5:
+		player.global_position.y -= 24.0
+		GameState.notify("큰 뿌리가 길을 막고 있다. 숲의 친구들을 먼저 만나 보자.")
 		return
 	last_exit = side
 	_leaving = GameState.goto_map(str(gates[side]), "gate_" + str(OPPOSITE[side]))

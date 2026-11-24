@@ -20,7 +20,9 @@ RAW = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7_raw")
 MID = os.path.join(ROOT, "assets", "generated_pixel_art", "ui_v7")
 
 # 종 → 한 칸의 가로 크기(월드). 원래 몬스터와 비슷하게.
-FRIENDS = {"linespider": 27.0, "snowflake": 28.0, "grassmallang": 24.0}
+FRIENDS = {"linespider": 27.0, "snowflake": 28.0, "grassmallang": 24.0,
+           # 2장: 이야기 친구 콩콩이·덩굴이, 합치기 친구 셋 (docs/도트_프롬프트_stage1.md §94)
+           "kongkong": 22.0, "vine": 24.0, "acornfox": 28.0, "mossvine": 30.0, "petalshroom": 26.0}
 
 
 def main():

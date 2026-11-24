@@ -135,6 +135,11 @@ var difficulty: int = 0           # 사냥터 난이도 단계 (0 흐릿한 ~ 3 
 var max_difficulty: int = 0       # 고를 수 있는 가장 높은 단계 (대장을 잡으면 다음 단계가 열린다)
 var field_boss: Dictionary = {"day": 0, "map": "", "dead": false}
 var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
+## 2장 색연필 숲 이야기 (scripts/data/ch2_story.gd 의 STEP). race: 귀퉁이와의 사냥 시합, echo: 되풀이 주민에게 말 건 횟수
+var ch2_step: int = 0
+var ch2_race: Dictionary = {"kills": 0, "rival": 0.0, "result": ""}
+var ch2_echo: int = 0
+var stickers: int = 0               # 장 대장을 물리치고 받은 스티커 (표지의 스티커 자국 여섯 개)
 var boss_bonus: Dictionary = {}      # 보스 다시 도전 보너스를 받은 날 ("종류:단계" → 날)
 var tower_floor: int = 0             # 끝없는 탑: 지금 오르는 층 (0 은 탑 밖)
 var tower_best: int = 0              # 끝없는 탑: 끝낸 가장 높은 층
@@ -1390,6 +1395,13 @@ func board_reward(q: Dictionary, what: String) -> int:
 func on_kill(kind: String) -> void:
 	lesson_note("kill")
 	board_note(Data.species_of(kind))
+	# 2장: 귀퉁이와의 사냥 시합 (2장 몬스터만 센다)
+	if ch2_step == 2 and str(ch2_race["result"]) == "" and int(Data.MONSTERS.get(kind, {}).get("chapter", 0)) == 2 and not Data.MONSTERS[kind].has("boss"):
+		ch2_race["kills"] = int(ch2_race["kills"]) + 1
+		if int(ch2_race["kills"]) >= 10:
+			ch2_race["result"] = "win"
+			notify("10마리! 귀퉁이보다 먼저 해냈어요. 숲길의 귀퉁이에게 가 보자.")
+		changed.emit()
 	dex_add("mon", kind)
 	# 몬스터 스케치 (박물관에 기증): 4%, 많이 지워진 모습은 6%
 	var sp := Data.species_of(kind)
@@ -2279,6 +2291,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
+		"ch2_step": ch2_step, "ch2_race": ch2_race, "ch2_echo": ch2_echo, "stickers": stickers,
 		"boss_bonus": boss_bonus,
 		"tower_best": tower_best,
 		"quick_slots": quick_slots,
@@ -2447,6 +2460,11 @@ func load_game() -> bool:
 			var v: Variant = fb[k]
 			field_boss[str(k)] = int(v) if str(k) == "day" else (bool(v) if str(k).begins_with("dead") else str(v))
 	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
+	ch2_step = int(data.get("ch2_step", 0))
+	var race: Variant = data.get("ch2_race")
+	ch2_race = {"kills": int(race.get("kills", 0)), "rival": float(race.get("rival", 0.0)), "result": str(race.get("result", ""))} if typeof(race) == TYPE_DICTIONARY else {"kills": 0, "rival": 0.0, "result": ""}
+	ch2_echo = int(data.get("ch2_echo", 0))
+	stickers = int(data.get("stickers", 0))
 	boss_bonus = data["boss_bonus"] if typeof(data.get("boss_bonus")) == TYPE_DICTIONARY else {}
 	tower_best = maxi(0, int(data.get("tower_best", 0)))
 	tower_floor = 0
@@ -2553,6 +2571,10 @@ func _reset_state() -> void:
 	max_difficulty = 0
 	field_boss = {"day": 0, "map": "", "dead": false}
 	bosses_beaten = {}
+	ch2_step = 0
+	ch2_race = {"kills": 0, "rival": 0.0, "result": ""}
+	ch2_echo = 0
+	stickers = 0
 	boss_bonus = {}
 	tower_floor = 0
 	tower_best = 0
