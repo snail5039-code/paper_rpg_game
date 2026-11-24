@@ -222,3 +222,12 @@ SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by e
 - `95_ch2_mats` (5×2): `mat_12`~`mat_21` 회색 털, 도토리 깍지, 연필밥, 초록 색연필심, 덩굴 선, 가시, 색 빠진 갓, 나무 진, 깃 선, 노란 색연필심.
 - `81_friend_<종>` (6칸, 기본·움직임 둘·예고·공격·맞음): `kongkong` 콩콩이(살짝 큰 도토리 모자), `vine` 덩굴이(색 빠진 잎 + 새 잎 하나), `acornfox` 도토리 여우, `mossvine` 덩굴 이끼곰, `petalshroom` 꽃잎 버섯. 가져오기 `python3 tools/import_friends.py`.
 - 공통 그림체 문장: "chunky pixel art coloured with crayon / coloured-pencil texture, pixel blocks clearly visible; thick slightly wobbly dark-grey pencil outlines; soft pastel colours; no gloss, no gradients, no drop shadows, no glow, NO text. Match the attached reference image's style and proportions exactly."
+
+## 97. 사냥터 나무와 도끼 (`97_trees_axe`, 5×2, 마젠타 바탕)
+첫 줄: 1장 크레용 나무, 2장 색연필(가을 밤나무) 나무, 그 둘의 그루터기, 통나무 아이콘. 둘째 줄: 손에 든 도끼(세로, 날이 위), 도끼 아이콘 나무·쇠·금(96_life_icons 와 같은 대각선), 빈 칸. 참고 그림으로 96_life_icons 와 17b_ch1_meadow 를 붙였다.
+
+## 98. 불러오기 화면 (`98_loading_flat`, 16:9 통짜)
+책상 위에 펼친 모눈 공책(가운데 고리), 왼쪽 위 스탠드 불빛, 둘레에 색연필·지우개·스티커. 오른쪽 장은 납작하게 (게임이 그 장을 잘라 넘긴다). 아래 1/4 은 책상만 (막대와 팁 자리). 글씨 없음. 참고 그림 32_title.
+
+## 99. 보스 쓰러짐 (`99_boss_burst`, 6×2, 마젠타 바탕)
+첫 줄: 종이와 잉크로 터지는 6장 (작은 번쩍 → 터짐 → 가장 큰 구름 → 흩어짐 → 조각 → 반짝이 몇 개), 같은 크기·같은 가운데로 (칸을 고르게 잘라 쓴다). 둘째 줄: 구겨진 종이 공, 줄 공책 조각, 모눈 조각, 잉크 얼룩, 잉크 방울, 노란 반짝이.

@@ -114,6 +114,10 @@ var slot: int = 0                 # 지금 캐릭터 칸 (1 ~ 8). 0 은 칸 없�
 const SLOT_COUNT := 8
 var save_dir: String = "user://"   # 캐릭터 칸, 공유 자료, 설정 파일이 놓이는 곳 (테스트에서 바꿔 쓴다)
 const TITLE_SCENE := "res://scenes/title.tscn"
+const LOADING_SCENE := "res://scenes/loading.tscn"
+var loading_target := ""          # 불러오기 화면이 다 불러온 뒤 넘어갈 장면
+## 게임에 들어갈 때 불러오기 화면을 보여 줄지 (화면이 없는 테스트에서는 바로 넘어간다)
+var loading_screen := DisplayServer.get_name() != "headless"
 ## 모든 캐릭터가 같이 쓰는 것 (내 마을, 창고, 밭, 가구, 주민). 캐릭터 칸으로 할 때는 shared.json 에 따로 저장한다.
 const SHARED_KEYS := ["home_cells", "home_doodles", "home_intro_seen", "home_sheets", "home_objects", "storage",
 	"farms", "furniture", "room_items", "rooms", "villagers", "custom_villagers", "gift_days", "balloons", "dex", "museum_claimed", "museum"]
@@ -250,7 +254,16 @@ func start_slot(n: int, skip: bool = false) -> void:
 	save_settings()
 	save_game()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(map_scene())
+	open_with_loading(map_scene())
+
+
+## 불러오기 화면(공책 넘김, 연필 막대, 팁)을 거쳐 그 장면을 연다
+func open_with_loading(path: String) -> void:
+	if not loading_screen:
+		get_tree().change_scene_to_file(path)
+		return
+	loading_target = path
+	get_tree().change_scene_to_file(LOADING_SCENE)
 
 
 func delete_slot(n: int) -> void:
@@ -740,7 +753,7 @@ func add_item(item: Dictionary) -> bool:
 	return true
 
 
-# ---------- 생활 도구 (낚싯대, 잠자리채, 낫, 갈퀴, 물뿌리개) ----------
+# ---------- 생활 도구 (낚싯대, 잠자리채, 낫, 갈퀴, 물뿌리개, 도끼) ----------
 
 ## 지금 든 생활 도구 (무기 칸). 안 들었으면 빈 사전.
 func life_tool() -> Dictionary:
@@ -1792,7 +1805,7 @@ func take_forage(key: String) -> String:
 const FORAGE_WEIGHT := [60.0, 26.0, 11.0, 3.0]
 
 
-## 채집물 중에서 kind ("plant": 곤충이 아닌 것, "bug": 곤충)이고 지금(낮·밤) 나오는 것을 희귀도 무게로 하나 고른다.
+## 채집물 중에서 kind ("plant": 땅의 채집 자리, "tree": 나무에서 떨어지는 열매, "bug": 곤충)이고 지금(낮·밤) 나오는 것을 희귀도 무게로 하나 고른다.
 func roll_forage(kind: String, rng: RandomNumberGenerator = null) -> String:
 	var night := is_night()
 	var pool: Array = []
@@ -1800,6 +1813,12 @@ func roll_forage(kind: String, rng: RandomNumberGenerator = null) -> String:
 	for id in Items.FORAGE_INFO:
 		var info: Array = Items.FORAGE_INFO[id]
 		if (str(info[0]) == "bug") != (kind == "bug"):
+			continue
+		# 열매는 나무를 흔들어야, 나뭇가지는 나무를 베어야 나온다 (땅의 채집 자리에는 없다)
+		var on_tree: bool = Items.TREE_FRUIT.has(id)
+		if kind == "tree" and not on_tree:
+			continue
+		if kind == "plant" and (on_tree or Items.FROM_CHOP.has(id)):
 			continue
 		var t := str(info[1])
 		if t != "any" and (t == "night") != night:
@@ -1836,6 +1855,58 @@ func catch_bug(id: String) -> bool:
 
 func forage_left(key: String) -> bool:
 	return int(foraged.get("day", 0)) != day or not (foraged["taken"] as Array).has(key)
+
+
+# ---------- 나무 (흔들기·베기) ----------
+## 나무 자리(key)는 하루에 한 번 흔들 수 있고, 한 번 벨 수 있다 (벤 나무는 다음 날 다시 자란다).
+## 오늘 한 일은 채집 자리와 같은 foraged 에 "key#shake", "key#chop" 으로 적는다.
+func tree_done(key: String, what: String) -> bool:
+	return not forage_left("%s#%s" % [key, what])
+
+
+func _mark_tree(key: String, what: String) -> void:
+	if int(foraged.get("day", 0)) != day:
+		foraged = {"day": day, "taken": []}
+	(foraged["taken"] as Array).append("%s#%s" % [key, what])
+
+
+## 나무를 흔들었다: 오늘 떨어지는 열매 1~3개를 가방에 넣는다. 돌려주는 것: 얻은 id 들 (이미 흔들었으면 빈 배열)
+func shake_tree(key: String) -> Array:
+	if tree_done(key, "shake") or tree_done(key, "chop"):
+		return []
+	_mark_tree(key, "shake")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:shake:%d:%d" % [key, day, 1 if is_night() else 0])
+	var got: Array = []
+	for i in 1 + rng.randi() % 3:
+		var id := roll_forage("tree", rng)
+		if not add_consumable(id):
+			break
+		dex_add("forage", id)
+		got.append(id)
+	if not got.is_empty():
+		lesson_note("forage")
+		board_note("forage")
+	changed.emit()
+	return got
+
+
+## 나무를 다 베었다: 통나무와 나뭇가지. 돌려주는 것: {id: 개수}
+func chop_tree(key: String) -> Dictionary:
+	if tree_done(key, "chop"):
+		return {}
+	_mark_tree(key, "chop")
+	var got := {"g_log": 1 + (1 if randf() < life_power("axe") * 1.25 else 0), "g_twig": 1 + randi() % 2}
+	for id in got.keys():
+		if not add_consumable(id, int(got[id])):
+			got.erase(id)
+			continue
+		if Items.FORAGE_INFO.has(id):
+			dex_add("forage", id)
+	wear_life("axe")
+	board_note("forage")
+	changed.emit()
+	return got
 
 
 # ---------- 가구 ----------
@@ -2430,7 +2501,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
-		"ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
+		"ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "axe_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
 		"boss_bonus": boss_bonus,
 		"tower_best": tower_best,
 		"quick_slots": quick_slots,
@@ -2604,6 +2675,9 @@ func load_game() -> bool:
 	ch2_race = {"kills": int(race.get("kills", 0)), "rival": float(race.get("rival", 0.0)), "result": str(race.get("result", ""))} if typeof(race) == TYPE_DICTIONARY else {"kills": 0, "rival": 0.0, "result": ""}
 	ch2_echo = int(data.get("ch2_echo", 0))
 	stickers = int(data.get("stickers", 0))
+	if bool(data.get("life_given", false)) and not bool(data.get("axe_given", false)):
+		give_life_tools(["axe"])      # 도끼가 생기기 전의 저장
+		notify.call_deferred("도끼가 생겼어요! 사냥터의 나무를 도끼로 베면 통나무가 나와요. 맨손으로 F 를 누르면 나무를 흔들어요.")
 	if not bool(data.get("life_given", false)):
 		# 생활 도구가 없던 때의 저장: 나무 도구 한 벌 (낚싯대·잠자리채·낫·갈퀴·물뿌리개)
 		give_life_tools(Items.LIFE_ORDER)

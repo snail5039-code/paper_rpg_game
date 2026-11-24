@@ -321,7 +321,7 @@ func _begin(id: String) -> void:
 		"cook":
 			GameState.add_consumable("c_radish", 2, true)
 	# 생활 도구: 선생이 쥐여 준다 (나무 등급). 들어야 쓸 수 있다.
-	var gifts := {"fish": ["rod"], "forage": ["sickle", "net"], "farm": ["rake", "can"]}
+	var gifts := {"fish": ["rod"], "forage": ["sickle", "net", "axe"], "farm": ["rake", "can"]}
 	if gifts.has(id):
 		GameState.give_life_tools(gifts[id])
 		var first := str(gifts[id][0])

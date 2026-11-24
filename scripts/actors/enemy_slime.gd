@@ -15,6 +15,7 @@ const FallenScript := preload("res://scripts/actors/fallen.gd")
 const MonFx := preload("res://scripts/actors/mon_fx.gd")
 const MonsterBook := preload("res://scripts/data/monster_book.gd")
 const MonFxData := preload("res://scripts/data/mon_fx_data.gd")
+const BossBurst := preload("res://scripts/actors/boss_burst.gd")
 ## 1장 기본 몬스터의 공격 방식 (2장부터는 monster_book.gd 의 SPECIES 에 적혀 있다)
 const BASE_ARCH := {"slime": "hop", "squiggle": "dash", "dots": "swarm", "grass": "ambush", "spider": "grid", "bug": "roll"}
 const EQUIP_DROP_RATE := 0.02   # 몬스터가 장비를 떨어뜨릴 확률 (세부설정 6)
@@ -401,6 +402,7 @@ func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 
 
 func _die() -> void:
+	var first_loot := get_parent().get_child_count()
 	var drop: Node2D = PickupScript.new()
 	drop.global_position = global_position
 	get_parent().add_child(drop)
@@ -454,11 +456,43 @@ func _die() -> void:
 		fallen.set("kind", kind)
 		fallen.global_position = global_position
 		get_parent().add_child(fallen)
-	var vanish := Art.tex("slime_vanish")
-	if vanish:
-		Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
+	if boss != "" and _sprite and _sprite.texture:
+		# 보스: 그림이 조각나 터지며 흩어지고, 전리품이 사방으로 튀어 오른다
+		BossBurst.spawn(get_parent(), _sprite)
+		_pop_loot(get_parent(), first_loot)
+	else:
+		var vanish := Art.tex("slime_vanish")
+		if vanish:
+			Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
 	died.emit(home)
 	queue_free()
+
+
+## 보스의 전리품: 쓰러진 자리에서 사방으로 튀어 올라 떨어진다
+func _pop_loot(par: Node, from_index: int) -> void:
+	var loot: Array = []
+	for i in range(from_index, par.get_child_count()):
+		var n := par.get_child(i)
+		if n.get_script() == PickupScript:
+			loot.append(n)
+	for i in loot.size():
+		var n: Node2D = loot[i]
+		var start := global_position
+		var a := TAU * i / float(maxi(1, loot.size())) + randf_range(-0.3, 0.3)
+		var end := start + Vector2.from_angle(a) * randf_range(26.0, 44.0) * Vector2(1.0, 0.7)
+		var peak := randf_range(22.0, 34.0)
+		n.global_position = start
+		var wait := 0.12 + 0.05 * i
+		n.set("_t", -0.5 - wait)          # 날아가는 동안에는 줍지 않는다
+		var tx := n.create_tween()      # 가로는 곧게, 세로는 올라갔다 내려온다 (보스는 사라지므로 트윈은 전리품에 단다)
+		tx.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tx.tween_interval(wait)
+		tx.tween_property(n, "global_position:x", end.x, 0.6)
+		var ty := n.create_tween()
+		ty.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		ty.tween_interval(wait)
+		ty.tween_property(n, "global_position:y", minf(start.y, end.y) - peak, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		ty.tween_property(n, "global_position:y", end.y, 0.3).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 
 
 func _draw() -> void:

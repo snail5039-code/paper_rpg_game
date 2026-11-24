@@ -50,11 +50,11 @@ func _run() -> void:
 
 	print("[문방구에서 사기]")
 	var life_rows := Items.SHOP.filter(func(e): return e is Array and str(e[0]) == "life")
-	check(life_rows.size() == 5, "문방구가 나무 생활 도구 5종을 팖")
+	check(life_rows.size() == 6, "문방구가 나무 생활 도구 6종을 팖 (도끼 포함)")
 	GameState.coins = 1000
 	for e in life_rows:
 		GameState.buy(e)
-	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 5, "다섯 가지를 사서 가방에 넣음")
+	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 6, "여섯 가지를 사서 가방에 넣음")
 	check(not GameState.dex_entries("gear").is_empty() == false or not GameState.dex_has("gear", "tool_0"), "생활 도구는 장비 도감에 적히지 않음")
 
 	print("[들기와 T 바꾸기]")
@@ -135,8 +135,86 @@ func _run() -> void:
 	check(bool(fishing.call("is_active")), "낚싯대를 들면 낚시가 됨")
 	fishing.call("stop")
 	await frames(3)
+
+	print("[나무: 흔들기와 베기]")
+	var trees := get_tree().get_nodes_in_group("tree")
+	check(trees.size() >= 2, "사냥터에 나무가 있음 (%d그루)" % trees.size())
+	var ground_ok := true
+	for i in 300:
+		var g := GameState.roll_forage("plant")
+		if Items.TREE_FRUIT.has(g) or Items.FROM_CHOP.has(g):
+			ground_ok = false
+	check(ground_ok, "땅의 채집 자리에서는 열매·나뭇가지가 나오지 않음")
+	var fruit_ok := true
+	for i in 100:
+		fruit_ok = fruit_ok and Items.TREE_FRUIT.has(GameState.roll_forage("tree"))
+	check(fruit_ok, "나무에서는 밤·도토리·사과 같은 열매만 떨어짐")
+	var tr: Node2D = trees[0]
+	var tkey := str(tr.get("key"))
+	p.global_position = tr.global_position + Vector2(-14, 4)
+	GameState.swap_life()                  # 무기를 든다
+	if not GameState.life_tool().is_empty():
+		GameState.swap_life()
+	var fruit_before := 0
+	for id in Items.TREE_FRUIT:
+		fruit_before += GameState.consumable_count(id)
+	tr.call("interact")
+	await frames(5)
+	var fruit_after := 0
+	for id in Items.TREE_FRUIT:
+		fruit_after += GameState.consumable_count(id)
+	check(fruit_after > fruit_before and GameState.tree_done(tkey, "shake"), "맨손으로 흔들면 열매가 떨어져 가방에 들어감 (+%d)" % (fruit_after - fruit_before))
+	tr.call("interact")
+	await frames(3)
+	var fruit_again := 0
+	for id in Items.TREE_FRUIT:
+		fruit_again += GameState.consumable_count(id)
+	check(fruit_again == fruit_after, "하루에 한 번만 흔들 수 있음")
+	GameState.hold_life("axe")
+	var axe_d := int(GameState.life_tool()["dur"])
+	var logs0 := GameState.consumable_count("g_log")
+	for i in 3:
+		tr.call("interact")
+		await frames(30)
+	check(GameState.consumable_count("g_log") > logs0 and GameState.consumable_count("g_twig") > 0, "도끼로 세 번 찍으면 통나무와 나뭇가지가 나옴")
+	check(int(GameState.life_tool()["dur"]) == axe_d - 1, "나무 하나를 베면 도끼가 1 닳음")
+	await frames(60)
+	check(bool(tr.call("is_stump")), "벤 나무는 그루터기가 됨")
+	GameState.day += 1
+	check(not GameState.tree_done(tkey, "chop") and not GameState.tree_done(tkey, "shake"), "다음 날에는 다시 자라고 다시 흔들 수 있음")
+	GameState.day -= 1
+
+	print("[보스가 터지며 흩어짐]")
+	var BossBurst := load("res://scripts/actors/boss_burst.gd")
+	var spr := Sprite2D.new()
+	spr.texture = load("res://assets/sprites/monsters/boss_0.png")
+	f.add_child(spr)
+	var burst: Node2D = BossBurst.spawn(f, spr)
+	await frames(20)
+	check((burst.get("_bits") as Array).size() >= 18 and (burst.get("_pop") as Array).all(func(t): return t != null), "보스가 번쩍인 뒤 터짐 그림 6장과 종이·잉크 조각으로 터짐")
+	await frames(140)
+	check(not is_instance_valid(burst), "터진 조각은 잠시 뒤 사라짐")
+	spr.queue_free()
 	f.queue_free()
 	await frames(3)
+
+	print("[불러오기 화면]")
+	var LoadScene := load("res://scenes/loading.tscn")
+	var ld: Control = LoadScene.instantiate()
+	ld.set("target", "res://scenes/home.tscn")
+	add_child(ld)
+	await frames(5)
+	check(ld.get_node_or_null(".") != null and (ld.get("_tip") as Label).text.begins_with("팁:"), "불러오기 화면에 팁 한 줄이 나옴")
+	var prog := 0.0
+	for i in 400:
+		await frames(1)
+		prog = float(ld.call("progress"))
+		if prog >= 1.0:
+			break
+	check(prog >= 1.0, "다음 장면을 뒤에서 다 불러옴")
+	ld.set("_done", true)              # 테스트에서는 장면을 바꾸지 않는다
+	ld.queue_free()
+	await frames(2)
 
 	print("[예전 저장]")
 	GameState.inventory = []
@@ -149,10 +227,10 @@ func _run() -> void:
 	fa.store_string(JSON.stringify(data))
 	fa.close()
 	GameState.load_game()
-	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 5, "생활 도구 전의 저장을 불러오면 나무 도구 한 벌을 받음")
+	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 6, "생활 도구 전의 저장을 불러오면 나무 도구 한 벌(도끼까지)을 받음")
 	GameState.save_game()
 	GameState.load_game()
-	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 5, "두 번 받지는 않음")
+	check(GameState.inventory.filter(func(it): return Items.is_life(it)).size() == 6, "두 번 받지는 않음")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

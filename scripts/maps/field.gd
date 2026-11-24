@@ -13,7 +13,9 @@ const Companion := preload("res://scripts/actors/companion.gd")
 const MonsterScene := preload("res://scenes/enemy.tscn")
 const SpotScript := preload("res://scripts/actors/pickup_spot.gd")
 const BugScript := preload("res://scripts/actors/bug.gd")
+const TreeScript := preload("res://scripts/actors/tree.gd")
 const FORAGE_SPOTS := 4
+const TREE_SPOTS := 3           # 흔들거나 벨 수 있는 나무 (대장 방에는 없다)
 const BUG_SLOTS := 3            # 화면에 들어올 때마다 곤충 자리 셋 (자리마다 70%)
 const POND_SPOT := Vector2(470, 300)   # 들판 연못의 낚시 표지판 (bg px)
 
@@ -207,6 +209,14 @@ func _extras() -> void:
 		Sound.play.call_deferred("boss_appear")
 	if bool(cfg.get("town", false)):
 		return      # 마을에는 채집 자리·곤충이 없다
+	# 나무 (하루에 한 번 흔들고, 한 번 벤다). 자리는 화면마다 정해져 있다.
+	var trees := tree_spots()
+	for i in trees.size():
+		var tree: Node2D = TreeScript.new()
+		tree.set("key", "%s:tree%d" % [field_id, i])
+		tree.set("look", 1 if ch == "ch2" else 0)
+		tree.position = bg(trees[i])
+		actors.add_child(tree)
 	# 채집 자리 (하루에 한 번). 자리는 화면마다 정해져 있다.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(field_id)
@@ -218,6 +228,9 @@ func _extras() -> void:
 		var blocked := false
 		for r in cfg["solids"]:
 			if (r as Rect2).grow(40).has_point(at):
+				blocked = true
+		for t in trees:
+			if (t as Vector2).distance_to(at) < 110.0:
 				blocked = true
 		if blocked:
 			continue
@@ -260,6 +273,35 @@ func _extras() -> void:
 		balloon.set("key", field_id)
 		balloon.position = bg(Data.BALLOONS[field_id])
 		actors.add_child(balloon)
+
+
+## 이 화면의 나무 자리 (bg px). 막힌 곳, 문 앞, 화면 가운데(대장 자리)를 피해 화면마다 늘 같은 곳.
+func tree_spots() -> Array:
+	var out: Array = []
+	if field_id.ends_with("bossroom") or bool(cfg.get("town", false)):
+		return out
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(field_id + ":trees")
+	var tries := 0
+	while out.size() < TREE_SPOTS and tries < 160:
+		tries += 1
+		var at := Vector2(rng.randf_range(PLAY.position.x + 110, PLAY.end.x - 110), rng.randf_range(PLAY.position.y + 150, PLAY.end.y - 50))
+		var ok := at.distance_to(Vector2(836, 470)) > 160.0
+		for r in cfg["solids"]:
+			if (r as Rect2).grow(70).has_point(at):
+				ok = false
+		for g in ARRIVE.values():
+			if (g as Vector2).distance_to(at) < 220.0:
+				ok = false
+		for t in out:
+			if (t as Vector2).distance_to(at) < 260.0:
+				ok = false
+		for m in cfg["monsters"]:
+			if (m[1] as Vector2).distance_to(at) < 70.0:
+				ok = false
+		if ok:
+			out.append(at)
+	return out
 
 
 func _tips() -> void:

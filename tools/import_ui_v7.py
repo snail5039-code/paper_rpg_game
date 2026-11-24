@@ -123,6 +123,11 @@ SHEETS = {
     "95_ch2_mats": (5, 2, [("mat_%d" % i, 64) for i in range(12, 22)]),
     # 생활 도구 등급 아이콘: 칸 = 낚싯대·잠자리채·낫·갈퀴·물뿌리개, 줄 = 나무·쇠·금
     "96_life_icons": (5, 3, [("life_icon_%s_%d" % (k, g), 64) for g in range(3) for k in ["rod", "net", "sickle", "rake", "can"]]),
+    # 사냥터 나무: 1장·2장 나무, 그루터기 둘, 통나무 / 손에 든 도끼, 도끼 등급 아이콘(나무·쇠·금)
+    "97_trees_axe": (5, 2, [("tree_0", 240), ("tree_1", 240), ("stump_0", 120), ("stump_1", 120), ("forage_log", 64),
+                            ("life_axe", 80), ("life_icon_axe_0", 64), ("life_icon_axe_1", 64), ("life_icon_axe_2", 64)]),
+    # 보스가 쓰러질 때: 둘째 줄의 조각 6개 (첫 줄 터짐 6장은 아래 EVEN 으로 자른다)
+    "99_boss_burst": (6, 2, [("", 0)] * 6 + [("boss_debris_%d" % i, 64) for i in range(6)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
@@ -131,6 +136,8 @@ SHEETS = {
 }
 # 비스듬히 그려져 와서 세워야 하는 도구: 이름 → 돌릴 각도(반시계). 크기는 세운 뒤의 높이
 UPRIGHT = {"life_net": 45}
+# 애니메이션처럼 칸마다 크기와 가운데가 같아야 하는 줄: 시트 → (칸 수 가로, 세로, 줄, 저장 이름 앞, 한 칸의 긴 변)
+EVEN = {"99_boss_burst": (6, 2, 0, "fx_boss_pop_", 220)}
 # 칸을 자르지 않고 그대로 이어 붙이는 애니메이션 띠: (칸 수, 저장 이름, 한 칸의 가로)
 STRIPS = {"79_aura": (4, "fx_aura", 120)}
 # 사냥터 배경처럼 1672 × 941 로 가운데를 잘라 맞추는 그림 (끝없는 탑)
@@ -140,7 +147,9 @@ FULL = {"25_ult_cutin": ("ult_cutin", 1280, 0.62), "31_room_bg": ("bg_room", 128
         # 건물 안 방 배경 (내 집의 방과 같은 크기와 배치)
         "61_room_shop": ("bg_room_shop", 1280, 1.0), "61_room_craft": ("bg_room_craft", 1280, 1.0),
         "61_room_storage": ("bg_room_storage", 1280, 1.0), "61_room_diner": ("bg_room_diner", 1280, 1.0),
-        "61_room_villager": ("bg_room_villager", 1280, 1.0), "85_bg_museum": ("bg_room_museum", 1280, 1.0)}
+        "61_room_villager": ("bg_room_villager", 1280, 1.0), "85_bg_museum": ("bg_room_museum", 1280, 1.0),
+        # 게임에 들어갈 때의 불러오기 화면
+        "98_loading_flat": ("bg_loading", 1280, 1.0)}
 
 
 def cell_images(rgba, cols, rows):
@@ -215,6 +224,8 @@ def main():
         cells = gap_images(rgba, cols, rows) if name.startswith("60_bld_") else cell_images(rgba, cols, rows)
         for i, (out_name, size) in enumerate(parts):
             k = (i // cols, i % cols)
+            if out_name == "":
+                continue
             if k not in cells:
                 print("[빈 칸] %s %s" % (name, out_name))
                 continue
@@ -239,6 +250,19 @@ def main():
                 s = size / im.height
             im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
             im.save(sprite_path(out_name))
+            count += 1
+    for name, (cols, rows, row, prefix, size) in EVEN.items():
+        if not wanted(name):
+            continue
+        done = os.path.join(MID, name + ".png")
+        if not os.path.isfile(done):
+            continue
+        im = Image.open(done).convert("RGBA")
+        cw, ch = im.width / cols, im.height / rows
+        for c in range(cols):
+            cell = im.crop((round(c * cw), round(row * ch), round((c + 1) * cw), round((row + 1) * ch)))
+            s = size / max(cell.size)
+            cell.resize((round(cell.width * s), round(cell.height * s)), Image.LANCZOS).save(sprite_path(prefix + str(c)))
             count += 1
     for name, (out_name, width, band) in FULL.items():
         if not wanted(name):
