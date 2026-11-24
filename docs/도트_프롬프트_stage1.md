@@ -118,3 +118,9 @@ Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfect
 
 - 85: 첨부 `61_room_shop.png`. "the EMPTY interior of a small village MUSEUM hall … back wall across the top (cream paper wallpaper with a soft ruled-line pattern, two tall arched windows, a few small hanging lamps), a warm light wooden plank floor …, an open double doorway at the bottom centre. The floor must be COMPLETELY EMPTY" → `bg_room_museum`
 - 86: 4×2, 자홍 바탕, 전부 비어 있게: 수조, 곤충 표본장, 꽃 화단, 진열 탁자, 코르크 판 이젤, 유리 진열장, 안내 데스크, 부엉이 관장 → `prop_tank`, `prop_bugcase`, `prop_planter`, `prop_table`, `prop_board`, `prop_showcase`, `prop_desk`, `npc_curator`. 전시물은 `scripts/maps/museum_display.gd` 가 그 위에 그린다.
+
+## 87. 사냥터 팻말 (`87_gate_sign.png`)
+
+- 첨부: `assets/sprites/buildings/deco_signpost.png`
+- 결과: `deco_sign_hunt` (가운데가 빈 나무 팻말, 글자 "사냥터" 는 게임에서 얹는다), `ui_arrow_down` (아래를 가리키는 크레용 화살표). 공책 마을 아래쪽 문 (`scripts/maps/village.gd` 의 `_build_gate_sign`)
+- 2칸, 자홍 바탕: 1 판자 오른쪽 끝이 화살표 모양인 나무 팻말 (왼쪽 끝에 칼과 잎 무늬, 가운데는 비움), 2 연두 크레용으로 그린 굵은 아래 화살표. STYLE: ...(공통 그림체)

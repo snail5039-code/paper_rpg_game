@@ -95,6 +95,8 @@ SHEETS = {
     "83_forage_c": (4, 3, [("forage_%d" % i, 64) for i in range(28, 40)]),
     "83_forage_d": (4, 3, [("forage_%d" % i, 64) for i in range(40, 50)] + [("life_net", 124)]),
     # 박물관 가구 (비어 있음, 전시물은 게임이 넣는다): 수조, 곤충 표본장, 꽃 화단, 진열 탁자, 코르크 판, 유리 진열장, 안내 데스크, 부엉이 관장
+    # 공책 마을 아래쪽 문: 사냥터 팻말(가운데가 비어 있어 글자를 얹는다), 아래를 가리키는 크레용 화살표
+    "87_gate_sign": (2, 1, [("deco_sign_hunt", 150), ("ui_arrow_down", 72)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
