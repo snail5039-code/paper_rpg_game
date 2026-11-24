@@ -117,6 +117,13 @@ static func hit_sound(kind: String) -> Array:
 	return ["hit_" + str(SOUND.get(tex, "slash")), pitch_of(kind)]
 
 
+## 내가 때렸을 때 몬스터 몸에서 나는 소리 [소리 이름, 음높이]: 그 몬스터 효과와 같은 갈래를 더 높고 짧게.
+## (enemy_slime.gd 가 공통 타격음 "hit" 위에 겹쳐 튼다)
+static func struck_sound(kind: String) -> Array:
+	var hs := hit_sound(kind)
+	return [hs[0], float(hs[1]) * 1.3]
+
+
 ## 달려들 때 나는 소리 [소리 이름, 음높이]. arch: 공격 방식 (enemy_slime.gd)
 static func lunge_sound(kind: String, arch: String) -> Array:
 	if arch == "boss":

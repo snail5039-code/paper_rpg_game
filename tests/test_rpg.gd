@@ -172,10 +172,13 @@ func _run() -> void:
 			no_snd.append("%s 맞는 소리(%s)" % [k, hs[0]])
 		if not Sound.has(str(ls[0])):
 			no_snd.append("%s 달려드는 소리(%s)" % [k, ls[0]])
+		var ss: Array = FxData.struck_sound(str(k))
+		if not Sound.has(str(ss[0])) or is_equal_approx(float(ss[1]), float(hs[1])):
+			no_snd.append("%s 맞을 때 소리(%s)" % [k, ss[0]])
 		if str(k).split("_")[0].begins_with("tm"):
 			continue
 		sounds["%s@%.2f" % [hs[0], hs[1]]] = true
-	check(no_snd.is_empty(), "모든 몬스터에 맞는 소리와 달려드는 소리가 있음 (빠진 것: %s)" % str(no_snd))
+	check(no_snd.is_empty(), "모든 몬스터에 때리는·맞는·달려드는 소리가 있음 (빠진 것: %s)" % str(no_snd))
 	check(sounds.size() >= 60, "본편 몬스터 맞는 소리가 몬스터마다 다름 (%d가지)" % sounds.size())
 
 	print("[시작 장비와 수치]")

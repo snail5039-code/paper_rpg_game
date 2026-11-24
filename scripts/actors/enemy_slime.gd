@@ -382,7 +382,9 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 
 func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 	hp -= amount
-	Sound.play("hit")
+	Sound.play("hit", 1.15 if crit else 1.0, 2.0 if crit else -2.0)   # 공통 타격음
+	var ss: Array = MonFxData.struck_sound(kind)                       # 그 몬스터 몸에서 나는 소리
+	Sound.play(str(ss[0]), float(ss[1]), -3.0 if crit else -6.0)
 	_pop_number(amount, crit)
 	_flash = 0.25
 	_knock = dir.normalized() * (190.0 if boss == "" else 40.0)
