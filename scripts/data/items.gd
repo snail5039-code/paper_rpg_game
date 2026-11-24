@@ -475,6 +475,8 @@ const RECIPES := [
 const SHOP := [
 	"bandage", "milk", "candy", "paper", "paper_thick",
 	["tool", 0, 0, 40], ["hat", 2, 0, 30], ["cloth", 1, 0, 35], ["shoe", 3, 0, 30], ["bag", 1, 0, 30], ["acc", 0, 0, 30],
+	# 생활 도구 (나무): ["life", 종류, 등급, 값]
+	["life", "rod", 0, 60], ["life", "net", 0, 60], ["life", "sickle", 0, 60], ["life", "rake", 0, 60], ["life", "can", 0, 60],
 ]
 
 ## 연필잡이 스킬 (세부설정 4).
@@ -503,6 +505,47 @@ const SKILLS := {
 }
 const SKILL_ORDER := ["slash", "circle", "dot", "hatch", "press", "erase", "sharpen", "warmup", "ult"]
 const SKILL_KEYS := ["Q", "E", "R"]
+
+
+# ---------- 생활 도구 ----------
+## 낚시·곤충 잡기·채집·농사는 맞는 생활 도구를 무기 칸(도구)에 들어야 할 수 있다. 들고 있는 동안은 싸움이 약하다.
+## 등급 셋(나무·쇠·금): 좋을수록 효과가 크고 오래 간다. 쓸 때마다 내구도가 1 줄고, 0 이 되면 부서진다.
+## 아이템: {"slot": "tool", "life": 종류, "grade": 0~2, "dur": 남은 내구도, "tier": 0, "level": 1, "plus": 0, "opts": []}
+const LIFE_TOOLS := {
+	"rod": {"name": "낚싯대", "held": "life_rod", "use": "낚시", "fx": "입질이 %d%% 빨리 온다"},
+	"net": {"name": "잠자리채", "held": "life_net", "use": "곤충 잡기", "fx": "곤충을 잡을 확률 +%d%%"},
+	"sickle": {"name": "낫", "held": "life_sickle", "use": "채집", "fx": "채집물을 하나 더 얻을 확률 %d%%"},
+	"rake": {"name": "갈퀴", "held": "life_rake", "use": "밭 갈기", "fx": "밭 갈기가 %d%% 빠르다"},
+	"can": {"name": "물뿌리개", "held": "life_can", "use": "물 주기", "fx": "물 주기가 %d%% 빠르다"},
+}
+const LIFE_ORDER := ["rod", "net", "sickle", "rake", "can"]
+const LIFE_GRADES := ["나무", "쇠", "금"]
+const LIFE_DUR := [40, 100, 250]               # 등급마다 내구도
+const LIFE_POWER := [0.0, 0.2, 0.4]            # 등급마다 효과 (위 fx 의 %)
+const LIFE_COLORS := [Color(1, 1, 1), Color(0.78, 0.86, 1.0), Color(1.0, 0.86, 0.42)]
+const LIFE_ATK := 2                            # 생활 도구를 든 때의 공격력
+const LIFE_PRICE := [60, 0, 0]                 # 문방구 값 (나무만 판다)
+## 조합대에서 한 등급 올리기: 아래 등급 도구 하나 + 재료 + 연필심
+const LIFE_UPGRADE := [
+	{},                                         # 나무는 문방구에서
+	{"mats": {7: 3, 11: 1}, "lead": 5, "coins": 120},       # 쇠: 모눈 조각 3, 몽당 지우개 1
+	{"mats": {19: 3, 21: 2}, "lead": 12, "coins": 400},     # 금: 나무 진 3, 노란 색연필심 2 (2장 재료)
+]
+
+
+static func make_life(kind: String, grade: int = 0) -> Dictionary:
+	return {"slot": "tool", "life": kind, "grade": grade, "dur": int(LIFE_DUR[grade]),
+		"shape": 0, "tier": 0, "level": 1, "plus": 0, "opts": []}
+
+
+static func is_life(item: Dictionary) -> bool:
+	return LIFE_TOOLS.has(str(item.get("life", "")))
+
+
+static func life_text(item: Dictionary) -> String:
+	var g := int(item["grade"])
+	var info: Dictionary = LIFE_TOOLS[str(item["life"])]
+	return "%s 할 때 들어야 한다" % info["use"] + ("\n" + str(info["fx"]) % roundi(float(LIFE_POWER[g]) * 100.0) if g > 0 else "")
 
 
 # ---------- 장비 ----------
@@ -542,12 +585,16 @@ static func is_unique(item: Dictionary) -> bool:
 
 ## 장비의 고유 효과 id ("" 은 없음): 유일 장비는 자기 것, 완성 등급은 부위마다 하나
 static func fx_of(item: Dictionary) -> String:
+	if is_life(item):
+		return ""
 	if is_unique(item):
 		return str(item["unique"])
 	return str(FX_BY_SLOT[str(item["slot"])]) if int(item["tier"]) >= 4 else ""
 
 
 static func item_name(item: Dictionary) -> String:
+	if is_life(item):
+		return "%s %s" % [LIFE_GRADES[int(item["grade"])], LIFE_TOOLS[str(item["life"])]["name"]]
 	var plus := int(item.get("plus", 0))
 	var base := "%s %s" % [TIER_NAMES[int(item["tier"])], SHAPES[str(item["slot"])][int(item["shape"])]]
 	if is_unique(item):
@@ -559,6 +606,9 @@ static func item_name(item: Dictionary) -> String:
 
 ## 직접 그려 만든 장비는 내 그림이 아이콘이다
 static func icon(item: Dictionary) -> String:
+	if is_life(item):
+		var ic := "life_icon_%s_%d" % [str(item["life"]), int(item["grade"])]
+		return ic if Art.has(ic) else str(LIFE_TOOLS[str(item["life"])]["held"])
 	var own := str(item.get("art", ""))
 	if own != "":
 		return own
@@ -573,6 +623,8 @@ static func icon(item: Dictionary) -> String:
 
 ## 아이콘에 입히는 색. 유일 장비의 그림은 색이 칠해져 있어서 그대로 둔다 (그림이 없을 때만 붉게).
 static func tier_color(item: Dictionary) -> Color:
+	if is_life(item):
+		return Color.WHITE if icon(item).begins_with("life_icon_") else LIFE_COLORS[int(item["grade"])]
 	if is_unique(item):
 		return Color.WHITE if not icon(item).begins_with("equip_") else UNIQUE_COLOR
 	if set_of(item) != "":
@@ -582,6 +634,8 @@ static func tier_color(item: Dictionary) -> Color:
 
 ## 부위의 기본 능력 값 (강화 한 단계마다 8% 오른다)
 static func main_value(item: Dictionary) -> int:
+	if is_life(item):
+		return LIFE_ATK
 	var tier := int(item["tier"])
 	var lv := int(item["level"])
 	var v := 0.0
@@ -600,6 +654,10 @@ static func stat_text(key: String, value: int) -> String:
 
 
 static func describe(item: Dictionary) -> String:
+	if is_life(item):
+		return "
+".join([item_name(item), "공격력 +%d (생활 도구를 든 동안은 싸움이 약하다)" % LIFE_ATK, life_text(item),
+			"내구도 %d / %d" % [int(item["dur"]), int(LIFE_DUR[int(item["grade"])])]])
 	var lines: Array = [item_name(item), stat_text(str(MAIN_STAT[str(item["slot"])]), main_value(item))]
 	for o in item["opts"]:
 		lines.append("  " + stat_text(str(o[0]), int(o[1])))
@@ -615,10 +673,14 @@ static func describe(item: Dictionary) -> String:
 
 
 static func sell_price(item: Dictionary) -> int:
+	if is_life(item):
+		return [20, 80, 250][int(item["grade"])]
 	return int(SELL_BY_TIER[int(item["tier"])]) + int(item.get("plus", 0)) * 5
 
 
 static func dust_value(item: Dictionary) -> int:
+	if is_life(item):
+		return 1 + int(item["grade"]) * 2
 	return int(DUST_BY_TIER[int(item["tier"])]) + int(item.get("plus", 0))
 
 

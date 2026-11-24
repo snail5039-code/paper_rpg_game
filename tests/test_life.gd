@@ -479,6 +479,7 @@ func _run() -> void:
 	GameState.coins = 3000
 
 	print("[건물 기능]")
+	GameState.give_life_tools(GameState.Items.LIFE_ORDER)
 	GameState.pencil_lead = 500
 	GameState.coins = 3000
 	var spots := {"bld_storage": Vector2(300, 300), "bld_board": Vector2(420, 300), "bld_fishing": Vector2(540, 300),
@@ -521,6 +522,8 @@ func _run() -> void:
 	check(not GameState.board_claim(0), "보상은 한 번만")
 	hhud.call("toggle_menu", "board")
 	# 낚시터
+	GameState.give_life_tools(GameState.Items.LIFE_ORDER)
+	GameState.hold_life("rod")      # 낚시터에서 낚으려면 낚싯대를 들어야 한다
 	(by_id["bld_fishing"] as Node).call("interact")
 	await frames(3)
 	var fishing: Control = hhud.call("fishing")
@@ -609,6 +612,10 @@ func _run() -> void:
 	var farm_key := "560_600"
 	GameState.consumables["s_radish"] = 2
 	GameState.consumables["s_carrot"] = 1
+	GameState.give_life_tools(GameState.Items.LIFE_ORDER)
+	GameState.hold_life("rod")
+	check(not GameState.plant(farm_key, 0, "s_radish"), "갈퀴를 들지 않으면 심을 수 없음")
+	GameState.hold_life("rake")
 	check(GameState.plant(farm_key, 0, "s_radish") and GameState.plant(farm_key, 1, "s_carrot") and GameState.consumable_count("s_radish") == 1, "씨앗을 심음")
 	check(not GameState.plant(farm_key, 0, "s_radish"), "이미 심은 칸에는 못 심음")
 	var d_farm := GameState.day
@@ -621,6 +628,7 @@ func _run() -> void:
 			farm_obj = n
 	hp.global_position = farm_obj.global_position + (farm_obj.call("plot_pos", 0) as Vector2)
 	check(int(farm_obj.call("thirsty_plot_near", hp.global_position)) == 0, "칸 앞에 서면 그 칸을 고름")
+	GameState.hold_life("can")
 	farm_obj.call("interact")
 	await frames(2)
 	var plots_now := GameState.farm_plots(farm_key)
@@ -982,6 +990,8 @@ func _run() -> void:
 	GameState.bag_sizes["use"] = GameState.BAG_MAX   # 앞에서 이것저것 모았으니 소비 가방을 넉넉하게
 	p2.set("_invuln", 30.0)                          # 옆의 필드 보스에게 맞으면 채집이 끊기므로 잠깐 무적
 	var fspots := 0
+	GameState.give_life_tools(GameState.Items.LIFE_ORDER)
+	GameState.hold_life("sickle")
 	for n in get_tree().get_nodes_in_group("interactable"):
 		if str(n.get("mode")) == "forage":
 			fspots += 1

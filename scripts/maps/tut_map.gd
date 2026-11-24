@@ -320,6 +320,18 @@ func _begin(id: String) -> void:
 			GameState.add_consumable("s_radish", 2, true)
 		"cook":
 			GameState.add_consumable("c_radish", 2, true)
+	# 생활 도구: 선생이 쥐여 준다 (나무 등급). 들어야 쓸 수 있다.
+	var gifts := {"fish": ["rod"], "forage": ["sickle", "net"], "farm": ["rake", "can"]}
+	if gifts.has(id):
+		GameState.give_life_tools(gifts[id])
+		var first := str(gifts[id][0])
+		for i in GameState.inventory.size():
+			if str(GameState.inventory[i].get("life", "")) == first:
+				GameState.equip(i)
+				break
+		GameState.notify("%s 을(를) 받아 들었어요. 싸울 때는 T 로 무기와 바꿔 들어요." % "·".join((gifts[id] as Array).map(func(k): return Items.LIFE_TOOLS[k]["name"])))
+	elif not GameState.life_tool().is_empty():
+		GameState.swap_life()       # 싸우는 수업 전에는 무기를 다시 든다
 	GameState.changed.emit()
 	_show()
 

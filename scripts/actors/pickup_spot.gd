@@ -53,7 +53,9 @@ func _process(delta: float) -> void:
 func interact() -> void:
 	match mode:
 		"forage":
-			# 낫을 한 번 휘두른 뒤에 얻는다
+			# 낫을 들어야 한다. 한 번 휘두른 뒤에 얻는다
+			if not GameState.need_life("sickle"):
+				return
 			var p: Node2D = GameState.player_ref
 			if is_instance_valid(p) and p.has_method("act") and p.is_inside_tree():
 				if not bool(p.call("is_acting")):
@@ -66,6 +68,8 @@ func interact() -> void:
 			GameState.changed.emit()
 			GameState.notify("날아간 풍선을 잡았어요. (%d/3)" % GameState.balloons.size())
 		"fish":
+			if not GameState.need_life("rod"):
+				return
 			var hud := get_tree().get_first_node_in_group("hud")
 			if hud:
 				hud.call("start_fishing", false, key, global_position + cast_to)
@@ -74,7 +78,12 @@ func interact() -> void:
 func _take() -> void:
 	var id := GameState.take_forage(key)
 	if id != "":
-		GameState.notify("%s 을(를) 얻었어요." % Items.CONSUMABLES[id][0])
+		GameState.wear_life("sickle")
+		# 좋은 낫은 하나 더 얻을 때가 있다
+		if randf() < GameState.life_power("sickle") * 1.25 and GameState.add_consumable(id, 1):
+			GameState.notify("%s 을(를) 두 개 얻었어요!" % Items.CONSUMABLES[id][0])
+		else:
+			GameState.notify("%s 을(를) 얻었어요." % Items.CONSUMABLES[id][0])
 
 
 func _draw() -> void:

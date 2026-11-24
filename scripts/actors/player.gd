@@ -270,6 +270,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			used = use_skill_slot(0)
 		elif code == KEY_E:
 			used = use_skill_slot(1)
+		elif code == KEY_T:
+			used = GameState.swap_life()      # 무기 ↔ 생활 도구
 		elif code == KEY_R:
 			used = use_skill_slot(2)
 		elif code == KEY_1:
@@ -357,6 +359,13 @@ func _refresh_look() -> void:
 		var own := Art.tex(str(Items.UNIQUES[str(eq["tool"]["unique"])].get("held", "")))
 		if own:
 			_tool_tex = own
+	# 생활 도구를 들었으면 그 도구 (등급 색을 입힌다)
+	if eq.has("tool") and Items.is_life(eq["tool"]):
+		_tool_tex = Art.tex(str(Items.LIFE_TOOLS[str(eq["tool"]["life"])]["held"]))
+		if _tool:
+			_tool.modulate = Items.LIFE_COLORS[int(eq["tool"]["grade"])]
+	elif _tool:
+		_tool.modulate = Color.WHITE
 
 
 ## 지금 보이는 프레임에 맞춰 도구를 주먹에, 모자를 머리 위에 놓는다 (걷기·공격 그림의 프레임마다 자리가 다르다)

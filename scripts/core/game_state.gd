@@ -139,6 +139,7 @@ var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 var ch2_step: int = 0
 var ch2_race: Dictionary = {"kills": 0, "rival": 0.0, "result": ""}
 var ch2_echo: int = 0
+var life_given := true            # 생활 도구가 생기기 전의 저장이면 불러올 때 나무 도구 한 벌을 준다
 var stickers: int = 0               # 장 대장을 물리치고 받은 스티커 (표지의 스티커 자국 여섯 개)
 var boss_bonus: Dictionary = {}      # 보스 다시 도전 보너스를 받은 날 ("종류:단계" → 날)
 var tower_floor: int = 0             # 끝없는 탑: 지금 오르는 층 (0 은 탑 밖)
@@ -733,9 +734,134 @@ func add_item(item: Dictionary) -> bool:
 	if inventory.size() >= bag_size:
 		return false
 	inventory.append(item)
-	dex_add("gear", "%s_%d" % [str(item["slot"]), int(item["shape"])])
+	if not Items.is_life(item):
+		dex_add("gear", "%s_%d" % [str(item["slot"]), int(item["shape"])])
 	changed.emit()
 	return true
+
+
+# ---------- 생활 도구 (낚싯대, 잠자리채, 낫, 갈퀴, 물뿌리개) ----------
+
+## 지금 든 생활 도구 (무기 칸). 안 들었으면 빈 사전.
+func life_tool() -> Dictionary:
+	var t: Dictionary = equipped.get("tool", {})
+	return t if Items.is_life(t) else {}
+
+
+## 그 생활 도구를 들고 있는지. 아니면 알려 주고 false.
+func need_life(kind: String, quiet: bool = false) -> bool:
+	if str(life_tool().get("life", "")) == kind:
+		return true
+	# 연습 페이지에서는 가방에 있으면 알아서 바꿔 든다 (배우는 중이니까)
+	if current_map.begins_with("tut_"):
+		for i in inventory.size():
+			if str(inventory[i].get("life", "")) == kind and equip(i):
+				notify("%s 을(를) 들었어요." % Items.LIFE_TOOLS[kind]["name"])
+				return true
+	if not quiet:
+		var info: Dictionary = Items.LIFE_TOOLS[kind]
+		var have := false
+		for it in inventory:
+			if str(it.get("life", "")) == kind:
+				have = true
+		if have:
+			notify("%s 을(를) 들어야 %s 할 수 있어요. (가방 I 에서 들기, T 로 무기와 바꾸기)" % [info["name"], info["use"]])
+		else:
+			notify("%s 이(가) 있어야 %s 할 수 있어요. (문방구에서 판다)" % [info["name"], info["use"]])
+	return false
+
+
+## 든 생활 도구의 효과 (등급에 따라 0, 0.2, 0.4)
+func life_power(kind: String) -> float:
+	var t := life_tool()
+	return float(Items.LIFE_POWER[int(t["grade"])]) if str(t.get("life", "")) == kind else 0.0
+
+
+## 생활 도구를 한 번 썼다: 내구도가 1 줄고, 0 이 되면 부서진다
+func wear_life(kind: String) -> void:
+	var t := life_tool()
+	if str(t.get("life", "")) != kind:
+		return
+	t["dur"] = int(t["dur"]) - 1
+	if int(t["dur"]) <= 0:
+		equipped.erase("tool")
+		notify("%s 이(가) 부서졌어요!" % Items.item_name(t))
+		Sound.play("forge_break")
+	elif int(t["dur"]) == 5:
+		notify("%s 이(가) 곧 부서질 것 같아요. (내구도 5)" % Items.item_name(t))
+	changed.emit()
+
+
+## 가방의 그 생활 도구를 든다 (이미 들었으면 true)
+func hold_life(kind: String) -> bool:
+	if str(life_tool().get("life", "")) == kind:
+		return true
+	for i in inventory.size():
+		if str(inventory[i].get("life", "")) == kind:
+			return equip(i)
+	return false
+
+
+## T 키: 무기와 생활 도구를 바꿔 든다 (마지막으로 든 생활 도구, 없으면 가방의 첫 생활 도구)
+var last_life_kind := ""
+func swap_life() -> bool:
+	var held: Dictionary = equipped.get("tool", {})
+	var want_life := not Items.is_life(held)
+	var best := -1
+	for i in inventory.size():
+		var it: Dictionary = inventory[i]
+		if Items.is_life(it) == want_life and int(it["level"]) <= level:
+			if best < 0 or (want_life and str(it["life"]) == last_life_kind):
+				best = i
+	if best < 0:
+		notify("바꿔 들 %s 이(가) 가방에 없어요." % ("생활 도구" if want_life else "무기"))
+		return false
+	if Items.is_life(held):
+		last_life_kind = str(held["life"])
+	var ok := equip(best)
+	if ok:
+		notify("%s 을(를) 들었어요." % Items.item_name(equipped["tool"]))
+	return ok
+
+
+## 조합대에서 생활 도구를 한 등급 올린다 (가방의 index 번째, 아래 등급 도구)
+func life_upgrade_cost(item: Dictionary) -> Dictionary:
+	var g := int(item.get("grade", 2)) + 1
+	return Items.LIFE_UPGRADE[g] if g < Items.LIFE_GRADES.size() else {}
+
+
+func upgrade_life(index: int) -> String:
+	if index < 0 or index >= inventory.size() or not Items.is_life(inventory[index]):
+		return "생활 도구가 아니에요."
+	var item: Dictionary = inventory[index]
+	var cost := life_upgrade_cost(item)
+	if cost.is_empty():
+		return "더 올릴 수 없어요."
+	var mats: Dictionary = cost["mats"]
+	for id in mats:
+		if material_count(int(id)) < int(mats[id]):
+			return "재료가 부족해요."
+	if pencil_lead < int(cost["lead"]) or coins < int(cost["coins"]):
+		return "연필심이나 동전이 부족해요."
+	for id in mats:
+		materials[int(id)] = material_count(int(id)) - int(mats[id])
+	pencil_lead -= int(cost["lead"])
+	coins -= int(cost["coins"])
+	inventory[index] = Items.make_life(str(item["life"]), int(item["grade"]) + 1)
+	changed.emit()
+	return "ok"
+
+
+## 생활 도구를 한 벌 준다 (연습 페이지 선생, 예전 저장)
+func give_life_tools(kinds: Array) -> void:
+	for k in kinds:
+		var have := str(life_tool().get("life", "")) == str(k)
+		for it in inventory:
+			if str(it.get("life", "")) == str(k):
+				have = true
+		if not have:
+			inventory.append(Items.make_life(str(k), 0))      # 꼭 받아야 하는 것이라 가방이 가득해도 넣는다
+	changed.emit()
 
 
 ## 가방의 index 번째 장비를 입는다. 입고 있던 것은 가방으로 돌아온다.
@@ -803,6 +929,8 @@ static func enhance_chance(item: Dictionary, bonus: float = 0.0) -> float:
 ## 장비를 한 단계 올린다. use_coating: 실패할 때 코팅지가 있으면 쓸지. bonus: 성공률 보너스 (강화소).
 ## 돌려주는 것: "ok", "fail"(그대로), "saved"(코팅지가 막음), "down"(한 단계 하락), "broken"(파괴), 또는 못 한 까닭
 func enhance(item: Dictionary, use_coating: bool = true, bonus: float = 0.0) -> String:
+	if Items.is_life(item):
+		return "생활 도구는 강화할 수 없어요. (조합대에서 등급을 올린다)"
 	lesson_note("enhance_try")
 	if int(item.get("plus", 0)) >= Items.MAX_PLUS:
 		return "최고 단계예요."
@@ -899,6 +1027,9 @@ func buy(entry: Variant) -> bool:
 	if coins < cost or inventory.size() >= bag_size:
 		return false
 	coins -= cost
+	if str(arr[0]) == "life":
+		add_item(Items.make_life(str(arr[1]), int(arr[2])))
+		return true
 	add_item(Items.make(str(arr[0]), int(arr[1]), int(arr[2]), 1))
 	return true
 
@@ -1570,6 +1701,9 @@ func plant(key: String, i: int, seed: String) -> bool:
 	var plots := farm_plots(key)
 	if i < 0 or i >= plots.size() or str(plots[i]["seed"]) != "" or not Items.CROPS.has(seed) or consumable_count(seed) <= 0:
 		return false
+	if not need_life("rake"):      # 갈퀴로 밭을 갈아야 심는다
+		return false
+	wear_life("rake")
 	consumables[seed] = consumable_count(seed) - 1
 	plots[i] = {"seed": seed, "grown": 0, "watered": false}
 	changed.emit()
@@ -1587,6 +1721,9 @@ func water_plot(key: String, i: int) -> bool:
 	var plots := farm_plots(key)
 	if i < 0 or i >= plots.size() or not plot_needs_water(plots[i]):
 		return false
+	if not need_life("can"):       # 물뿌리개를 들어야 한다
+		return false
+	wear_life("can")
 	plots[i]["watered"] = true
 	changed.emit()
 	lesson_note("water")
@@ -1595,6 +1732,8 @@ func water_plot(key: String, i: int) -> bool:
 
 ## 심은 칸 전부에 물을 준다 (연습 페이지처럼 밭 그림이 없는 곳). 돌려주는 것: 물을 준 칸 수
 func water(key: String) -> int:
+	if not need_life("can"):
+		return 0
 	var n := 0
 	for i in farm_plots(key).size():
 		if water_plot(key, i):
@@ -2291,7 +2430,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
-		"ch2_step": ch2_step, "ch2_race": ch2_race, "ch2_echo": ch2_echo, "stickers": stickers,
+		"ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
 		"boss_bonus": boss_bonus,
 		"tower_best": tower_best,
 		"quick_slots": quick_slots,
@@ -2465,6 +2604,10 @@ func load_game() -> bool:
 	ch2_race = {"kills": int(race.get("kills", 0)), "rival": float(race.get("rival", 0.0)), "result": str(race.get("result", ""))} if typeof(race) == TYPE_DICTIONARY else {"kills": 0, "rival": 0.0, "result": ""}
 	ch2_echo = int(data.get("ch2_echo", 0))
 	stickers = int(data.get("stickers", 0))
+	if not bool(data.get("life_given", false)):
+		# 생활 도구가 없던 때의 저장: 나무 도구 한 벌 (낚싯대·잠자리채·낫·갈퀴·물뿌리개)
+		give_life_tools(Items.LIFE_ORDER)
+		notify.call_deferred("생활 도구가 생겼어요! 낚시·채집·농사는 맞는 도구를 들어야 해요. (가방 I, T 로 무기와 바꾸기)")
 	boss_bonus = data["boss_bonus"] if typeof(data.get("boss_bonus")) == TYPE_DICTIONARY else {}
 	tower_best = maxi(0, int(data.get("tower_best", 0)))
 	tower_floor = 0

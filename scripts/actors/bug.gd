@@ -83,8 +83,10 @@ func catch_chance() -> float:
 func interact() -> void:
 	if _fleeing:
 		return
+	if not GameState.need_life("net"):
+		return
 	var p: Node2D = GameState.player_ref
-	var chance := catch_chance()
+	var chance := minf(0.98, catch_chance() + GameState.life_power("net") * 0.75)
 	if is_instance_valid(p) and p.has_method("act") and p.is_inside_tree():
 		if bool(p.call("is_acting")):
 			return
@@ -97,6 +99,7 @@ func interact() -> void:
 func _swing(chance: float) -> void:
 	if _fleeing or not is_inside_tree():
 		return
+	GameState.wear_life("net")
 	if randf() < chance:
 		if GameState.catch_bug(id):
 			queue_free()

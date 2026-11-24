@@ -77,6 +77,8 @@ func _player() -> Node2D:
 func start(fine: bool = false, where: String = "home", at: Vector2 = Vector2.INF) -> void:
 	if is_active():
 		return
+	if not GameState.need_life("rod"):      # 낚싯대를 들어야 한다
+		return
 	window = 1.0 if fine else 0.7
 	if where == "home":
 		window += (GameState.build_lv("bld_fishing") - 3) * 0.1      # 낚시터의 단계: 입질 시간이 0.1초씩
@@ -99,10 +101,15 @@ func start(fine: bool = false, where: String = "home", at: Vector2 = Vector2.INF
 
 
 func _cast() -> void:
+	# 던질 때마다 낚싯대가 닳는다. 부서지면 그만.
+	GameState.wear_life("rod")
+	if GameState.life_tool().is_empty():
+		stop()
+		return
 	phase = "wait"
 	_t = 0.0
 	_cast_t = 0.0
-	_wait = randf_range(1.2, 3.0)
+	_wait = randf_range(1.2, 3.0) * (1.0 - GameState.life_power("rod"))   # 좋은 낚싯대는 입질이 빨리 온다
 	_mark.text = ""
 	_mark.scale = Vector2.ONE
 	_caught = ""

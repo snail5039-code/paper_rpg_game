@@ -225,6 +225,8 @@ func _run() -> void:
 	check(caught and GameState.dex_has("forage", bug_id), "잠자리채로 잡으면 가방과 도감에 들어감")
 	# 실제로 F: 잠자리채를 휘두르고, 휘두르기가 끝나면 잡힌다 (멈춰 있으면 95%, 몇 번 해 본다)
 	var net_ok := false
+	GameState.give_life_tools(GameState.Items.LIFE_ORDER)
+	GameState.hold_life("net")
 	for tries in 4:
 		var b2: Node2D = load("res://scripts/actors/bug.gd").new()
 		b2.set("id", "fg_31")
@@ -240,6 +242,7 @@ func _run() -> void:
 			break
 	check(net_ok, "곤충 앞에서 F: 잠자리채를 휘둘러 잡고, 동작이 끝남")
 	# 연못 낚시
+	GameState.hold_life("rod")
 	fp.global_position = pond.global_position + Vector2(0, 10)
 	await frames(5)
 	pond.call("interact")

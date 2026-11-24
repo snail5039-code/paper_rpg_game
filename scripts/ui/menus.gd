@@ -529,6 +529,11 @@ func _refresh_shop() -> void:
 			else:
 				var arr: Array = entry
 				var sample := {"slot": arr[0], "shape": arr[1], "tier": arr[2], "level": 1, "plus": 0, "opts": []}
+				if str(arr[0]) == "life":
+					sample = Items.make_life(str(arr[1]), int(arr[2]))
+					_row(box, Items.icon(sample), "%s  · %s 할 때 든다 · 내구도 %d" % [Items.item_name(sample), Items.LIFE_TOOLS[str(arr[1])]["use"], int(sample["dur"])],
+						[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Items.tier_color(sample), _item_detail(sample))
+					continue
 				_row(box, Items.icon(sample), Items.item_name(sample) + "  " + Items.stat_text(str(Items.MAIN_STAT[str(arr[0])]), Items.main_value(sample)),
 					[["%d" % GameState.price_of(entry), _buy.bind(entry), GameState.coins >= GameState.price_of(entry)]], Items.tier_color(sample), _item_detail(sample))
 	elif tab == 1:
@@ -561,6 +566,19 @@ func _refresh_shop() -> void:
 				icon_name = "equip_%s_%d" % [r[0], int(r[1])]
 				tint = Items.TIER_COLORS[int(r[2])]
 			_row(box, icon_name, "%s  ←  %s" % [recipe[0], ", ".join(parts)], [["그리기", _craft.bind(recipe), GameState.can_craft(recipe)]], tint)
+		# 생활 도구 등급 올리기 (가방에 든 것만: 든 도구는 먼저 내려놓는다)
+		for i in GameState.inventory.size():
+			var lt: Dictionary = GameState.inventory[i]
+			var cost := GameState.life_upgrade_cost(lt) if Items.is_life(lt) else {}
+			if cost.is_empty():
+				continue
+			var lparts: Array = []
+			for id in cost["mats"]:
+				lparts.append("%s %d/%d" % [Data.MATERIALS[int(id)], GameState.material_count(int(id)), int(cost["mats"][id])])
+			lparts.append("연필심 %d" % int(cost["lead"]))
+			lparts.append("동전 %d" % int(cost["coins"]))
+			var next := Items.make_life(str(lt["life"]), int(lt["grade"]) + 1)
+			_row(box, Items.icon(next), "%s 로 올리기  ←  %s" % [Items.item_name(next), ", ".join(lparts)], [["올리기", _upgrade_life.bind(i), true]], Items.tier_color(next), _item_detail(next))
 		wallet += "   직접 그려서 만들어요."
 	elif tab == 4:
 		for sid in Items.CROPS:
@@ -582,6 +600,7 @@ func _refresh_shop() -> void:
 			if GameState.equipped.has(slot):
 				all.append(GameState.equipped[slot])
 		all.append_array(GameState.inventory)
+		all = all.filter(func(it): return not Items.is_life(it))     # 생활 도구는 강화하지 않는다
 		for item2 in all:
 			var cost: Array = Items.enhance_cost(item2)
 			var maxed := int(item2.get("plus", 0)) >= Items.MAX_PLUS
@@ -590,6 +609,14 @@ func _refresh_shop() -> void:
 				[["강화", _enhance.bind(item2), not maxed]], Items.tier_color(item2))
 		wallet += "   +7부터 실패하면 하락, +10부터 파괴. 강화소에서 하면 더 잘 돼요"
 	_info.text = (_message + "\n" if _message != "" else "") + wallet
+
+
+func _upgrade_life(i: int) -> void:
+	var r := GameState.upgrade_life(i)
+	_message = "%s 이(가) 되었어요!" % Items.item_name(GameState.inventory[i]) if r == "ok" else r
+	if r == "ok":
+		Sound.play("forge_ok")
+	refresh()
 
 
 func _buy(entry: Variant) -> void:
@@ -803,7 +830,7 @@ func _show_skill(id: String) -> void:
 
 const HELP_KEYS := [
 	["W A S D", "이동"], ["마우스 왼쪽", "공격 (3연타)"], ["Space", "회피"], ["F", "말 걸기 · 들어가기"],
-	["Q  E  R", "스킬"], ["V", "필살기"], ["1  2", "소모품"], ["G", "친구 스킬"],
+	["Q  E  R", "스킬"], ["V", "필살기"], ["1  2", "소모품"], ["G", "친구 스킬"], ["T", "무기 ↔ 생활 도구"],
 	["I", "가방"], ["K", "스킬 배우기"], ["C", "능력치"], ["P", "친구"],
 	["M", "지도"], ["Tab", "연필 (낙서)"], ["B", "내 마을: 칠하기"], ["N", "내 마을: 짓기"],
 	["J", "도감"],
