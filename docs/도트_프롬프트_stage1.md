@@ -142,3 +142,73 @@ Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfect
 - 첨부: `ui_v7/89_mon_hit_b.png`. 칸 이름과 몬스터는 `tools/import_ui_v7.py` 의 `90_mon_hit_*`, 배정은 `scripts/data/mon_fx_data.gd`
 - 이것으로 본편 몬스터(1~9장 기본, 보스 포함 93종)가 모두 자기 그림을 하나씩 갖는다. 연습 페이지 몬스터만 색을 바꿔 같이 쓴다.
 - 프롬프트는 §89 와 같은 틀에 칸마다 영어 한 줄 (예: d = slime goo, polka dots, grass blades, spider web, acorns, snail spiral, owl feathers, wood chips)
+
+
+## 91. 2장 보스 3종과 맞힘 효과 (`91_ch2_bosses.png`, `91_ch2_boss_fx.png`)
+
+- 첨부: 1장 보스 3종을 마젠타 바탕에 늘어놓은 그림 (boss_0~2). 같은 대화에서 효과 시트를 이어서 요청.
+- 결과: `boss_3` 큰나무 할아범(대장), `boss_4` 색 빠진 왕버섯(중간 보스), `boss_5` 색 먹는 애벌레(필드 보스), `fx_hit_roots`·`fx_hit_greyspore`·`fx_hit_colorbite`.
+
+```text
+Make ONE image: a wide sprite sheet on a solid flat MAGENTA (#FF00FF) background, ONE row of 3 equal cells, one character per cell, each centered with generous empty magenta margin, characters not touching each other or the edges. Same art style as the attached reference bosses (chunky crayon / coloured-pencil pixel art, thick wobbly dark pencil outlines, soft pastel colours, cute but a little sad), similar size per cell. Front 3/4 view, standing, no shadow on the ground, NO text. Cell 1: 'Great Tree Grandpa' - an old tree spirit boss: thick trunk body with a kind wrinkled bark face, droopy moss eyebrows and moss beard, two branch arms with a few coloured-pencil leaves, a leafy crown; his ROOTS at the bottom are half erased - missing pieces shown as faint dotted outlines and white eraser marks. Cell 2: 'Colourless King Mushroom' - a big round mushroom boss with a wide cap that has lost most of its colour (grey sketch with only a few red spots left), a tiny paper crown on top, stubby legs, small grumpy face, puffs of grey spores around it. Cell 3: 'Colour-eating Caterpillar' - a long fat caterpillar boss curled in an S shape, each body segment a different crayon colour (red, orange, yellow, green, blue) but the segments nearest its big open hungry mouth have turned grey, little crayon-stub feet.
+```
+
+
+## 93. 2장 색연필 숲 배경 8장 (`93a~h_ch2_*.png`, map_v6_raw)
+
+- 한 대화에서 첫 장에만 1장 들판 배경(bg_ch1_meadow)을 첨부하고 공통 규칙 + 장면을 보냈다. 뒤 장은 "앞 그림과 같은 규칙" + 장면만.
+- 처리: `python tools/map_v6_post.py 93` → `python tools/import_map_v6.py ch2`.
+
+공통 규칙:
+
+```text
+Generate exactly ONE image (use image generation, not code). ART STYLE must match the attached reference map exactly: chunky pixel art coloured with crayon / coloured-pencil texture, each pixel block visible, thick slightly wobbly dark-grey pencil outlines, soft pastel colours, cream graph-paper base with a faint grid, NO text, NO letters, NO numbers, no gloss, no smooth gradients, no drop shadows. Top-down RPG map background, wide 16:9 landscape (target 1672x941), same camera angle and same scale of trees and paths as the reference. NO characters, NO monsters, NO animals, NO people. This is chapter 2, the 'Coloured-Pencil Forest': trees are round forest trees whose leaves are hatched with coloured pencil in several colours (greens, teal, a little orange and violet) with visible pencil-stroke texture; dirt paths are sandy-apricot with pencil outline like the reference. In this forest the colour is draining away: some trees and ground are drawn only as uncoloured grey pencil sketch lines. The whole map is enclosed by a thick row of these forest trees along all four edges, EXCEPT at each GATE listed below. A GATE is a clear opening in the tree border about 13% of the image width wide (for left/right gates: about 23% of the image height tall), located at the EXACT CENTER of that edge, with a dirt path running through the opening all the way off the edge of the image. No trees, rocks or objects inside a gate opening. Edges without a gate are fully closed by trees. The middle of the map is wide open, uncluttered walkable ground (monsters will roam there).
+```
+
+### `93a_ch2_village.png` (문: bottom)
+
+```text
+SCENE - 'Forest-edge village': a small hamlet in a forest clearing. Three small cottages made from hollow tree stumps with leaf-shingle roofs and round doors stand along the top edge and the upper-left and upper-right corners (not in the middle). A small round plaza of packed dirt in the centre with one little round stone well at its upper edge, a few flower beds and a short coloured-pencil picket fence. The right third of the village has lost its colour: the cottage, grass and flowers there are only grey pencil sketch lines on the paper. GATES: exactly ONE gate at the center of the BOTTOM edge; a dirt path runs from the plaza down through it. Top, left and right edges fully closed by trees.
+```
+
+### `93b_ch2_path.png` (문: top, bottom, left, right)
+
+```text
+SCENE - 'Forest path': four dirt paths meet in the middle forming a plus-shaped crossing in a forest. Beside the paths (never on them, never in the middle): two fallen mossy logs, a few short coloured-pencil stubs stuck upright in the ground like little stakes, small ferns and mushrooms. A few of the trees near the bottom-right are uncoloured grey sketches. GATES: four gates, one at the exact center of EACH edge (top, bottom, left, right), each with its dirt path running off the edge.
+```
+
+### `93c_ch2_grove.png` (문: right)
+
+```text
+SCENE - 'Acorn grove': a grove of big round oak trees around the edges, acorns and acorn caps scattered on the grass, two small piles of curly pencil shavings, one hollow tree stump in the upper-left area. Wide open grassy middle. GATES: exactly ONE gate at the center of the RIGHT edge; a dirt path enters from it and fades out toward the middle. Top, bottom and left edges fully closed by trees.
+```
+
+### `93d_ch2_cliff.png` (문: left)
+
+```text
+SCENE - 'Cliff and vines': along the TOP quarter of the map (just inside the top tree row) runs a low rocky cliff wall drawn in coloured pencil, with long green vines hanging down from it; some vines are uncoloured grey and look snapped. A few loose rocks and small ledges near the cliff foot. The rest of the map is open grassy ground. GATES: exactly ONE gate at the center of the LEFT edge; a dirt path enters from it toward the middle. Top, bottom and right edges fully closed (the cliff sits inside the top tree row).
+```
+
+### `93e_ch2_gray.png` (문: top, left, bottom)
+
+```text
+SCENE - 'Colourless forest': here most of the colour is gone. The left third of the map is still softly coloured (green grass, coloured trees); a clear wavy boundary line runs top-to-bottom at about one third of the width, and everything to the right of it - trees, grass tufts, bushes - is drawn only in grey pencil sketch lines on the cream graph paper, like an unfinished drawing. A few tiny colour flecks remain in the grey part. GATES: THREE gates - at the exact center of the TOP edge, the LEFT edge and the BOTTOM edge, with dirt paths joining in the middle. The right edge is fully closed by (grey sketch) trees.
+```
+
+### `93f_ch2_mushroom.png` (문: right)
+
+```text
+SCENE - 'Mushroom hollow': clusters of giant mushrooms (red, orange, violet caps with dots) grow around the edges of a round sunken clearing; several of the mushrooms have lost their colour and are grey sketches. Small mushrooms and spore puffs dotted on the ground. The round clearing in the middle is wide open. GATES: exactly ONE gate at the center of the RIGHT edge with a dirt path into the clearing. Top, bottom and left edges fully closed by trees and mushrooms.
+```
+
+### `93g_ch2_bigtree.png` (문: top, bottom)
+
+```text
+SCENE - 'Before the Great Tree': a dirt path runs straight from the top gate down to the bottom gate. In the lower part of the map the enormous gnarled roots of a giant ancient tree spread across the ground on both sides of the path (the giant trunk itself is just beyond the bottom edge, not visible); the roots are coloured brown near the path and fade to grey sketch lines further out. Fallen big leaves in many pencil colours. The upper middle is wide open ground. GATES: TWO gates, at the exact center of the TOP edge and the BOTTOM edge. Left and right edges fully closed by trees.
+```
+
+### `93h_ch2_bossroom.png` (문: top)
+
+```text
+SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by enormous twisting tree roots instead of a tree row (roots form the border on all sides except the gate). The roots in the lower half are partly erased: white eraser-rubbed gaps, missing segments, dotted outlines where root used to be, grey and uncoloured. Fallen leaves on the ground. The clearing in the middle is wide open and empty. GATES: exactly ONE gate at the center of the TOP edge with a dirt path entering. No other openings.
+```

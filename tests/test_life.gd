@@ -768,7 +768,7 @@ func _run() -> void:
 	GameState.on_kill("slime_faded")
 	GameState.add_material(0)
 	check(GameState.dex_has("mon", "slime_faded") and GameState.dex_has("mat", "0") and not GameState.dex_has("mon", "slime_erased"), "물리친 몬스터와 얻은 재료가 도감에 적힘")
-	var mon_n := 15 + Data.Book.SPECIES.size() * 2
+	var mon_n := 18 + Data.Book.SPECIES.size() * 2   # 1장 12 + 보스 6 + 새 84종 × 두 모습
 	check(GameState.dex_entries("mon").size() == mon_n and GameState.dex_entries("gear").size() == 60 and GameState.dex_entries("crop").size() == 8, "도감 묶음의 크기")
 	var atk_d0 := GameState.gear("atk")
 	for k in GameState.dex_entries("mon"):

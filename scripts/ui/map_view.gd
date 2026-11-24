@@ -1,8 +1,9 @@
 extends Control
-## 지도 그림: 공책에 연필과 크레용으로 그린 것처럼 보이는 1장 지도.
+## 지도 그림: 공책에 연필과 크레용으로 그린 것처럼 보이는 장 지도 (지금 있는 장, 장 밖이면 1장).
 ##  - 가 본 화면은 그 화면의 배경을 작게 줄인 그림에 삐뚤빼뚤한 연필 테두리를 두른다.
 ##  - 아직 안 가 본 화면은 연필 밑그림과 물음표만.
 ##  - 화면 사이는 연필 점선 길로 잇고, 지금 있는 곳에는 빨간 크레용 동그라미를 친다.
+##  - 대장 방은 지도에 넣지 않는다. 화면 수가 많은 장은 지도 칸에 맞게 줄여 그린다.
 
 const Art := preload("res://scripts/core/art.gd")
 const Data := preload("res://scripts/data/game_data.gd")
@@ -12,12 +13,11 @@ const GAP := Vector2(30, 20)
 const PENCIL := Color(0.28, 0.25, 0.27)
 const PENCIL_SOFT := Color(0.28, 0.25, 0.27, 0.55)
 const CRAYON_RED := Color(0.88, 0.3, 0.28)
-const LINKS := [["ch1", "ch1_crossroad"], ["ch1_meadow", "ch1_crossroad"],
-	["ch1_crossroad", "ch1_gridwoods"], ["ch1_crossroad", "ch1_erasedroad"]]
-const BG_NAMES := {
-	"ch1": "bg_ch1_village", "ch1_meadow": "bg_ch1_meadow", "ch1_crossroad": "bg_ch1_crossroad",
-	"ch1_gridwoods": "bg_ch1_gridwoods", "ch1_erasedroad": "bg_ch1_erasedroad",
-}
+
+var chapter := ""                  # 지금 그리는 장 ("ch1", "ch2")
+var LINKS: Array = []
+var BG_NAMES: Dictionary = {}     # 화면 → 배경 그림 이름
+var _layout: Dictionary = {}
 
 ## _draw 에서 쓰는 텍스처는 여기서 잡고 있어야 한다 (지역 변수로만 두면 그리기 전에 해제된다)
 var _tex: Dictionary = {}
@@ -27,6 +27,47 @@ var _here: Label
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_here = Label.new()
+	_here.text = "여기!"
+	_here.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_here.add_theme_font_size_override("font_size", 11)
+	_here.add_theme_color_override("font_color", CRAYON_RED)
+	add_child(_here)
+	refresh()
+
+
+## 보여 줄 장: 지금 있는 화면의 장, 장 밖(내 마을 등)이면 1장
+static func chapter_shown() -> String:
+	var ch := Data.chapter_of(GameState.current_map)
+	return ch if ch != "" else "ch1"
+
+
+## 그 장의 화면 그림과 이름표를 새로 만든다
+func _build(ch: String) -> void:
+	chapter = ch
+	for l in _labels.values():
+		(l as Node).queue_free()
+	_labels.clear()
+	_tex.clear()
+	var info: Dictionary = Data.CHAPTERS[ch]
+	LINKS = (info["links"] as Array).filter(func(pr): return pr[1] != info["bossroom"] and pr[0] != info["bossroom"])
+	_layout = info["layout"]
+	BG_NAMES = {}
+	var cols := 1
+	var rows := 1
+	for id in _layout:
+		if id == info["bossroom"]:
+			continue
+		var bg_name: String = str(Data.FIELDS[id]["bg"]) if Data.FIELDS.has(id) else "bg_%s_village" % ch
+		BG_NAMES[id] = bg_name
+		cols = maxi(cols, (_layout[id] as Vector2i).x + 1)
+		rows = maxi(rows, (_layout[id] as Vector2i).y + 1)
+	# 지도 칸(310×190)에 맞게 줄이고 가운데에 둔다
+	var need := Vector2(cols, rows) * (THUMB + GAP) + Vector2(24, 8)
+	var k := minf(1.0, minf(310.0 / need.x, 190.0 / need.y))
+	scale = Vector2.ONE * k
+	pivot_offset = Vector2.ZERO
+	position = Vector2(55, 44) + (Vector2(310, 190) - need * k) * 0.5 * Vector2(1, 0)
 	for id in BG_NAMES:
 		_tex[id] = Art.tex(str(BG_NAMES[id]))
 		var l := Label.new()
@@ -39,20 +80,16 @@ func _ready() -> void:
 		l.rotation = _tilt(id)
 		add_child(l)
 		_labels[id] = l
-	_here = Label.new()
-	_here.text = "여기!"
-	_here.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_here.add_theme_font_size_override("font_size", 11)
-	_here.add_theme_color_override("font_color", CRAYON_RED)
-	add_child(_here)
-	refresh()
 
 
 func refresh() -> void:
+	var ch := chapter_shown()
+	if ch != chapter:
+		_build(ch)
 	for id in _labels:
 		(_labels[id] as Label).text = str(Data.MAP_NAMES[id]) if _visited(id) else "?"
 	var cur := GameState.current_map
-	_here.visible = Data.CH1_LAYOUT.has(cur)
+	_here.visible = BG_NAMES.has(cur)
 	if _here.visible:
 		_here.position = _center(cur) + Vector2(THUMB.x * 0.5 + 2, -THUMB.y * 0.5 - 15)
 	queue_redraw()
@@ -63,7 +100,7 @@ func _visited(id: String) -> bool:
 
 
 func _center(id: String) -> Vector2:
-	var cell: Vector2i = Data.CH1_LAYOUT[id]
+	var cell: Vector2i = _layout[id]
 	return Vector2(cell) * (THUMB + GAP) + THUMB * 0.5 + Vector2(12, 4)
 
 
@@ -134,7 +171,7 @@ func _draw() -> void:
 
 	# 지금 있는 곳: 빨간 크레용 동그라미 (두 바퀴)
 	var cur := GameState.current_map
-	if Data.CH1_LAYOUT.has(cur):
+	if BG_NAMES.has(cur):
 		var cc := _center(cur)
 		for loop in 2:
 			var ring := PackedVector2Array()

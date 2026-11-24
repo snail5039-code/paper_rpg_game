@@ -60,6 +60,7 @@ const HIT := {
 	"tmcheck": ["fx_hit_check", W, 0.8],
 	# 보스
 	"boss_bug": ["fx_hit_eraserbig", W, 1.4], "boss_crumple": ["fx_hit_crumple", W, 1.4], "boss_scribble": ["fx_hit_storm", W, 1.4],
+	"boss_oak": ["fx_hit_roots", W, 1.5], "boss_mushking": ["fx_hit_greyspore", W, 1.4], "boss_colorworm": ["fx_hit_colorbite", W, 1.4],
 }
 
 
@@ -95,6 +96,7 @@ const SOUND := {
 	"fx_hit_eraserbig": "crunch", "fx_hit_crumple": "paper", "fx_hit_storm": "storm", "fx_hit_typo": "paper",
 	"fx_hit_question": "chime", "fx_hit_stub": "crunch", "fx_hit_strand": "splat", "fx_hit_cross": "slash",
 	"fx_hit_check": "chime",
+	"fx_hit_roots": "crunch", "fx_hit_greyspore": "puff", "fx_hit_colorbite": "pop",
 }
 
 ## 1장 기본 몬스터는 달려드는 소리를 따로 갖고 있다 (sound.gd 의 mon_*)

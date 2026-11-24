@@ -114,6 +114,9 @@ SHEETS = {
     "90_mon_hit_j": (4, 2, [("fx_hit_%s" % n, 120) for n in ["scrape", "broken", "crow", "slipper", "clock", "grade", "sting", "whiteclaw"]]),
     "90_mon_hit_k": (4, 2, [("fx_hit_%s" % n, 120) for n in ["balloon", "spout", "dotwing", "pierce", "paperslash", "fog", "rainbowscribble", "eraserbig"]]),
     "90_mon_hit_l": (4, 2, [("fx_hit_%s" % n, 120) for n in ["crumple", "storm", "typo", "question", "stub", "strand", "cross", "check"]]),
+    # 2장 색연필 숲 보스: 큰나무 할아범(대장), 색 빠진 왕버섯(중간), 색 먹는 애벌레(필드)와 맞힘 효과
+    "91_ch2_bosses": (3, 1, [("boss_3", 300), ("boss_4", 300), ("boss_5", 300)]),
+    "91_ch2_boss_fx": (3, 1, [("fx_hit_roots", 120), ("fx_hit_greyspore", 120), ("fx_hit_colorbite", 120)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)

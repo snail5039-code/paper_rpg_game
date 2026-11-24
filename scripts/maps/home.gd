@@ -35,11 +35,12 @@ const GROUND_TEX_NAMES := ["", "ground_grass", "ground_path", "ground_water"]
 const GROUND_TEX_SCALE := 2.0   # 질감 2텍셀 = 1 월드 (512px 한 장이 256 월드를 덮는다)
 
 const SPAWN := Vector2(960, 540)
-## 포탈: [맵 이름, 표시 이름, 오른쪽 가장자리 가운데에서 떨어진 위치, 열려면 필요한 퀘스트 단계(-1 = 아직 준비 안 됨)]
+## 포탈: [맵 이름, 표시 이름, 오른쪽 가장자리 가운데에서 떨어진 위치, 열려면 필요한 퀘스트 단계(-1 = 아직 준비 안 됨, 글자 = 물리쳐야 하는 보스)]
 ## 1장 사냥터는 공책 마을 아래쪽 문(갈림길)으로 바로 간다. 하루에게 이야기를 들은 뒤에 열린다.
+## 2장 색연필 숲은 1장 대장 구깃이를 물리치면 열린다.
 const PORTALS := [
 	["ch1", "1장  공책 마을", Vector2(-140, 0), 0],
-	["", "2장  색연필 숲", Vector2(-140, -160), -1],
+	["ch2", "2장  색연필 숲", Vector2(-140, -160), "boss_crumple"],
 	["", "3장  물감 호수", Vector2(-140, 160), -1],
 	["tower", "빈 페이지 탑", Vector2(-300, 0), 0],
 	["ch1_crossroad", "1장  사냥터", Vector2(-300, -160), 1],
@@ -95,7 +96,11 @@ func _ready() -> void:
 		portal.set("target_map", p[0])
 		portal.set("title", p[1])
 		portal.set("spawn_tag", "from_home")
-		portal.set("locked", int(p[3]) < 0 or int(GameState.quest) < int(p[3]))
+		if p[3] is String:
+			portal.set("locked", not GameState.bosses_beaten.has(str(p[3])))
+			portal.set("lock_text", "1장 대장 \"%s\" 를 물리치면 열린다." % Data.MONSTERS[str(p[3])]["name"])
+		else:
+			portal.set("locked", int(p[3]) < 0 or int(GameState.quest) < int(p[3]))
 		portal.position = portal_pos(portals.size())
 		actors.add_child(portal)
 		portals.append(portal)

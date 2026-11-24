@@ -119,19 +119,36 @@ func _make_config() -> Dictionary:
 
 
 func _title_text() -> String:
-	return "1장 · %s  (%s)" % [cfg["name"], GameState.diff()["name"]]
+	var ch := Data.chapter_of(field_id)
+	var num := int(Data.CHAPTERS[ch]["num"]) if ch != "" else 1
+	if bool(cfg.get("town", false)):
+		return "%d장 · %s" % [num, cfg["name"]]
+	return "%d장 · %s  (%s)" % [num, cfg["name"], GameState.diff()["name"]]
 
 
 ## 사냥터에만 있는 것: 오늘의 필드 보스, 채집 자리, 풍선
 func _extras() -> void:
+	var ch := Data.chapter_of(field_id)
 	# 대장 방에 들어오면 나팔 소리
-	if field_id == "ch1_bossroom":
+	if ch != "" and field_id == str(Data.CHAPTERS[ch]["bossroom"]):
 		Sound.play.call_deferred("boss_appear")
-	# 오늘의 필드 보스
-	if GameState.field_boss_map() == field_id:
-		_spawn_monster("boss_scribble", bg(Vector2(836, 470)))
-		GameState.notify.call_deferred("필드 보스 \"떠돌이 큰 낙서\" 가 이 근처에 있어요!")
+	# 1장 대장을 물리친 뒤에는 구깃이의 방에 2장으로 가는 문이 생긴다
+	if field_id == "ch1_bossroom" and GameState.bosses_beaten.has(Data.CH2_UNLOCK_BOSS):
+		var Portal := load("res://scripts/actors/portal.gd")
+		var door: Node2D = Portal.new()
+		door.set("target_map", "ch2")
+		door.set("title", "2장  색연필 숲")
+		door.set("spawn_tag", "gate_bottom")
+		door.position = bg(Vector2(836, 300))
+		actors.add_child(door)
+	# 오늘의 필드 보스 (장마다 하나)
+	if ch != "" and GameState.field_boss_map(ch) == field_id:
+		var fb := str(Data.CHAPTERS[ch]["field_boss"])
+		_spawn_monster(fb, bg(Vector2(836, 470)))
+		GameState.notify.call_deferred("필드 보스 \"%s\" 가 이 근처에 있어요!" % Data.MONSTERS[fb]["name"])
 		Sound.play.call_deferred("boss_appear")
+	if bool(cfg.get("town", false)):
+		return      # 마을에는 채집 자리·곤충이 없다
 	# 채집 자리 (하루에 한 번). 자리는 화면마다 정해져 있다.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(field_id)

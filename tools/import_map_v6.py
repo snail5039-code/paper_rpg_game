@@ -70,7 +70,19 @@ def open_village_south_gate():
     solid.save(sprite_path("mask_solid"))
 
 
+## 2장 색연필 숲 배경 (python3 tools/import_map_v6.py ch2 로 이것만 옮긴다)
+CH2_BACKGROUNDS = {"93a_ch2_village": "bg_ch2_village", "93b_ch2_path": "bg_ch2_path", "93c_ch2_grove": "bg_ch2_grove",
+                   "93d_ch2_cliff": "bg_ch2_cliff", "93e_ch2_gray": "bg_ch2_gray", "93f_ch2_mushroom": "bg_ch2_mushroom",
+                   "93g_ch2_bigtree": "bg_ch2_bigtree", "93h_ch2_bossroom": "bg_ch2_bossroom"}
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "ch2":
+        for src, dst in CH2_BACKGROUNDS.items():
+            if os.path.isfile(SRC + src + ".png"):
+                shutil.copyfile(SRC + src + ".png", sprite_path(dst))
+                print("옮김:", dst)
+        return
     for src, dst in BACKGROUNDS.items():
         shutil.copyfile(SRC + src + ".png", sprite_path(dst))
     for src, dst in GROUNDS.items():

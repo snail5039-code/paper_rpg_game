@@ -116,6 +116,22 @@ const MONSTERS_CH1 := {
 		"radius": 22.0, "exp": 110, "def": 2, "drops": [0, 1.0, 1, 1.0], "lunge_time": 0.4, "lunge_speed": 230.0,
 		"boss": "field", "scale": 1.0, "slam": 8.0, "aggro": 160.0, "unique": "u_pen",
 	},
+	# 2장 색연필 숲의 보스: 중간 보스(버섯 골짜기), 대장(큰나무 뿌리), 필드 보스(하루 한 번 2장 화면 중 한 곳)
+	"boss_mushking": {
+		"name": "색 빠진 왕버섯", "art": "single", "sprite": "boss_4", "hp": 280, "speed": 30.0, "damage": 11,
+		"radius": 22.0, "exp": 110, "def": 3, "drops": [10, 1.0, 11, 0.6], "lunge_time": 0.5, "lunge_speed": 180.0,
+		"boss": "mid", "scale": 1.0, "summon": "m14_faded", "aggro": 150.0, "chapter": 2,
+	},
+	"boss_oak": {
+		"name": "큰나무 할아범", "art": "single", "sprite": "boss_3", "hp": 520, "speed": 26.0, "damage": 14,
+		"radius": 28.0, "exp": 260, "def": 5, "drops": [6, 1.0, 7, 1.0], "lunge_time": 0.45, "lunge_speed": 190.0,
+		"boss": "boss", "scale": 1.1, "slam": 5.0, "summon": "m13_faded", "aggro": 230.0, "chapter": 2,
+	},
+	"boss_colorworm": {
+		"name": "색 먹는 애벌레", "art": "single", "sprite": "boss_5", "hp": 380, "speed": 50.0, "damage": 12,
+		"radius": 24.0, "exp": 190, "def": 3, "drops": [0, 1.0, 1, 1.0], "lunge_time": 0.4, "lunge_speed": 240.0,
+		"boss": "field", "scale": 1.0, "slam": 7.0, "aggro": 160.0, "chapter": 2,
+	},
 	"bug_erased": {
 		"name": "많이 지워진 지우개똥 벌레", "art": "strip", "sprite": "bug_erased", "hp": 29, "speed": 38.0, "damage": 5,
 		"radius": 12.0, "exp": 10, "def": 2, "drops": [10, 0.8, 11, 0.25], "lunge_time": 0.5, "lunge_speed": 160.0,
@@ -131,10 +147,44 @@ const CH1_LAYOUT := {
 	"ch1": Vector2i(1, 0), "ch1_meadow": Vector2i(0, 1), "ch1_crossroad": Vector2i(1, 1),
 	"ch1_gridwoods": Vector2i(2, 1), "ch1_erasedroad": Vector2i(1, 2), "ch1_bossroom": Vector2i(1, 3),
 }
+## 2장 색연필 숲의 화면 배치
+##           [숲 입구 마을]
+##  [도토리 숲]─[숲길]─[절벽과 덩굴]
+##  [버섯 골짜기]─[색 빠진 숲]
+##            [큰나무 앞]
+##            [큰나무 뿌리]
+const CH2_LAYOUT := {
+	"ch2": Vector2i(1, 0), "ch2_grove": Vector2i(0, 1), "ch2_path": Vector2i(1, 1), "ch2_cliff": Vector2i(2, 1),
+	"ch2_mushroom": Vector2i(0, 2), "ch2_gray": Vector2i(1, 2), "ch2_bigtree": Vector2i(1, 3), "ch2_bossroom": Vector2i(1, 4),
+}
+## 장마다: 이름, 화면 배치, 지도에서 잇는 길, 필드 보스와 나오는 화면, 대장 방
+const CHAPTERS := {
+	"ch1": {"num": 1, "name": "공책 마을", "layout": CH1_LAYOUT, "field_boss": "boss_scribble",
+		"field_maps": ["ch1_meadow", "ch1_crossroad", "ch1_gridwoods"], "bossroom": "ch1_bossroom",
+		"links": [["ch1", "ch1_crossroad"], ["ch1_meadow", "ch1_crossroad"], ["ch1_crossroad", "ch1_gridwoods"], ["ch1_crossroad", "ch1_erasedroad"]]},
+	"ch2": {"num": 2, "name": "색연필 숲", "layout": CH2_LAYOUT, "field_boss": "boss_colorworm",
+		"field_maps": ["ch2_path", "ch2_grove", "ch2_cliff", "ch2_gray"], "bossroom": "ch2_bossroom",
+		"links": [["ch2", "ch2_path"], ["ch2_grove", "ch2_path"], ["ch2_path", "ch2_cliff"], ["ch2_path", "ch2_gray"],
+			["ch2_mushroom", "ch2_gray"], ["ch2_gray", "ch2_bigtree"], ["ch2_bigtree", "ch2_bossroom"]]},
+}
+## 2장으로 가는 길이 열리는 조건: 1장 대장을 물리침
+const CH2_UNLOCK_BOSS := "boss_crumple"
+
+
+## 이 화면이 몇 장인지 ("ch1", "ch2"). 장 화면이 아니면 "".
+static func chapter_of(map: String) -> String:
+	for ch in CHAPTERS:
+		if (CHAPTERS[ch]["layout"] as Dictionary).has(map):
+			return ch
+	return ""
+
+
 const MAP_NAMES := {
 	"tut_1": "연습 페이지 1", "tut_2": "연습 페이지 2", "tut_3": "연습 페이지 3", "tut_4": "연습 페이지 4", "tut_5": "연습 페이지 5", "tut_6": "연습 페이지 6", "tut_7": "연습 페이지 7", "tut_8": "연습 페이지 8", "tut_9": "연습 페이지 9", "tut_10": "연습 페이지 10", "tut_11": "연습 페이지 11", "tut_12": "연습 페이지 12", "tut_13": "연습 페이지 13",
 	"home": "내 마을", "ch1": "공책 마을", "ch1_meadow": "들판", "ch1_crossroad": "갈림길",
 	"ch1_gridwoods": "모눈 숲", "ch1_erasedroad": "지워진 길", "ch1_bossroom": "구깃이의 방", "home_room": "내 집", "museum": "박물관",
+	"ch2": "숲 입구 마을", "ch2_path": "숲길", "ch2_grove": "도토리 숲", "ch2_cliff": "절벽과 덩굴",
+	"ch2_gray": "색 빠진 숲", "ch2_mushroom": "버섯 골짜기", "ch2_bigtree": "큰나무 앞", "ch2_bossroom": "큰나무 뿌리",
 }
 
 ## 사냥터 화면 (scripts/maps/field.gd). 위치는 bg px (배경 1672×941).
@@ -188,6 +238,78 @@ const FIELDS := {
 			["dots_erased", Vector2(300, 740)], ["grass_erased", Vector2(1350, 720)],
 			["m07_erased", Vector2(800, 300)], ["m09_erased", Vector2(1450, 470)], ["m10_erased", Vector2(250, 470)],
 		],
+	},
+	# ---------- 2장 색연필 숲 ----------
+	"ch2": {
+		"name": "숲 입구 마을", "bg": "bg_ch2_village", "town": true, "fatigue": 0,
+		"gates": {"bottom": "ch2_path"},
+		"solids": [Rect2(140, 140, 220, 180), Rect2(720, 112, 210, 110), Rect2(1290, 150, 250, 190), Rect2(780, 290, 110, 100)],
+		"monsters": [],
+	},
+	"ch2_path": {
+		"name": "숲길", "bg": "bg_ch2_path",
+		"gates": {"top": "ch2", "bottom": "ch2_gray", "left": "ch2_grove", "right": "ch2_cliff"},
+		"solids": [Rect2(345, 230, 205, 100), Rect2(1145, 590, 195, 105)],
+		"monsters": [
+			["m11_faded", Vector2(650, 280)], ["m11_faded", Vector2(1250, 300)], ["m12_faded", Vector2(420, 650)],
+			["m17_faded", Vector2(1000, 700)], ["m18_faded", Vector2(560, 470)], ["m18_faded", Vector2(1100, 470)],
+		],
+	},
+	"ch2_grove": {
+		"name": "도토리 숲", "bg": "bg_ch2_grove",
+		"gates": {"right": "ch2_path"},
+		"solids": [Rect2(150, 180, 220, 125), Rect2(1095, 250, 110, 100), Rect2(225, 590, 125, 110), Rect2(1215, 650, 110, 110)],
+		"monsters": [
+			["m11_faded", Vector2(500, 300)], ["m11_faded", Vector2(900, 260)], ["m11_faded", Vector2(1200, 640)],
+			["m12_faded", Vector2(450, 620)], ["m12_faded", Vector2(800, 700)], ["m17_faded", Vector2(1000, 450)],
+			["m17_faded", Vector2(650, 460)], ["m19_faded", Vector2(1300, 320)],
+		],
+	},
+	"ch2_cliff": {
+		"name": "절벽과 덩굴", "bg": "bg_ch2_cliff",
+		"gates": {"left": "ch2_path"},
+		"solids": [Rect2(108, 112, 1456, 190), Rect2(385, 260, 135, 70), Rect2(1270, 285, 120, 55)],
+		"monsters": [
+			["m13_faded", Vector2(500, 380)], ["m13_faded", Vector2(950, 360)], ["m13_faded", Vector2(1350, 400)],
+			["m16_faded", Vector2(700, 600)], ["m16_faded", Vector2(1200, 640)], ["m19_faded", Vector2(1000, 520)],
+			["m19_faded", Vector2(400, 650)], ["m13_erased", Vector2(1450, 600)],
+		],
+	},
+	"ch2_gray": {
+		"name": "색 빠진 숲", "bg": "bg_ch2_gray",
+		"gates": {"top": "ch2_path", "left": "ch2_mushroom", "bottom": "ch2_bigtree"},
+		"solids": [Rect2(220, 240, 85, 80), Rect2(1180, 260, 80, 80), Rect2(1340, 500, 80, 80), Rect2(960, 630, 80, 70)],
+		"monsters": [
+			["m14_faded", Vector2(450, 300)], ["m14_faded", Vector2(1420, 250)], ["m15_faded", Vector2(1100, 650)],
+			["m18_faded", Vector2(1350, 480)], ["m14_erased", Vector2(1000, 400)], ["m18_erased", Vector2(1300, 700)],
+			["m15_erased", Vector2(500, 680)], ["m16_erased", Vector2(1450, 300)],
+		],
+	},
+	"ch2_mushroom": {
+		"name": "버섯 골짜기", "bg": "bg_ch2_mushroom",
+		"gates": {"right": "ch2_gray"},
+		"solids": [Rect2(108, 112, 150, 706), Rect2(108, 112, 1456, 60), Rect2(1410, 112, 154, 290), Rect2(1410, 540, 154, 278), Rect2(108, 680, 180, 138), Rect2(1110, 760, 454, 58), Rect2(1230, 720, 190, 98)],
+		"monsters": [
+			["m14_faded", Vector2(500, 350)], ["m14_faded", Vector2(800, 650)], ["m14_erased", Vector2(1100, 330)],
+			["m20_faded", Vector2(600, 520)], ["m20_faded", Vector2(1250, 620)], ["m15_faded", Vector2(950, 470)],
+			["boss_mushking", Vector2(760, 440)],
+		],
+	},
+	"ch2_bigtree": {
+		"name": "큰나무 앞", "bg": "bg_ch2_bigtree",
+		"gates": {"top": "ch2_gray", "bottom": "ch2_bossroom"},
+		"solids": [Rect2(400, 720, 360, 98), Rect2(910, 720, 330, 98)],
+		"monsters": [
+			["m20_faded", Vector2(450, 300)], ["m20_erased", Vector2(1250, 320)], ["m15_erased", Vector2(500, 520)],
+			["m16_erased", Vector2(1200, 520)], ["m17_erased", Vector2(650, 420)], ["m19_erased", Vector2(1050, 420)],
+			["m12_erased", Vector2(400, 700)], ["m13_erased", Vector2(1300, 700)],
+		],
+	},
+	"ch2_bossroom": {
+		"name": "큰나무 뿌리", "bg": "bg_ch2_bossroom", "fatigue": 8,
+		"gates": {"top": "ch2_bigtree"},
+		"solids": [Rect2(108, 112, 680, 90), Rect2(900, 112, 664, 90), Rect2(108, 112, 140, 706), Rect2(1430, 112, 134, 706), Rect2(108, 720, 1456, 98)],
+		"monsters": [["boss_oak", Vector2(836, 520)]],
 	},
 }
 

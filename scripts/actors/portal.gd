@@ -8,6 +8,7 @@ var target_map := ""
 var title := ""
 var spawn_tag := ""
 var locked := false
+var lock_text := ""          # 잠겨 있을 때 알려 주는 말 (비우면 기본 말)
 
 var _near := false
 var _label: Label
@@ -39,6 +40,9 @@ func _process(_delta: float) -> void:
 
 
 func interact() -> void:
+	if locked and lock_text != "":
+		GameState.notify(lock_text)
+		return
 	if locked or target_map == "":
 		GameState.notify("공책 마을에서 하루에게 이야기를 먼저 들어 보자." if target_map != "" else "아직 열리지 않은 페이지다.")
 		return

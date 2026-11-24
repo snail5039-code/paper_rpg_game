@@ -63,12 +63,24 @@ func _run() -> void:
 	GameState.clock = 480.0
 	GameState.fatigue = 100
 	GameState.difficulty = 0
-	GameState.field_boss = {"day": GameState.day, "map": "", "dead": true}   # 필드 보스는 따로 시험한다
+	GameState.field_boss = {"day": GameState.day, "map": "", "dead": true, "map_ch2": "", "dead_ch2": true}   # 필드 보스는 따로 시험한다
 	GameState.quest = GameState.Quest.FIND_LEAD
 	GameState.intro_seen = true
 
 	print("[화면 표]")
-	check(Data.FIELDS.size() == 5 and Data.CH1_LAYOUT.size() == 6, "1장은 마을 + 사냥터 4장 + 대장 방")
+	check(Data.CH1_LAYOUT.size() == 6, "1장은 마을 + 사냥터 4장 + 대장 방")
+	var ch2_fields := (Data.CH2_LAYOUT.keys() as Array).filter(func(k): return Data.FIELDS.has(k) and not Data.FIELDS[k].has("town") and k != "ch2_bossroom")
+	check(Data.CH2_LAYOUT.size() == 8 and ch2_fields.size() == 6, "2장은 숲 입구 마을 + 사냥터 6장 + 대장 방")
+	# 몬스터가 막힌 곳 안에 서 있지 않다, 모든 화면에 배경 그림이 있다
+	var stuck: Array = []
+	for id in Data.FIELDS:
+		if not preload("res://scripts/core/art.gd").has(str(Data.FIELDS[id]["bg"])):
+			stuck.append("%s 배경 없음" % id)
+		for m in Data.FIELDS[id]["monsters"]:
+			for r in Data.FIELDS[id]["solids"]:
+				if (r as Rect2).has_point(m[1]):
+					stuck.append("%s %s" % [id, m[0]])
+	check(stuck.is_empty(), "몬스터가 막힌 곳 안에 있지 않고 모든 화면에 배경이 있음 (%s)" % str(stuck))
 	var ok_links := true
 	var opposite := {"top": "bottom", "bottom": "top", "left": "right", "right": "left"}
 	for id in Data.FIELDS:
@@ -194,6 +206,77 @@ func _run() -> void:
 	v.set("last_exit", "")
 	await walk("move_down", 120)
 	check(str(v.get("last_exit")) == "" and p.global_position.y < 830.0 * S, "문이 아닌 곳의 나무는 막혀 있음 (y=%.0f)" % (p.global_position.y / S))
+
+	v.queue_free()
+	await frames(3)
+
+	print("[2장 색연필 숲]")
+	check(Data.chapter_of("ch2_gray") == "ch2" and Data.chapter_of("ch1_meadow") == "ch1" and Data.chapter_of("home") == "", "화면이 몇 장인지 앎")
+	var shot_n := 0
+	for id in ["ch2", "ch2_path", "ch2_grove", "ch2_cliff", "ch2_gray", "ch2_mushroom", "ch2_bigtree", "ch2_bossroom"]:
+		var gates: Dictionary = Data.FIELDS[id]["gates"]
+		f = await open_field(id, "gate_" + str(gates.keys()[0]))
+		p = f.get("player")
+		var want := (Data.FIELDS[id]["monsters"] as Array).size()
+		check(get_tree().get_nodes_in_group("enemies").size() == want, "%s: 몬스터 %d마리가 표대로 나옴" % [Data.MAP_NAMES[id], want])
+		check(str(f.get("hud").get("quest_text_override")).begins_with("2장 · "), "%s: 화면 이름에 2장이 붙음" % Data.MAP_NAMES[id])
+		p.global_position = Vector2(836, 470) * S
+		await frames(15)
+		shot_n += 1
+		await shot("field_ch2_%d_%s.png" % [shot_n, id])
+		f.queue_free()
+		await frames(3)
+	check(int(Data.FIELDS["ch2"].get("fatigue", 2)) == 0, "숲 입구 마을은 피로도가 들지 않음")
+	GameState.current_map = "ch2_gray"
+	for id in ["ch2", "ch2_path", "ch2_gray", "ch2_grove"]:
+		if not GameState.visited.has(id):
+			GameState.visited.append(id)
+	f = await open_field("ch2_gray", "gate_top")
+	var hud2: Node = f.get("hud")
+	hud2.call("toggle_map")
+	await frames(5)
+	check(str(hud2.get("_map_title").text).contains("2장 색연필 숲") and str(hud2.get("_map_view").get("chapter")) == "ch2", "2장에서 지도를 열면 2장 지도가 나옴")
+	await shot("field_ch2_9_map.png")
+	hud2.call("toggle_map")
+	f.queue_free()
+	await frames(3)
+
+	print("[2장으로 가는 길]")
+	GameState.bosses_beaten = {}
+	f = await open_field("ch1_bossroom", "gate_top")
+	var door := false
+	for n in f.get("actors").get_children():
+		if str(n.get("target_map")) == "ch2":
+			door = true
+	check(not door, "구깃이를 잡기 전에는 구깃이의 방에 2장 문이 없음")
+	f.queue_free()
+	await frames(3)
+	GameState.bosses_beaten = {"boss_crumple": 1}
+	f = await open_field("ch1_bossroom", "gate_top")
+	door = false
+	for n in f.get("actors").get_children():
+		if str(n.get("target_map")) == "ch2":
+			door = true
+	check(door, "구깃이를 잡은 뒤에는 구깃이의 방에 2장으로 가는 문이 생김")
+	f.queue_free()
+	await frames(3)
+
+	print("[장마다 필드 보스]")
+	GameState.field_boss = {"day": GameState.day - 1}
+	var m1 := GameState.field_boss_map("ch1")
+	var m2 := GameState.field_boss_map("ch2")
+	check((Data.CHAPTERS["ch1"]["field_maps"] as Array).has(m1) and (Data.CHAPTERS["ch2"]["field_maps"] as Array).has(m2), "1장과 2장에 오늘의 필드 보스가 하나씩 (%s, %s)" % [m1, m2])
+	GameState.current_map = m2
+	GameState.on_boss_killed("boss_colorworm")
+	check(GameState.field_boss_map("ch2") == "" and GameState.field_boss_map("ch1") == m1, "2장 필드 보스를 잡아도 1장 필드 보스는 남음")
+	f = await open_field(m1, "gate_top")
+	var fb := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if str(e.get("kind")) == "boss_scribble":
+			fb = true
+	check(fb, "1장 필드 보스는 그대로 나옴")
+	f.queue_free()
+	await frames(3)
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

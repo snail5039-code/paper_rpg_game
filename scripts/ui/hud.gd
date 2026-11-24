@@ -28,6 +28,8 @@ var _stat_rows: Array = []
 var _mp_bar: ColorRect
 var _map: Control
 var _map_view: Control
+var _map_title: Label
+var _map_foot: Label
 var _points_badge: Label
 var _status_panel: Control
 var _menu_btns: Array = []
@@ -752,20 +754,20 @@ func _build_map(root: Control) -> void:
 	var win := _tex_rect(_map, "ui_window", Vector2(110, 46), Vector2(420, 268))
 	win.mouse_filter = Control.MOUSE_FILTER_STOP
 	UI.icon_button(win, "ui_close", Vector2(396, 0), Vector2(20, 20), toggle_map)
-	var title := _dark_label(win, Vector2(0, 14), Vector2(420, 24), 17)
-	title.text = "지도 · 1장"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
+	_map_title = _dark_label(win, Vector2(0, 14), Vector2(420, 24), 17)
+	_map_title.text = "지도 · 1장"
+	_map_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_map_title.add_theme_color_override("font_color", Color(0.35, 0.25, 0.2))
 
 	# 손으로 그린 듯한 지도 그림 (scripts/ui/map_view.gd)
 	_map_view = MapViewScript.new()
 	_map_view.position = Vector2(55, 44)
 	_map_view.size = Vector2(310, 190)
 	win.add_child(_map_view)
-	var foot := _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
-	foot.text = "공책 마을 아래쪽 길로 나가면 사냥터   ·   M 이나 바깥을 눌러 닫기"
-	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
+	_map_foot = _dark_label(win, Vector2(0, 240), Vector2(420, 16), 11)
+	_map_foot.text = "공책 마을 아래쪽 길로 나가면 사냥터   ·   M 이나 바깥을 눌러 닫기"
+	_map_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_map_foot.add_theme_color_override("font_color", Color(0.5, 0.42, 0.38))
 
 
 func toggle_map() -> void:
@@ -775,6 +777,9 @@ func toggle_map() -> void:
 	GameState.set_menu_open(_map.visible)
 	if _map.visible:
 		_map_view.call("refresh")
+		var ch: String = MapViewScript.chapter_shown()
+		_map_title.text = "지도 · %d장 %s" % [int(Data.CHAPTERS[ch]["num"]), Data.CHAPTERS[ch]["name"]]
+		_map_foot.text = ("공책 마을 아래쪽 길로 나가면 사냥터" if ch == "ch1" else "숲 입구 마을 아래쪽 길로 나가면 숲") + "   ·   M 이나 바깥을 눌러 닫기"
 
 
 func is_map_open() -> bool:

@@ -31,6 +31,9 @@ const MAP_SCENES := {
 	"ch1_gridwoods": "res://scenes/field.tscn",
 	"ch1_erasedroad": "res://scenes/field.tscn",
 	"ch1_bossroom": "res://scenes/field.tscn",
+	"ch2": "res://scenes/field.tscn", "ch2_path": "res://scenes/field.tscn", "ch2_grove": "res://scenes/field.tscn",
+	"ch2_cliff": "res://scenes/field.tscn", "ch2_gray": "res://scenes/field.tscn", "ch2_mushroom": "res://scenes/field.tscn",
+	"ch2_bigtree": "res://scenes/field.tscn", "ch2_bossroom": "res://scenes/field.tscn",
 	"home_room": "res://scenes/room.tscn",
 	"museum": "res://scenes/museum.tscn",
 	"tut_1": "res://scenes/tut_map.tscn", "tut_2": "res://scenes/tut_map.tscn", "tut_3": "res://scenes/tut_map.tscn",
@@ -1923,11 +1926,18 @@ func set_difficulty(d: int) -> bool:
 	return true
 
 
-## 오늘의 필드 보스가 나오는 화면 (날이 바뀌면 다시 뽑는다)
-func field_boss_map() -> String:
+## 오늘의 필드 보스가 나오는 화면 (날이 바뀌면 다시 뽑는다). 장마다 하나씩: 1장은 "map"/"dead", 다른 장은 "map_ch2"/"dead_ch2".
+func field_boss_map(ch: String = "ch1") -> String:
+	if not Data.CHAPTERS.has(ch):
+		return ""
 	if int(field_boss.get("day", 0)) != day:
-		field_boss = {"day": day, "map": str(Data.FIELD_BOSS_MAPS[randi() % Data.FIELD_BOSS_MAPS.size()]), "dead": false}
-	return "" if bool(field_boss["dead"]) else str(field_boss["map"])
+		field_boss = {"day": day}
+	var sfx := "" if ch == "ch1" else "_" + ch
+	if not field_boss.has("map" + sfx):
+		var maps: Array = Data.CHAPTERS[ch]["field_maps"]
+		field_boss["map" + sfx] = str(maps[randi() % maps.size()])
+		field_boss["dead" + sfx] = false
+	return "" if bool(field_boss["dead" + sfx]) else str(field_boss["map" + sfx])
 
 
 ## 보스를 물리쳤다. 대장을 잡으면 다음 난이도 단계가 열린다.
@@ -1938,7 +1948,8 @@ func on_boss_killed(kind: String) -> void:
 	var role := str(Data.MONSTERS[kind].get("boss", ""))
 	boss_daily_bonus(kind, role)
 	if role == "field":
-		field_boss["dead"] = true
+		var ch := Data.chapter_of(current_map)
+		field_boss["dead" if ch == "ch1" or ch == "" else "dead_" + ch] = true
 		add_consumable("coating", 1, true)
 		notify("필드 보스를 물리쳤어요! 코팅지를 얻었어요.")
 	elif role == "boss" and difficulty == max_difficulty and max_difficulty < Data.DIFFICULTY.size() - 1:
@@ -2430,7 +2441,11 @@ func load_game() -> bool:
 	max_difficulty = clampi(int(data.get("max_difficulty", 0)), 0, Data.DIFFICULTY.size() - 1)
 	difficulty = clampi(int(data.get("difficulty", 0)), 0, max_difficulty)
 	var fb: Variant = data.get("field_boss")
-	field_boss = {"day": int(fb.get("day", 0)), "map": str(fb.get("map", "")), "dead": bool(fb.get("dead", false))} if typeof(fb) == TYPE_DICTIONARY else {"day": 0, "map": "", "dead": false}
+	field_boss = {"day": 0, "map": "", "dead": false}
+	if typeof(fb) == TYPE_DICTIONARY:
+		for k in fb:      # 장마다의 필드 보스 ("map_ch2", "dead_ch2" …)도 같이
+			var v: Variant = fb[k]
+			field_boss[str(k)] = int(v) if str(k) == "day" else (bool(v) if str(k).begins_with("dead") else str(v))
 	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
 	boss_bonus = data["boss_bonus"] if typeof(data.get("boss_bonus")) == TYPE_DICTIONARY else {}
 	tower_best = maxi(0, int(data.get("tower_best", 0)))
