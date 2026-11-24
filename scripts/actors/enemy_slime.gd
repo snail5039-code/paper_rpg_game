@@ -218,6 +218,8 @@ func _hit_fx(p: Node2D) -> void:
 	var big := 1.0 if boss == "" else 1.4
 	MonFx.pop(par, "fx_mon_impact", at, 11.0 * big, 0.18, randf_range(-0.4, 0.4))
 	var own: Array = MonFxData.hit_of(kind)
+	var hs: Array = MonFxData.hit_sound(kind)       # 효과마다 다른 소리, 몬스터마다 다른 음높이
+	Sound.play(str(hs[0]), float(hs[1]), 2.0 if boss != "" else 0.0)
 	var flip := _lunge_dir.x < 0.0
 	MonFx.pop(par, str(own[0]), at + _lunge_dir.normalized() * 3.0, 30.0 * float(own[2]) * big, 0.42,
 		randf_range(-0.25, 0.25), 1.3, flip, 31, own[1])
@@ -266,7 +268,8 @@ func _physics_process(delta: float) -> void:
 			if _state_t >= windup_time:
 				_lunge_hit = false
 				_set_state(State.LUNGE)
-				Sound.play("mon_boss" if boss != "" else "mon_" + Data.species_of(kind))
+				var ls: Array = MonFxData.lunge_sound(kind, arch)
+				Sound.play(str(ls[0]), float(ls[1]))
 		State.LUNGE:
 			hop = 1.0
 			move = _lunge_dir * lunge_speed

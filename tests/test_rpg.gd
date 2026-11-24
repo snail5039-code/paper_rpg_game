@@ -159,6 +159,24 @@ func _run() -> void:
 		if not preload("res://scripts/core/art.gd").has(a):
 			no_fx.append(a)
 	check(no_fx.is_empty(), "예고·돌진·내리치기 공통 효과 그림 8종이 있음")
+	var EnemyScript := preload("res://scripts/actors/enemy_slime.gd")
+	var no_snd: Array = []
+	var sounds := {}
+	for k in Data.MONSTERS:
+		if bool(Data.MONSTERS[k].get("dummy", false)) or str(k).begins_with("dummy") or str(k) == "tm5":
+			continue
+		var tex := str(FxData.hit_of(str(k))[0])
+		var hs: Array = FxData.hit_sound(str(k))
+		var ls: Array = FxData.lunge_sound(str(k), EnemyScript._arch_of(str(k)))
+		if not FxData.SOUND.has(tex) or not Sound.has(str(hs[0])):
+			no_snd.append("%s 맞는 소리(%s)" % [k, hs[0]])
+		if not Sound.has(str(ls[0])):
+			no_snd.append("%s 달려드는 소리(%s)" % [k, ls[0]])
+		if str(k).split("_")[0].begins_with("tm"):
+			continue
+		sounds["%s@%.2f" % [hs[0], hs[1]]] = true
+	check(no_snd.is_empty(), "모든 몬스터에 맞는 소리와 달려드는 소리가 있음 (빠진 것: %s)" % str(no_snd))
+	check(sounds.size() >= 60, "본편 몬스터 맞는 소리가 몬스터마다 다름 (%d가지)" % sounds.size())
 
 	print("[시작 장비와 수치]")
 	check(GameState.equipped.has("tool") and GameState.attack_power() == 10, "낙서 연필을 들고 시작, 공격력 10")

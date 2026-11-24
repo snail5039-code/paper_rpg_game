@@ -63,6 +63,70 @@ const HIT := {
 }
 
 
+## 맞힘 효과 그림마다 나는 소리 (scripts/core/sound.gd 의 "hit_" + 이름)
+const SOUND := {
+	"fx_mon_scribble": "slash", "fx_mon_dust": "puff", "fx_mon_claw": "slash",
+	"fx_hit_goo": "splat", "fx_hit_dotspray": "pop", "fx_hit_blades": "slash", "fx_hit_web": "snap",
+	"fx_hit_lead": "crunch", "fx_hit_sticky": "splat", "fx_hit_band": "snap",
+	"fx_hit_acorn": "crunch", "fx_hit_shavings": "crunch", "fx_hit_thorn": "snap", "fx_hit_spore": "puff",
+	"fx_hit_spiral": "splat", "fx_hit_feather": "puff", "fx_hit_crayon": "crunch", "fx_hit_petal": "puff",
+	"fx_hit_chips": "crunch", "fx_hit_moss": "puff",
+	"fx_hit_lily": "splash", "fx_hit_paint": "splat", "fx_hit_pincer": "snap", "fx_hit_squid": "splat",
+	"fx_hit_zap": "zap", "fx_hit_bubble": "pop", "fx_hit_rainbow": "chime", "fx_hit_palette": "splat",
+	"fx_hit_wash": "splash", "fx_hit_water": "splash",
+	"fx_hit_clang": "clang", "fx_hit_smear": "splat", "fx_hit_ruler": "thud", "fx_hit_glow": "chime",
+	"fx_hit_tack": "clang", "fx_hit_clip": "clang", "fx_hit_signal": "zap", "fx_hit_rail": "clang",
+	"fx_hit_marker": "slash", "fx_hit_rain": "splash",
+	"fx_hit_pop": "pop", "fx_hit_horseshoe": "clang", "fx_hit_ticket": "paper", "fx_hit_candy": "puff",
+	"fx_hit_cymbal": "clang", "fx_hit_bulb": "glass", "fx_hit_confetti": "pop", "fx_hit_popcorn": "pop",
+	"fx_hit_capsule": "pop", "fx_hit_mirror": "glass",
+	"fx_hit_strike": "slash", "fx_hit_hooks": "snap", "fx_hit_ink": "splat", "fx_hit_stamp": "thud",
+	"fx_hit_marks": "slash", "fx_hit_ellipsis": "chime", "fx_hit_spacebar": "thud", "fx_hit_underline": "slash",
+	"fx_hit_bang": "zap", "fx_hit_bracket": "snap",
+	"fx_hit_paper": "paper", "fx_hit_tape": "paper", "fx_hit_lint": "puff", "fx_hit_staple": "clang",
+	"fx_hit_bite": "crunch", "fx_hit_crane": "paper", "fx_hit_corner": "paper", "fx_hit_glue": "splat",
+	"fx_hit_ribbon": "slash", "fx_hit_bunny": "puff",
+	"fx_hit_chalk": "puff", "fx_hit_crumbs": "crunch", "fx_hit_clap": "puff", "fx_hit_scrape": "slash",
+	"fx_hit_broken": "glass", "fx_hit_crow": "paper", "fx_hit_slipper": "thud", "fx_hit_clock": "chime",
+	"fx_hit_grade": "slash", "fx_hit_note": "chime",
+	"fx_hit_fade": "puff", "fx_hit_sting": "zap", "fx_hit_whiteclaw": "slash", "fx_hit_balloon": "pop",
+	"fx_hit_spout": "splash", "fx_hit_dotwing": "paper", "fx_hit_pierce": "zap", "fx_hit_paperslash": "slash",
+	"fx_hit_fog": "puff", "fx_hit_rainbowscribble": "storm",
+	"fx_hit_eraserbig": "crunch", "fx_hit_crumple": "paper", "fx_hit_storm": "storm", "fx_hit_typo": "paper",
+	"fx_hit_question": "chime", "fx_hit_stub": "crunch", "fx_hit_strand": "splat", "fx_hit_cross": "slash",
+	"fx_hit_check": "chime",
+}
+
+## 1장 기본 몬스터는 달려드는 소리를 따로 갖고 있다 (sound.gd 의 mon_*)
+const OWN_LUNGE := ["slime", "squiggle", "dots", "grass", "spider", "bug"]
+
+
+## 몬스터마다 다른 음높이 (0.82~1.22). 같은 소리를 쓰는 몬스터도 서로 다르게 들린다.
+static func pitch_of(kind: String) -> float:
+	var sp := kind.split("_")[0]
+	if sp in OWN_LUNGE:
+		return 1.0
+	if kind.begins_with("boss"):
+		return 0.75
+	return 0.82 + float(absi(hash(sp)) % 41) / 100.0
+
+
+## 맞았을 때 나는 소리 [소리 이름, 음높이]
+static func hit_sound(kind: String) -> Array:
+	var tex := str(hit_of(kind)[0])
+	return ["hit_" + str(SOUND.get(tex, "slash")), pitch_of(kind)]
+
+
+## 달려들 때 나는 소리 [소리 이름, 음높이]. arch: 공격 방식 (enemy_slime.gd)
+static func lunge_sound(kind: String, arch: String) -> Array:
+	if arch == "boss":
+		return ["mon_boss", 1.0]
+	var sp := kind.split("_")[0]
+	if sp in OWN_LUNGE:
+		return ["mon_" + sp, 1.0]
+	return ["lunge_" + arch, pitch_of(kind)]
+
+
 ## 그 몬스터의 맞힘 효과 [그림, 색, 크기 배율]. 표에 없으면 낙서 뭉치.
 static func hit_of(kind: String) -> Array:
 	if HIT.has(kind):
