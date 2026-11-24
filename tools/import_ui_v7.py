@@ -121,6 +121,8 @@ SHEETS = {
     "94_ch2_people": (4, 1, [("npc_gutungi", 124), ("villager_3", 120), ("villager_4", 118), ("villager_5", 118)]),
     "94_ch2_portraits": (3, 1, [("portrait_gutungi_smirk", 168), ("portrait_gutungi_quiet", 168), ("portrait_oak", 168)]),
     "95_ch2_mats": (5, 2, [("mat_%d" % i, 64) for i in range(12, 22)]),
+    # 생활 도구 등급 아이콘: 칸 = 낚싯대·잠자리채·낫·갈퀴·물뿌리개, 줄 = 나무·쇠·금
+    "96_life_icons": (5, 3, [("life_icon_%s_%d" % (k, g), 64) for g in range(3) for k in ["rod", "net", "sickle", "rake", "can"]]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
