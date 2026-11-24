@@ -136,3 +136,9 @@ Make ONE image: a monster animation sheet, one row of 6 equal cells on a perfect
 - 결과 (각 4×2, `fx_hit_<이름>`): a lead shavings sticky band thorn spore crayon petal / b paint ink water bubble zap tack clip note / c popcorn confetti marks stamp tape paper chalk fade
 - 몬스터마다 [그림, 색, 크기] 는 `scripts/data/mon_fx_data.gd` 의 `HIT`
 - 프롬프트: "ONE more image, exactly the same style and layout (4 across, 2 rows, magenta background, each a themed HIT IMPACT burst exploding from the centre). Row 1: 1 … 8 …" 칸마다 영어로 하나씩 (예: "a big violet paint splat with round droplets flying out")
+
+## 90. 몬스터 전용 맞힘 효과 72종 (`90_mon_hit_d~l.png`, 같은 대화에서 이어서)
+
+- 첨부: `ui_v7/89_mon_hit_b.png`. 칸 이름과 몬스터는 `tools/import_ui_v7.py` 의 `90_mon_hit_*`, 배정은 `scripts/data/mon_fx_data.gd`
+- 이것으로 본편 몬스터(1~9장 기본, 보스 포함 93종)가 모두 자기 그림을 하나씩 갖는다. 연습 페이지 몬스터만 색을 바꿔 같이 쓴다.
+- 프롬프트는 §89 와 같은 틀에 칸마다 영어 한 줄 (예: d = slime goo, polka dots, grass blades, spider web, acorns, snail spiral, owl feathers, wood chips)

@@ -104,6 +104,16 @@ SHEETS = {
     "89_mon_hit_a": (4, 2, [("fx_hit_%s" % n, 120) for n in ["lead", "shavings", "sticky", "band", "thorn", "spore", "crayon", "petal"]]),
     "89_mon_hit_b": (4, 2, [("fx_hit_%s" % n, 120) for n in ["paint", "ink", "water", "bubble", "zap", "tack", "clip", "note"]]),
     "89_mon_hit_c": (4, 2, [("fx_hit_%s" % n, 120) for n in ["popcorn", "confetti", "marks", "stamp", "tape", "paper", "chalk", "fade"]]),
+    # 몬스터 전용 맞힘 효과 72종 (90_mon_hit_d~l)
+    "90_mon_hit_d": (4, 2, [("fx_hit_%s" % n, 120) for n in ["goo", "dotspray", "blades", "web", "acorn", "spiral", "feather", "chips"]]),
+    "90_mon_hit_e": (4, 2, [("fx_hit_%s" % n, 120) for n in ["moss", "lily", "pincer", "squid", "rainbow", "palette", "wash", "clang"]]),
+    "90_mon_hit_f": (4, 2, [("fx_hit_%s" % n, 120) for n in ["smear", "ruler", "glow", "signal", "rail", "marker", "rain", "pop"]]),
+    "90_mon_hit_g": (4, 2, [("fx_hit_%s" % n, 120) for n in ["horseshoe", "ticket", "candy", "cymbal", "bulb", "capsule", "mirror", "strike"]]),
+    "90_mon_hit_h": (4, 2, [("fx_hit_%s" % n, 120) for n in ["hooks", "ellipsis", "spacebar", "underline", "bang", "bracket", "lint", "staple"]]),
+    "90_mon_hit_i": (4, 2, [("fx_hit_%s" % n, 120) for n in ["bite", "crane", "corner", "glue", "ribbon", "bunny", "crumbs", "clap"]]),
+    "90_mon_hit_j": (4, 2, [("fx_hit_%s" % n, 120) for n in ["scrape", "broken", "crow", "slipper", "clock", "grade", "sting", "whiteclaw"]]),
+    "90_mon_hit_k": (4, 2, [("fx_hit_%s" % n, 120) for n in ["balloon", "spout", "dotwing", "pierce", "paperslash", "fog", "rainbowscribble", "eraserbig"]]),
+    "90_mon_hit_l": (4, 2, [("fx_hit_%s" % n, 120) for n in ["crumple", "storm", "typo", "question", "stub", "strand", "cross", "check"]]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)

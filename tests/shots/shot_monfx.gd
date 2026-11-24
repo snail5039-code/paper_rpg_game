@@ -91,8 +91,8 @@ func _run() -> void:
 	# 5. 몬스터마다 다른 맞힘 효과 (4×3, 맞는 자리에 빈 표시)
 	await _frames(30)
 	boss.queue_free()
-	var kinds := ["slime_faded", "m07_faded", "m13_faded", "m22_faded", "m25_faded", "m35_faded",
-		"m42_faded", "m48_faded", "m54_faded", "m62_faded", "m71_faded", "m81_faded"]
+	var kinds := ["slime_faded", "spider_faded", "m15_faded", "m23_faded", "m37_faded", "m45_faded",
+		"m50_faded", "m60_faded", "m66_faded", "m75_faded", "m85_faded", "m90_faded"]
 	var sheets := [kinds.slice(0, 12)]
 	for i in kinds.size():
 		var m: Node2D = load("res://scenes/enemy.tscn").instantiate()

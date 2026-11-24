@@ -144,7 +144,17 @@ func _run() -> void:
 			no_fx.append("%s(%s 그림 없음)" % [k, own[0]])
 		combos[str(own)] = true
 	check(no_fx.is_empty(), "모든 몬스터에 자기 공격 효과가 정해져 있고 그림도 있음 (빠진 것: %s)" % str(no_fx))
-	check(combos.size() >= 80, "공격 효과 조합이 몬스터마다 거의 다름 (%d가지)" % combos.size())
+	check(combos.size() >= 100, "공격 효과 조합이 몬스터마다 다름 (%d가지)" % combos.size())
+	var used := {}
+	var shared: Array = []
+	for key in FxData.HIT:
+		if str(key).begins_with("tm"):
+			continue        # 연습 페이지 몬스터는 색만 바꿔 같이 쓴다
+		var tex_name := str(FxData.HIT[key][0])
+		if used.has(tex_name):
+			shared.append("%s=%s" % [key, used[tex_name]])
+		used[tex_name] = key
+	check(shared.is_empty() and used.size() >= 90, "본편 몬스터 %d종이 모두 자기 전용 효과 그림을 씀 (겹침: %s)" % [used.size(), str(shared)])
 	for a in ["fx_mon_alert", "fx_mon_claw", "fx_mon_impact", "fx_mon_dust", "fx_mon_shock", "fx_mon_target", "fx_mon_speed", "fx_mon_scribble"]:
 		if not preload("res://scripts/core/art.gd").has(a):
 			no_fx.append(a)
