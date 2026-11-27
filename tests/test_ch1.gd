@@ -175,6 +175,7 @@ func _run() -> void:
 	var f := await open_field("ch1_meadow")
 	var heosu := spot_of(f, "heosu")
 	check(heosu != null, "들판에 허수가 있음")
+	check(get_tree().get_nodes_in_group("haru_follower").size() == 1, "이야기 동안 하루가 사냥터에서 따라다님")
 	await shot("ch1_1_heosu.png")
 	await talk_to(f, heosu)
 	check(GameState.ch1_step == 2 and said("허수", "노란 가방"), "허수: 노란 가방, 흩어진 편지 → 줍기 시작")
@@ -207,6 +208,12 @@ func _run() -> void:
 	f = await open_field("ch1_gridwoods")
 	await frames(30)
 	check(said("하루", "노란 가방"), "숲에 들어가면 하루가 벌레가 문 가방을 봄")
+	var has_bag := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if str(e.get("kind")) == "boss_bug" and e.get_node_or_null("StoryBag") != null:
+			has_bag = true
+	check(has_bag, "벌레가 노란 가방을 물고 있음")
+	check(await until(func(): return not GameState.cutscene and get_viewport().get_camera_2d().offset == Vector2.ZERO), "벌레를 보여 준 뒤 화면이 주인공에게 돌아옴")
 	check(kill("boss_bug"), "왕 지우개똥 벌레가 숲에 있음")
 	check(await until(func(): return GameState.ch1_step == 5), "벌레를 쓰러뜨리면 빈 가방과 우표 → 우편함으로")
 	await close(f)
@@ -243,6 +250,13 @@ func _run() -> void:
 		await talk_to(v, wh)
 	check(await until(func(): return GameState.ch1_step == 8), "편지를 넣으면 1장 뒷이야기가 끝남")
 	check(books > b0 and said("지팡이 할아버지", "한 통은 도착"), "마지막 그림책과 할아버지의 말")
+	await frames(3)
+	check(spot_of(v, "mailbox_drawn") != null, "흰 집 자리에 그린 우편함이 남음")
+	var calm := true
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.has_meta("calm_aggro"):
+			calm = false
+	check(calm, "이야기가 끝나면 몬스터가 원래대로")
 	await close(v)
 
 	print("[저장]")

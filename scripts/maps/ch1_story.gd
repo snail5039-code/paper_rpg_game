@@ -11,6 +11,7 @@ extends Node
 const Data := preload("res://scripts/data/game_data.gd")
 const SpotScript := preload("res://scripts/actors/story_spot.gd")
 const StoryBook := preload("res://scripts/ui/story_book.gd")
+const HaruFollower := preload("res://scripts/actors/haru_follower.gd")
 
 const END_STEP := 8
 const SCRAPS := 3
@@ -23,6 +24,8 @@ const SPOTS := {
 	"ch1_erasedroad": {"mailbox": Vector2(1000, 720)},
 	"ch1_bossroom": {},
 }
+## 이야기 장면 동안 몬스터를 이만큼 떼어 놓는다
+const CALM_RADIUS := 150.0
 ## 들판의 편지 조각에 남은 글자
 const SCRAP_TEXT := ["\"…내일…\"", "\"…네 그림…\"", "\"…같이…\""]
 const BOOK := "1장 뒷이야기 · 흰 집"
@@ -70,6 +73,8 @@ func _ready() -> void:
 			_begin.call_deferred()
 		elif st == 7:
 			_spot(actors, "whitehouse", "story_letter", here["whitehouse"])
+		elif st >= END_STEP:
+			_spot(actors, "mailbox_drawn", "story_mailbox", here["whitehouse"])
 	elif map_id == "ch1_meadow":
 		if st == 1:
 			_spot(actors, "heosu", "npc_heosu", here["heosu"])
@@ -88,6 +93,9 @@ func _ready() -> void:
 		_spot(actors, "mailbox", "npc_mailbox", here["mailbox"])
 	elif map_id == "ch1_bossroom" and st == 6:
 		_boss_intro.call_deferred()
+	# 하루는 이야기 동안 사냥터에서 곁을 따라다닌다 (마을에는 원래 서 있다)
+	if map_id != "ch1" and st >= 1 and st < END_STEP and map.get("player") != null:
+		HaruFollower.attach(actors, map.get("player"))
 	# 보스는 다시 나오기도 하니, 새로 들어오는 몬스터에도 단다
 	for e in map.get_tree().get_nodes_in_group("enemies"):
 		_hook(e)
@@ -107,8 +115,40 @@ func _hook(n: Node) -> void:
 	var kind := str(n.get("kind"))
 	if kind == "boss_bug" and not n.is_connected("died", _on_bug_died):
 		n.connect("died", _on_bug_died.unbind(1))
+		if GameState.ch1_step == 4 and n is Node2D:
+			var bag := Sprite2D.new()      # 물고 있는 노란 우편 가방
+			bag.name = "StoryBag"
+			bag.texture = _tex("story_bag")
+			bag.scale = Vector2(0.27, 0.27)
+			bag.position = Vector2(10, -6)
+			bag.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+			n.add_child(bag)
 	elif kind == "boss_crumple" and not n.is_connected("died", _on_crumple_died):
 		n.connect("died", _on_crumple_died.unbind(1))
+
+
+func _tex(n: String) -> Texture2D:
+	return preload("res://scripts/core/art.gd").tex(n)
+
+
+## 이야기 장면 동안 가까운 몬스터를 떼어 놓고 쫓아오지 못하게 한다 (calm=false 면 되돌린다)
+func _calm(on: bool) -> void:
+	var p: Node2D = map.get("player")
+	if p == null:
+		return
+	for e in map.get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or str(e.get("kind")).begins_with("boss"):
+			continue
+		if on:
+			if not e.has_meta("calm_aggro"):
+				e.set_meta("calm_aggro", e.get("aggro_range"))
+			e.set("aggro_range", 0.0)
+			var d: Vector2 = e.global_position - p.global_position
+			if d.length() < CALM_RADIUS:
+				e.global_position = p.global_position + (d.normalized() if d.length() > 1.0 else Vector2.RIGHT) * CALM_RADIUS
+		elif e.has_meta("calm_aggro"):
+			e.set("aggro_range", e.get_meta("calm_aggro"))
+			e.remove_meta("calm_aggro")
 
 
 func _spot(actors: Node2D, what: String, sprite: String, at: Vector2) -> Node2D:
@@ -146,6 +186,7 @@ func _begin() -> void:
 	if GameState.ch1_step != 0 or _busy:
 		return
 	_busy = true
+	_calm(true)
 	await StoryBook.play(map, [["ch1_page_0", [
 		"빈 페이지에서 돌아오니, 마을이 조금 더 하얘져 있었다.",
 		"하루가 집 모양 흰 자국 앞에 서 있었다.",
@@ -154,6 +195,7 @@ func _begin() -> void:
 	await GameState.say("지팡이 할아버지", ["편지를 날라 주던 녀석이야.", "너희 둘이 공책 귀퉁이에 쪽지를 써 두면, 그 녀석이 날랐지.",
 		"이름은… 나도 모르겠구나. 들판에서 자주 봤다는 허수아비가 있단다."])
 	await GameState.say("나", ["(쪽지… 하루랑 공책에 쪽지를 주고받았던가?)"], "player_sad")
+	_calm(false)
 	_busy = false
 	_done(1)
 
@@ -164,6 +206,7 @@ func on_spot(spot: Node2D) -> void:
 	if _busy:
 		return
 	_busy = true
+	_calm(true)
 	var what := str(spot.get("what"))
 	match what:
 		"whitehouse":
@@ -180,9 +223,12 @@ func on_spot(spot: Node2D) -> void:
 			await _signpost()
 		"mailbox":
 			await _mailbox()
+		"mailbox_drawn":
+			await GameState.say("나", ["흰 집 앞에 그려 둔 우편함. 편지 한 통이 들어 있다."], "player")
 		_:
 			if what.begins_with("scrap"):
 				await _scrap(spot, what)
+	_calm(false)
 	_busy = false
 
 
@@ -269,7 +315,31 @@ func _signpost() -> void:
 
 func _enter_woods() -> void:
 	await map.get_tree().create_timer(0.6, false).timeout
+	var bug: Node2D = null
+	for e in map.get_tree().get_nodes_in_group("enemies"):
+		if str(e.get("kind")) == "boss_bug":
+			bug = e
+	var cam: Camera2D = map.get_viewport().get_camera_2d()
+	var p: Node2D = map.get("player")
+	if bug == null or cam == null or p == null:
+		await GameState.say("하루", ["저기, 왕 지우개똥 벌레야. 뭘 물고 있어.", "…노란 가방이야!"], "haru_surprised")
+		return
+	# 화면을 벌레 쪽으로 옮겨 보여 주고 돌아온다
+	GameState.set_cutscene(true)
+	var tw := map.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	# 맵 끝을 넘어 빈 곳이 보이지 않게, 화면 가운데가 맵 안에 머물도록 자른다
+	var half := cam.get_viewport_rect().size / cam.zoom / 2.0
+	var want := Vector2(clampf(bug.global_position.x, cam.limit_left + half.x, cam.limit_right - half.x),
+		clampf(bug.global_position.y, cam.limit_top + half.y, cam.limit_bottom - half.y))
+	tw.tween_property(cam, "offset", want - cam.get_screen_center_position(), 0.8).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+	GameState.set_cutscene(false)
 	await GameState.say("하루", ["저기, 왕 지우개똥 벌레야. 뭘 물고 있어.", "…노란 가방이야!"], "haru_surprised")
+	GameState.set_cutscene(true)
+	tw = map.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(cam, "offset", Vector2.ZERO, 0.6).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+	GameState.set_cutscene(false)
 
 
 func _on_bug_died() -> void:
@@ -347,4 +417,5 @@ func _ending() -> void:
 	await GameState.say("나", ["…모르겠어."], "player_sad")
 	await GameState.say("하루", ["그렇구나.", "가자. 다음 페이지로."], "haru_smile")
 	_done(END_STEP)
+	_spot(map.get("actors"), "mailbox_drawn", "story_mailbox", SPOTS["ch1"]["whitehouse"])
 	GameState.notify("1장 뒷이야기 \"흰 집\"을 끝냈어요.")

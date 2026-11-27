@@ -132,6 +132,8 @@ SHEETS = {
     "100_ch1_people": (4, 3, [("npc_heosu", 120), ("npc_signpost", 124), ("npc_mailbox", 112), ("story_bag", 72),
                               ("portrait_heosu", 168), ("portrait_signpost", 168), ("portrait_mailbox", 168), ("portrait_crumple", 168),
                               ("story_scrap", 48), ("story_stamp", 48), ("story_crumpled", 48), ("story_letter", 48)]),
+    # 1장 뒷이야기 끝: 흰 집 자리에 그려 넣은 우편함 (편지 한 통)
+    "102_ch1_mailbox": (1, 1, [("story_mailbox", 96)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)
