@@ -29,6 +29,9 @@ var grid_move := false
 var _drops: Array = []
 var _strip := false
 var _single := false         # 그림 한 장짜리 (보스)
+var _anim := false           # 보스 움직임 띠 (<그림>_anim: 기본, 걷기 둘, 예고, 공격, 맞음)
+var _base_scale := Vector2.ONE
+var _smash_t := 0.0          # 내리친 직후 (공격 그림을 잠깐 보인다)
 var tier := 0                # 난이도 단계 (사냥터가 정해 준다)
 var hp_mult := 1.0           # 끝없는 탑의 층 배율 (HP·경험치)
 var dmg_mult := 1.0          # 끝없는 탑의 층 배율 (공격)
@@ -129,8 +132,14 @@ func _ready() -> void:
 		if one:
 			_single = true
 			use_placeholder_art = false
-			_sprite = Art.make_sprite(self, one, FOOT)
+			var sheet := Art.tex(str(cfg["sprite"]) + "_anim")
+			if sheet:
+				_anim = true
+				_sprite = Art.make_sprite(self, sheet, FOOT, 6, 1)
+			else:
+				_sprite = Art.make_sprite(self, one, FOOT)
 			_sprite.scale = Vector2.ONE * (radius * 3.4 / one.get_width())
+			_base_scale = _sprite.scale
 			_sprite.show_behind_parent = true
 	elif str(cfg["art"]) == "strip":
 		var sheet := Art.tex("mon_" + str(cfg["sprite"]))
@@ -299,11 +308,7 @@ func _physics_process(delta: float) -> void:
 
 	_boss_moves(delta, p, has_player)
 	if _sprite and _single:
-		if absf(move.x) > 1.0:
-			_sprite.flip_h = move.x < 0.0
-		var wob := Vector2(sin(_t * 70.0) * 1.5, 0) if state == State.WINDUP else Vector2.ZERO
-		_sprite.position = FOOT + wob + Vector2(0, -hop * 3.0)
-		_sprite.modulate = Color(1.6, 1.6, 1.6) if _flash > 0.0 else Color.WHITE
+		_boss_pose(delta, move)
 	elif _sprite and _strip:
 		# 6칸 시트: 기본, 움직임1, 움직임2, 예고, 공격, 맞음
 		var col := 0
@@ -345,6 +350,72 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+## 한 장짜리(보스) 몬스터의 모습: 움직임 띠가 있으면 칸을 고르고, 몸을 늘이고 눌러 걷기·예고·공격을 보인다.
+## 걷기: 칸 1·2를 번갈아 + 뒤뚱. 예고(박치기·내려치기 전): 칸 3, 낮게 웅크리고 부르르. 공격: 칸 4, 앞으로 쭉 늘어남. 맞음: 칸 5.
+func _boss_pose(delta: float, move: Vector2) -> void:
+	_smash_t = maxf(0.0, _smash_t - delta)
+	var walking := move.length() > 1.0 and state != State.LUNGE
+	var warn := state == State.WINDUP or _slam_warn > 0.0
+	var strike := state == State.LUNGE or _smash_t > 0.0
+	var face := move.x
+	if state == State.WINDUP or state == State.LUNGE:
+		face = _lunge_dir.x
+	elif _slam_warn > 0.0 or _smash_t > 0.0:
+		face = _slam_pos.x - global_position.x
+	if absf(face) > 1.0 or (absf(face) > 0.01 and (warn or strike)):
+		_sprite.flip_h = face < 0.0
+	var dir := -1.0 if _sprite.flip_h else 1.0
+	var sx := 1.0
+	var sy := 1.0
+	var off := Vector2.ZERO
+	var tilt := 0.0
+	var col := 0
+	if _flash > 0.0:
+		col = 5
+		sx = 1.1
+		sy = 0.9
+		off.x = -dir * 2.0
+	elif _smash_t > 0.0:      # 내리쳤다: 납작하게 눌린다
+		col = 4
+		var k := _smash_t / 0.3
+		sx = 1.0 + 0.22 * k
+		sy = 1.0 - 0.2 * k
+	elif state == State.LUNGE:   # 박치기: 앞으로 쭉 늘어나며 숙인다
+		col = 4
+		var k := sin(minf(1.0, _state_t / maxf(0.01, lunge_time)) * PI)
+		sx = 1.0 + 0.18 * k
+		sy = 1.0 - 0.12 * k
+		tilt = 0.14 * dir * k
+	elif warn:                # 예고: 낮게 웅크리고 뒤로 젖히며 부르르
+		col = 3
+		var w := minf(1.0, (_state_t / maxf(0.01, windup_time)) if state == State.WINDUP else (1.0 - _slam_warn / SLAM_WARN))
+		sx = 1.0 + 0.12 * w
+		sy = 1.0 - 0.14 * w
+		off.x = sin(_t * 70.0) * (1.0 + w)
+		tilt = -0.08 * w * dir
+	elif walking:             # 걷기: 두 칸을 번갈아, 발을 디딜 때마다 뒤뚱
+		var ph := _t * clampf(speed / 6.0, 5.0, 9.0)
+		col = 1 + int(ph / PI) % 2
+		var step := absf(sin(ph))
+		off.y = -step * 3.0
+		sy = 1.0 + 0.05 * step
+		sx = 1.0 - 0.03 * step
+		tilt = sin(ph) * 0.06
+	elif state == State.REST:
+		sx = 1.04
+		sy = 0.96
+	else:                     # 가만히: 숨쉬기
+		var b := sin(_t * 2.4)
+		sx = 1.0 + 0.02 * b
+		sy = 1.0 - 0.025 * b
+	if _anim:
+		_sprite.frame = col
+	_sprite.scale = _base_scale * Vector2(sx, sy)
+	_sprite.rotation = tilt
+	_sprite.position = FOOT + off
+	_sprite.modulate = Color(1.6, 1.6, 1.6) if _flash > 0.0 else Color.WHITE
+
+
 ## 보스의 추가 움직임: 바닥 내리치기(빨간 동그라미가 1초 보인 뒤 그 자리에 피해), 체력이 절반일 때 부하 부르기
 func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 	if boss == "" or not has_player:
@@ -359,6 +430,7 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 		if _slam_warn > 0.0:
 			_slam_warn -= delta
 			if _slam_warn <= 0.0:
+				_smash_t = 0.3
 				_slam_fx()
 				if p.global_position.distance_to(_slam_pos) <= SLAM_RADIUS:
 					p.call("take_damage", roundi(damage * 1.5), (p.global_position - _slam_pos).normalized())

@@ -613,6 +613,38 @@ func _run() -> void:
 	check(big_hp - int(big.get("hp")) >= GameState.attack_power() * 5, "화면의 적에게 큰 피해 (%d)" % (big_hp - int(big.get("hp"))))
 	big.queue_free()
 
+	print("[보스 움직임]")
+	for kind in ["tm13", "boss_bug", "boss_crumple", "boss_scribble", "boss_oak", "boss_mushking", "boss_colorworm"]:
+		var b: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+		b.set("kind", kind)
+		b.position = player.global_position + Vector2(300, 0)
+		world.get("actors").add_child(b)
+		b.set_physics_process(false)
+		var sp: Sprite2D = b.get("_sprite")
+		var seen := {}
+		var flipped := false
+		for pose in [[0, Vector2.ZERO, 0.0], [1, Vector2(30, 0), 0.1], [1, Vector2(30, 0), 0.5], [2, Vector2.ZERO, 0.4], [3, Vector2.ZERO, 0.2]]:
+			b.set("state", int(pose[0]))
+			b.set("_lunge_dir", Vector2.RIGHT)
+			b.set("_state_t", float(pose[2]))
+			b.set("_t", float(pose[2]) * 2.0)
+			b.call("_boss_pose", 0.0, pose[1])
+			seen[sp.frame] = true
+		for i in 20:     # 걷는 동안 두 칸을 번갈아
+			b.set("state", 1)
+			b.set("_t", i * 0.1)
+			b.call("_boss_pose", 0.0, Vector2(30, 0))
+			seen[sp.frame] = true
+		b.call("_boss_pose", 0.0, Vector2(-30, 0))
+		flipped = sp.flip_h
+		b.set("_flash", 0.2)
+		b.call("_boss_pose", 0.0, Vector2.ZERO)
+		seen[sp.frame] = true
+		check(bool(b.get("_anim")) and seen.size() == 6, "%s: 움직임 띠의 6칸을 모두 씀 (가만히·걷기 둘·예고·공격·맞음)" % kind)
+		check(flipped, "%s: 왼쪽으로 걸으면 왼쪽을 봄" % kind)
+		b.queue_free()
+	await frames(2)
+
 	print("[저장/불러오기]")
 	var inv_n := GameState.inventory.size()
 	var rank := GameState.skill_rank("slash")
