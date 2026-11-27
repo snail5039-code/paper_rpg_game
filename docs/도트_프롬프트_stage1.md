@@ -264,3 +264,11 @@ SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by e
   - `boss_4` 색 빠진 왕버섯: 통통 걸음 / 갓이 눌리며 웅크림 / 갓으로 내리찍는 박치기 / 갓이 찌그러짐
   - `boss_5` 색 먹는 애벌레: 마디가 물결침 / S자로 감아 웅크림 / 머리를 내밀어 덥석 / 마디가 찌그러짐
 - 가져오기: `python tools/import_boss_anim.py` → `<보스 그림>_anim` (첫 칸 가로를 한 장짜리 그림 가로에 맞춤). 게임은 이 띠가 있으면 enemy_slime.gd `_boss_pose` 로 칸을 고른다
+
+## 105. 보스 전용 기술·등장 효과
+- `105_boss_skill` (4×4, 마젠타, 얼굴 없음): 참고로 보스 7마리 그림을 붙인다.
+  첫 줄 빨간 크레용 대각선 한 획(왼쪽 아래→오른쪽 위) / 빨간 체크 탄 / 분홍 지우개 부스러기 공 / 구겨진 줄 공책 종이 공
+  둘째 줄 엉킨 갈색 낙서 공 탄 / 빙글빙글 연필 낙서 연기 / 땅을 뚫고 솟은 뿌리 가시 / 떨어지는 도토리
+  셋째 줄 회색·보라 포자 독구름 / 흙 둔덕 / 무지개 물감 방울 탄(머리 왼쪽, 꼬리 오른쪽) / 무지개 물감 웅덩이(납작)
+  넷째 줄 찢어진 공책 종이 이름표 띠(양 끝 리본, 가운데 비움) / 쩍 갈라진 바닥 금 / 빨간 포효 선(가운데 비움) / 노란 크레용 집중 고리
+- 결과: `fx_boss_slash` `fx_boss_check` `fx_boss_crumb` `fx_boss_paper` `fx_boss_scrib` `fx_boss_cloud` `fx_boss_root` `fx_boss_acorn` `fx_boss_spore` `fx_boss_mound` `fx_boss_paint` `fx_boss_puddle` `ui_boss_banner` `fx_boss_crack` `fx_boss_roar` `fx_boss_ring`

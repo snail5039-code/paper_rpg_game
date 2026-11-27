@@ -16,6 +16,8 @@ const MonFx := preload("res://scripts/actors/mon_fx.gd")
 const MonsterBook := preload("res://scripts/data/monster_book.gd")
 const MonFxData := preload("res://scripts/data/mon_fx_data.gd")
 const BossBurst := preload("res://scripts/actors/boss_burst.gd")
+const BossBrain := preload("res://scripts/actors/boss_brain.gd")
+const BossData := preload("res://scripts/data/boss_data.gd")
 ## 1장 기본 몬스터의 공격 방식 (2장부터는 monster_book.gd 의 SPECIES 에 적혀 있다)
 const BASE_ARCH := {"slime": "hop", "squiggle": "dash", "dots": "swarm", "grass": "ambush", "spider": "grid", "bug": "roll"}
 const EQUIP_DROP_RATE := 0.02   # 몬스터가 장비를 떨어뜨릴 확률 (세부설정 6)
@@ -32,6 +34,16 @@ var _single := false         # 그림 한 장짜리 (보스)
 var _anim := false           # 보스 움직임 띠 (<그림>_anim: 기본, 걷기 둘, 예고, 공격, 맞음)
 var _base_scale := Vector2.ONE
 var _smash_t := 0.0          # 내리친 직후 (공격 그림을 잠깐 보인다)
+# 보스 기술 (boss_brain.gd 가 State.SKILL 동안 정한다)
+var skill_pose := -1         # 보일 칸 (3 예고, 4 공격, -1 평소대로)
+var skill_move := Vector2.ZERO
+var skill_face := 0.0        # 바라볼 쪽 (x 부호)
+var skill_lift := 0.0        # 뛰어오른 높이
+var skill_spin := false      # 데굴데굴 구르기
+var skill_hide := false      # 땅속·낙서 구름 속 (안 보인다)
+var immune := false          # 맞지 않는다 (숨었거나 공중)
+var enraged := false         # 2페이즈 (조금 붉다)
+var brain: Node
 var tier := 0                # 난이도 단계 (사냥터가 정해 준다)
 var hp_mult := 1.0           # 끝없는 탑의 층 배율 (HP·경험치)
 var dmg_mult := 1.0          # 끝없는 탑의 층 배율 (공격)
@@ -67,7 +79,7 @@ var _trail_t := 0.0
 @export var contact_range := 15.0
 @export var damage := 1
 
-enum State { WANDER, CHASE, WINDUP, LUNGE, REST }
+enum State { WANDER, CHASE, WINDUP, LUNGE, REST, SKILL }
 
 var state: int = State.WANDER
 var _state_t := 0.0
@@ -127,6 +139,9 @@ func _ready() -> void:
 		# 보스 곁에서는 낮은 울림이 들린다 (가까울수록 크게). 필드 보스는 더 멀리서도 들린다.
 		Sound.attach_boss_loop(self, 340.0 if boss == "field" else 260.0)
 		_roar_t = randf_range(2.0, 4.0)
+		if not BossData.of(kind).is_empty():
+			brain = BossBrain.new()
+			add_child(brain)
 	if str(cfg["art"]) == "single":
 		var one := Art.tex(str(cfg["sprite"]))
 		if one:
@@ -297,6 +312,9 @@ func _physics_process(delta: float) -> void:
 			hop = 0.0
 			if _state_t >= rest_time:
 				_set_state(State.CHASE)
+		State.SKILL:
+			hop = 0.0
+			move = skill_move
 
 	if grid_move and state != State.LUNGE and move != Vector2.ZERO:
 		# 모눈 선을 따라: 더 먼 축으로만 움직인다
@@ -354,11 +372,14 @@ func _physics_process(delta: float) -> void:
 ## 걷기: 칸 1·2를 번갈아 + 뒤뚱. 예고(박치기·내려치기 전): 칸 3, 낮게 웅크리고 부르르. 공격: 칸 4, 앞으로 쭉 늘어남. 맞음: 칸 5.
 func _boss_pose(delta: float, move: Vector2) -> void:
 	_smash_t = maxf(0.0, _smash_t - delta)
-	var walking := move.length() > 1.0 and state != State.LUNGE
-	var warn := state == State.WINDUP or _slam_warn > 0.0
-	var strike := state == State.LUNGE or _smash_t > 0.0
+	var in_skill := state == State.SKILL
+	var walking := move.length() > 1.0 and state != State.LUNGE and not in_skill
+	var warn := state == State.WINDUP or _slam_warn > 0.0 or (in_skill and skill_pose == 3)
+	var strike := state == State.LUNGE or _smash_t > 0.0 or (in_skill and skill_pose == 4)
 	var face := move.x
-	if state == State.WINDUP or state == State.LUNGE:
+	if in_skill:
+		face = skill_face
+	elif state == State.WINDUP or state == State.LUNGE:
 		face = _lunge_dir.x
 	elif _slam_warn > 0.0 or _smash_t > 0.0:
 		face = _slam_pos.x - global_position.x
@@ -386,9 +407,21 @@ func _boss_pose(delta: float, move: Vector2) -> void:
 		sx = 1.0 + 0.18 * k
 		sy = 1.0 - 0.12 * k
 		tilt = 0.14 * dir * k
+	elif in_skill and skill_pose == 4:   # 기술을 쓰는 중: 앞으로 쏠려 들썩인다
+		col = 4
+		var k := 0.5 + 0.5 * absf(sin(_t * 14.0))
+		sx = 1.0 + 0.12 * k
+		sy = 1.0 - 0.08 * k
+		tilt = 0.1 * dir
 	elif warn:                # 예고: 낮게 웅크리고 뒤로 젖히며 부르르
 		col = 3
-		var w := minf(1.0, (_state_t / maxf(0.01, windup_time)) if state == State.WINDUP else (1.0 - _slam_warn / SLAM_WARN))
+		var w := 1.0
+		if state == State.WINDUP:
+			w = minf(1.0, _state_t / maxf(0.01, windup_time))
+		elif in_skill:
+			w = minf(1.0, _state_t / 0.3)
+		else:
+			w = minf(1.0, 1.0 - _slam_warn / SLAM_WARN)
 		sx = 1.0 + 0.12 * w
 		sy = 1.0 - 0.14 * w
 		off.x = sin(_t * 70.0) * (1.0 + w)
@@ -408,12 +441,16 @@ func _boss_pose(delta: float, move: Vector2) -> void:
 		var b := sin(_t * 2.4)
 		sx = 1.0 + 0.02 * b
 		sy = 1.0 - 0.025 * b
+	if skill_spin:
+		tilt = _t * 18.0 * dir
+	off.y -= skill_lift
 	if _anim:
 		_sprite.frame = col
+	_sprite.visible = not skill_hide
 	_sprite.scale = _base_scale * Vector2(sx, sy)
 	_sprite.rotation = tilt
 	_sprite.position = FOOT + off
-	_sprite.modulate = Color(1.6, 1.6, 1.6) if _flash > 0.0 else Color.WHITE
+	_sprite.modulate = Color(1.6, 1.6, 1.6) if _flash > 0.0 else (Color(1.18, 0.86, 0.86) if enraged else Color.WHITE)
 
 
 ## 보스의 추가 움직임: 바닥 내리치기(빨간 동그라미가 1초 보인 뒤 그 자리에 피해), 체력이 절반일 때 부하 부르기
@@ -436,7 +473,7 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 					p.call("take_damage", roundi(damage * 1.5), (p.global_position - _slam_pos).normalized())
 		else:
 			_slam_t -= delta
-			if _slam_t <= 0.0 and p.global_position.distance_to(global_position) < 170.0:
+			if _slam_t <= 0.0 and state != State.SKILL and p.global_position.distance_to(global_position) < 170.0:
 				_slam_t = _slam_every
 				_slam_warn = SLAM_WARN
 				Sound.play("slam")
@@ -454,6 +491,8 @@ func _boss_moves(delta: float, p: Node2D, has_player: bool) -> void:
 
 
 func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
+	if immune:
+		return
 	hp -= amount
 	Sound.play("hit", 1.15 if crit else 1.0, 2.0 if crit else -2.0)   # 공통 타격음
 	var ss: Array = MonFxData.struck_sound(kind)                       # 그 몬스터 몸에서 나는 소리
@@ -466,7 +505,7 @@ func take_damage(amount: int, dir: Vector2, crit: bool = false) -> void:
 		_knock = Vector2.ZERO
 		return
 	# 맞으면 준비 동작이 끊기고 잠깐 움찔한 뒤 쫓아온다
-	if state != State.LUNGE:
+	if state != State.LUNGE and state != State.SKILL:
 		_set_state(State.REST)
 		_state_t = rest_time - 0.35
 	if hp <= 0:
@@ -568,6 +607,8 @@ func _pop_loot(par: Node, from_index: int) -> void:
 
 
 func _draw() -> void:
+	if _sprite and skill_hide:
+		return
 	if _sprite:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.4))
 		draw_circle(Vector2(0, (FOOT.y - 1.0) / 0.4), 10, Color(0, 0, 0, 0.18))

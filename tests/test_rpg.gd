@@ -613,6 +613,103 @@ func _run() -> void:
 	check(big_hp - int(big.get("hp")) >= GameState.attack_power() * 5, "화면의 적에게 큰 피해 (%d)" % (big_hp - int(big.get("hp"))))
 	big.queue_free()
 
+	print("[보스 등장 장면]")
+	GameState.bosses_met = {}
+	var bb: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+	bb.set("kind", "boss_bug")
+	bb.position = player.global_position + Vector2(90, 0)
+	world.get("actors").add_child(bb)
+	player.set("_invuln", 999.0)
+	await frames(80)
+	check(GameState.cutscene and GameState.bosses_met.has("boss_bug"), "처음 만난 보스는 화면을 멈추고 등장 장면을 보임")
+	var waited := 0
+	while GameState.cutscene and waited < 600:
+		await frames(1)
+		waited += 1
+	check(not GameState.cutscene and waited > 120, "등장 장면이 끝나면 다시 움직임 (%.1f초)" % (waited / 60.0))
+	var bb_sp: Sprite2D = bb.get("_sprite")
+	check(bb_sp.visible and bb_sp.scale.distance_to(bb.get("_base_scale")) < 0.2, "등장이 끝나면 보스 그림이 제자리")
+	bb.queue_free()
+	await frames(2)
+	var bb2: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+	bb2.set("kind", "boss_bug")
+	bb2.position = player.global_position + Vector2(90, 0)
+	world.get("actors").add_child(bb2)
+	await frames(90)
+	check(not GameState.cutscene and bool(bb2.get("brain").get("intro_done")), "두 번째부터는 멈추지 않고 이름표만")
+	bb2.queue_free()
+	var gone: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+	gone.set("kind", "boss_oak")
+	gone.position = player.global_position + Vector2(90, 0)
+	world.get("actors").add_child(gone)
+	await frames(80)
+	gone.queue_free()
+	await frames(3)
+	check(not GameState.cutscene, "등장 장면 도중 보스가 사라져도 화면이 멈춘 채로 남지 않음")
+	GameState.set_cutscene(false)
+	await frames(2)
+
+	print("[보스 전용 기술과 2페이즈]")
+	const BossData := preload("res://scripts/data/boss_data.gd")
+	for kind in BossData.BOSSES:
+		GameState.bosses_met[kind] = true
+	for kind in BossData.BOSSES:
+		for ph in [1, 2]:
+			for sk in BossData.BOSSES[kind]["skills"]:
+				var b: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+				b.set("kind", kind)
+				b.position = player.global_position + Vector2(110, 0)
+				world.get("actors").add_child(b)
+				await frames(2)
+				var br: Node = b.get("brain")
+				br.set("phase", ph)
+				var before := get_tree().get_nodes_in_group("enemies").size()
+				var counted := {"hz": 0, "shot": 0}
+				var on_add := func(n: Node):
+					if n.get_script() == preload("res://scripts/actors/boss_hazard.gd"):
+						counted["hz"] += 1
+					elif n.get_script() == preload("res://scripts/actors/boss_shot.gd"):
+						counted["shot"] += 1
+				get_tree().node_added.connect(on_add)
+				br.call("use", sk)
+				var t := 0
+				while is_instance_valid(b) and str(br.call("current")) != "" and t < 600:   # 2페이즈는 다른 기술로 이어질 수 있다
+					await frames(1)
+					t += 1
+				get_tree().node_added.disconnect(on_add)
+				check(t < 600 and int(b.get("state")) != 5 and not bool(b.get("immune")) and (b.get("_sprite") as Sprite2D).visible and b.collision_layer == 4,
+					"%s %d페이즈 %s: 끝까지 쓰고 제자리로 (%.1f초, 위험 자리 %d, 탄 %d)" % [kind, ph, sk, t / 60.0, counted["hz"], counted["shot"]])
+				check(counted["hz"] + counted["shot"] > 0 or sk == "roll_combo", "%s %s: 피할 것을 남김" % [kind, sk])
+				b.queue_free()
+				await frames(2)
+	for n in get_tree().get_nodes_in_group("enemies"):
+		pass
+	# 위험 자리에 서 있으면 맞는다
+	player.set("_invuln", 0.0)
+	var php := int(player.get("hp"))
+	var hz: Node2D = preload("res://scripts/actors/boss_hazard.gd").new()
+	hz.set("damage", 5)
+	hz.set("warn", 0.2)
+	hz.position = player.global_position
+	world.get("actors").add_child(hz)
+	await frames(25)
+	check(int(player.get("hp")) < php, "빨간 과녁 안에 있으면 터질 때 맞음")
+	player.set("_invuln", 999.0)
+	# 체력이 절반 아래로 떨어지면 화가 난다
+	var eb: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+	eb.set("kind", "boss_crumple")
+	eb.position = player.global_position + Vector2(110, 0)
+	world.get("actors").add_child(eb)
+	await frames(70)
+	var spd := float(eb.get("speed"))
+	eb.call("take_damage", int(eb.get("max_hp")) / 2 + 5, Vector2.RIGHT, false)
+	await frames(10)
+	check(int(eb.get("brain").get("phase")) == 2 and bool(eb.get("enraged")) and float(eb.get("speed")) > spd * 1.2, "체력이 절반 아래면 2페이즈 (화나서 빨라짐)")
+	eb.queue_free()
+	await frames(60)
+	player.set("_invuln", 0.0)
+	player.set("hp", int(player.get("max_hp")))
+
 	print("[보스 움직임]")
 	for kind in ["tm13", "boss_bug", "boss_crumple", "boss_scribble", "boss_oak", "boss_mushking", "boss_colorworm"]:
 		var b: Node2D = preload("res://scenes/enemy.tscn").instantiate()

@@ -135,6 +135,11 @@ SHEETS = {
     # 1장 뒷이야기 끝: 흰 집 자리에 그려 넣은 우편함 (편지 한 통)
     "102_ch1_mailbox": (1, 1, [("story_mailbox", 96)]),
     # 2장 친구의 길 기능 (과녁, 맞은 과녁, 이어진 덩굴, 도토리 바구니) / 2장 주민 전용 물건 (경단, 매듭 과자, 꿀색 붓, 뜨개 숄)
+    # 보스 기술·등장 효과 (boss_brain.gd, boss_hazard.gd, boss_shot.gd)
+    "105_boss_skill": (4, 4, [("fx_boss_slash", 200), ("fx_boss_check", 64), ("fx_boss_crumb", 64), ("fx_boss_paper", 96),
+                              ("fx_boss_scrib", 64), ("fx_boss_cloud", 160), ("fx_boss_root", 110), ("fx_boss_acorn", 72),
+                              ("fx_boss_spore", 160), ("fx_boss_mound", 140), ("fx_boss_paint", 80), ("fx_boss_puddle", 140),
+                              ("ui_boss_banner", 600), ("fx_boss_crack", 160), ("fx_boss_roar", 220), ("fx_boss_ring", 220)]),
     "103_ch2_paths": (4, 2, [("path_target", 110), ("path_target_hit", 120), ("path_vine", 150), ("path_basket", 90),
                              ("vgift_6", 64), ("vgift_7", 64), ("vgift_8", 64), ("vgift_9", 64)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),

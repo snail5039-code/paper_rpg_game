@@ -191,6 +191,8 @@ func _run() -> void:
 	var field := tree.current_scene
 	var fp: Node2D = field.get("player")
 	fp.set("_invuln", 999.0)
+	for b in tree.get_nodes_in_group("boss"):
+		b.queue_free()   # 오늘의 필드 보스가 들판이면 등장 장면·기술이 곤충 잡기를 끊는다
 	var pond: Node2D = null
 	var forage_spots := 0
 	for n in field.get("actors").get_children():

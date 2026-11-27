@@ -69,6 +69,8 @@ func _run() -> void:
 	GameState.has_saved_position = false
 	GameState.spawn_tag = ""
 	GameState.quest = GameState.Quest.CLEARED
+	for b in ["tm13", "boss_bug", "boss_crumple", "boss_scribble", "boss_oak", "boss_mushking", "boss_colorworm"]:
+		GameState.bosses_met[b] = true   # 보스 등장 장면(화면이 멈춤)은 test_rpg 에서 본다
 	GameState.home_intro_seen = true
 	GameState.level = 6
 
@@ -138,6 +140,10 @@ func _run() -> void:
 	await frames(90)
 	check(comp.global_position.distance_to(player.global_position) < 60.0, "플레이어를 따라옴")
 	var target: Node2D = get_tree().get_nodes_in_group("enemies")[0]
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != target:
+			e.queue_free()   # 다른 몬스터(오늘의 필드 보스가 기술로 다가오는 등)가 더 가까우면 친구가 그쪽을 때린다
+	await frames(2)
 	target.set("speed", 0.0)
 	target.set("aggro_range", 0.0)
 	target.set("max_hp", 9999)
