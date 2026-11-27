@@ -143,6 +143,7 @@ var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 var ch2_step: int = 0
 var ch1_step: int = 0           # 1장 뒷이야기 "흰 집" (scripts/maps/ch1_story.gd)
 var ch1_scraps: Array = []      # 들판에서 주운 편지 조각 (자리 이름)
+var path_done: Dictionary = {}   # 친구의 길 기능으로 한 일 (scripts/maps/ch2_paths.gd: "target", "vine")
 var ch2_race: Dictionary = {"kills": 0, "rival": 0.0, "result": ""}
 var ch2_echo: int = 0
 var life_given := true            # 생활 도구가 생기기 전의 저장이면 불러올 때 나무 도구 한 벌을 준다
@@ -2503,7 +2504,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
-		"ch1_step": ch1_step, "ch1_scraps": ch1_scraps, "ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "axe_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
+		"ch1_step": ch1_step, "ch1_scraps": ch1_scraps, "path_done": path_done, "ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "axe_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
 		"boss_bonus": boss_bonus,
 		"tower_best": tower_best,
 		"quick_slots": quick_slots,
@@ -2674,6 +2675,7 @@ func load_game() -> bool:
 	bosses_beaten = data["bosses_beaten"] if typeof(data.get("bosses_beaten")) == TYPE_DICTIONARY else {}
 	ch1_step = int(data.get("ch1_step", 0))
 	ch1_scraps = data["ch1_scraps"] if typeof(data.get("ch1_scraps")) == TYPE_ARRAY else []
+	path_done = data["path_done"] if typeof(data.get("path_done")) == TYPE_DICTIONARY else {}
 	ch2_step = int(data.get("ch2_step", 0))
 	var race: Variant = data.get("ch2_race")
 	ch2_race = {"kills": int(race.get("kills", 0)), "rival": float(race.get("rival", 0.0)), "result": str(race.get("result", ""))} if typeof(race) == TYPE_DICTIONARY else {"kills": 0, "rival": 0.0, "result": ""}
@@ -2794,6 +2796,7 @@ func _reset_state() -> void:
 	bosses_beaten = {}
 	ch1_step = 0
 	ch1_scraps = []
+	path_done = {}
 	ch2_step = 0
 	ch2_race = {"kills": 0, "rival": 0.0, "result": ""}
 	ch2_echo = 0

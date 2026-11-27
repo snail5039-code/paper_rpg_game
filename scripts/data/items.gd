@@ -46,6 +46,8 @@ const FX_TEXT := {
 	"v_brooch": "갓 구운 냄새: 소모품과 음식의 회복량 20% 증가",
 	"v_watch": "느긋한 시계: 사냥터 화면에 들어갈 때 피로도가 1 덜 든다",
 	"v_badge": "둥실둥실: 이동 속도 +10%",
+	"v_brush": "꿀색 붓: 필살기 게이지가 20% 빨리 참",
+	"v_shawl": "따뜻한 숄: 받는 피해 8% 감소",
 	"set_eraser": "지우개 세트: 받는 피해 15% 감소",
 	"set_crumple": "구김 세트: 치명타가 나면 HP 2 회복",
 	"set_scribble": "낙서 세트: 필살기 게이지가 50% 빨리 참",
@@ -64,6 +66,11 @@ const UNIQUES := {
 		"opts": [["mp", 40], ["exp", 12], ["crit", 4]]},
 	"v_badge": {"name": "풍선 아이의 풍선 배지", "slot": "acc", "shape": 8, "icon": "vgift_5", "level": 10,
 		"opts": [["mspd", 8], ["aspd", 8], ["atk", 6]]},
+	# 2장 숲 입구 마을 주민
+	"v_brush": {"name": "색칠 곰 아저씨의 꿀색 붓", "slot": "acc", "shape": 3, "icon": "vgift_8", "level": 20,
+		"opts": [["atk", 10], ["critdmg", 20], ["aspd", 6]]},
+	"v_shawl": {"name": "덩굴 할머니의 뜨개 숄", "slot": "acc", "shape": 6, "icon": "vgift_9", "level": 20,
+		"opts": [["hp", 120], ["def", 6], ["mp", 30]]},
 }
 ## 세트 장비 (1장): 보스마다 한 벌. 여섯 부위가 있고 2·4·6부위를 입으면 효과가 붙는다.
 ##   shapes: 부위마다 그림이 없을 때 쓰는 모양 번호. bonus: 입은 부위 수 → 능력 (6부위는 고유 효과 fx 도)
@@ -137,8 +144,10 @@ const VILLAGER_RECIPES := {
 	"baker": ["단팥빵", "v_redbean", {0: 3, 4: 2}, 4],
 	"elder": ["지팡이 차", "v_tea", {2: 3, 6: 2}, 4],
 	"kid": ["풍선껌", "v_gum", {4: 3, 8: 2}, 4],
+	"painter": ["꿀색 물감 경단", "v_honey", {21: 2, 19: 2}, 5],
+	"weaver": ["덩굴 매듭 과자", "v_knot", {16: 3, 13: 2}, 5],
 }
-const VILLAGER_ACC := {"baker": "v_brooch", "elder": "v_watch", "kid": "v_badge"}
+const VILLAGER_ACC := {"baker": "v_brooch", "elder": "v_watch", "kid": "v_badge", "painter": "v_brush", "weaver": "v_shawl"}
 const UNIQUE_COLOR := Color(1.0, 0.62, 0.55)
 const UNIQUE_LEVEL := 70
 const UNIQUE_DROP_RATE := 0.25
@@ -201,6 +210,8 @@ const CONSUMABLES := {
 	"v_redbean": ["단팥빵", "vgift_0", 60, "빵집 아주머니의 비법. HP 60% 회복, 5분간 방어 +10%", "food", 0.0],
 	"v_tea": ["지팡이 차", "vgift_1", 60, "지팡이 할아버지의 차. MP 60% 회복, 10분간 MP 회복 2배", "food", 0.0],
 	"v_gum": ["풍선껌", "vgift_2", 50, "풍선 아이의 껌. HP 20% 회복, 10분간 경험치 +10%", "food", 0.0],
+	"v_honey": ["꿀색 물감 경단", "vgift_6", 70, "색칠 곰 아저씨의 간식. HP 40% 회복, 10분간 공격력 +10%", "food", 0.0],
+	"v_knot": ["덩굴 매듭 과자", "vgift_7", 70, "덩굴 할머니의 과자. MP 40% 회복, 10분간 드롭률 +10%", "food", 0.0],
 	# ---- 물고기 50종·채집 50종 중 새로 더한 것 (FISH_INFO, FORAGE_INFO) ----
 	"fish_0": ["종이 금붕어", "fish_0", 30, "내 마을 물에서 낮에만 낚인다. HP 를 15% 회복한다", "hp", 0.15],
 	"fish_1": ["압정 복어", "fish_1", 30, "내 마을 물에서 낚인다. HP 를 15% 회복한다", "hp", 0.15],
@@ -306,6 +317,8 @@ const FOOD_FX := {
 	"v_redbean": {"hp": 0.6, "buff": "def", "time": 300},
 	"v_tea": {"mp": 0.6, "buff": "mpregen", "time": 600},
 	"v_gum": {"hp": 0.2, "buff": "exp", "time": 600},
+	"v_honey": {"hp": 0.4, "buff": "atk", "time": 600},
+	"v_knot": {"mp": 0.4, "buff": "drop", "time": 600},
 }
 const BUFF_NAMES := {"def": "방어 +10%", "exp": "경험치 +10%", "atk": "공격력 +10%", "drop": "드롭률 +10%", "mpregen": "MP 회복 2배"}
 

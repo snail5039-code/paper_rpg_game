@@ -572,7 +572,7 @@ func _cannot_use(why: String) -> bool:
 
 
 func _ult_gain() -> float:
-	return (1.3 if GameState.has_fx("spark") else 1.0) * (1.5 if GameState.has_fx("set_scribble") else 1.0)
+	return (1.3 if GameState.has_fx("spark") else 1.0) * (1.5 if GameState.has_fx("set_scribble") else 1.0) * (1.2 if GameState.has_fx("v_brush") else 1.0)
 
 
 func _heal_mult() -> float:
@@ -683,7 +683,7 @@ func is_dodging() -> bool:
 func take_damage(amount: int, from_dir: Vector2) -> void:
 	if _invuln > 0.0 or is_dodging():
 		return
-	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0) * (0.85 if GameState.has_fx("set_eraser") else 1.0)))
+	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0) * (0.85 if GameState.has_fx("set_eraser") else 1.0) * (0.92 if GameState.has_fx("v_shawl") else 1.0)))
 	stop_act()          # 맞으면 하던 생활 동작이 끊긴다
 	Sound.play("hurt")
 	if GameState.skill_rank("ult") > 0:

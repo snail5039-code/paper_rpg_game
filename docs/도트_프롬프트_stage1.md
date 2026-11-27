@@ -249,3 +249,7 @@ SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by e
 
 ## 102. 흰 집 자리의 우편함
 - `102_ch1_mailbox` (1장, 마젠타): 아이가 크레용으로 그려 넣은 작은 빨간 우편함. 나무 기둥, 둥근 지붕, 투입구에 반쯤 꽂힌 편지(봉투에 작은 노란 해). 얼굴 없음. 참고: 100_ch1_people
+
+## 103. 2장 친구의 길 기능과 주민 전용 물건
+- `103_ch2_paths` (4×2, 마젠타): 첫 줄 종이 과녁(끈에 매달림), 도토리가 박힌 과녁, 다시 이어진 초록 덩굴(세로로 김), 도토리 바구니 / 둘째 줄 꿀색 물감 경단, 덩굴 매듭 과자, 꿀색 붓, 뜨개 숄. 참고: 73_vgift, 97_trees_axe
+- 결과: `path_target` `path_target_hit` `path_vine` `path_basket` / `vgift_6`~`vgift_9`

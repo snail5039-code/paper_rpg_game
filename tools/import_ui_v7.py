@@ -134,6 +134,9 @@ SHEETS = {
                               ("story_scrap", 48), ("story_stamp", 48), ("story_crumpled", 48), ("story_letter", 48)]),
     # 1장 뒷이야기 끝: 흰 집 자리에 그려 넣은 우편함 (편지 한 통)
     "102_ch1_mailbox": (1, 1, [("story_mailbox", 96)]),
+    # 2장 친구의 길 기능 (과녁, 맞은 과녁, 이어진 덩굴, 도토리 바구니) / 2장 주민 전용 물건 (경단, 매듭 과자, 꿀색 붓, 뜨개 숄)
+    "103_ch2_paths": (4, 2, [("path_target", 110), ("path_target_hit", 120), ("path_vine", 150), ("path_basket", 90),
+                             ("vgift_6", 64), ("vgift_7", 64), ("vgift_8", 64), ("vgift_9", 64)]),
     "86_museum_props": (4, 2, [("prop_tank", 260), ("prop_bugcase", 150), ("prop_planter", 220), ("prop_table", 220),
                                ("prop_board", 170), ("prop_showcase", 170), ("prop_desk", 200), ("npc_curator", 120)]),
     # HUD 메뉴 단추 (가방, 능력치, 스킬, 지도, 친구, 도감, 설정)

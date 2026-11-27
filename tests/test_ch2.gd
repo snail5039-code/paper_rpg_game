@@ -7,6 +7,8 @@ extends Node
 const FieldScene := preload("res://scenes/field.tscn")
 const Data := preload("res://scripts/data/game_data.gd")
 const Villager := preload("res://scripts/actors/villager.gd")
+const Items := preload("res://scripts/data/items.gd")
+const Art := preload("res://scripts/core/art.gd")
 const S := 640.0 / 1672.0
 
 var passed := 0
@@ -46,6 +48,14 @@ func check(ok: bool, text: String) -> void:
 func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
+
+
+func until(cond: Callable, limit: int = 600) -> bool:
+	for i in limit:
+		if cond.call():
+			return true
+		await frames(1)
+	return cond.call()
 
 
 func shot(file: String) -> void:
@@ -267,12 +277,56 @@ func _run() -> void:
 	check(quest_text(f).contains("2장을 끝냈다"), "할 일: 2장 끝")
 	await close(f)
 
+	print("[2장 주민 하트 4·5개]")
+	for vid in ["painter", "weaver"]:
+		GameState.villager(vid)["aff"] = 0
+		GameState.villager(vid)["acc"] = false
+		GameState.add_aff(vid, int(Data.HEART_NEED[3]))
+		check(GameState.known_recipes().any(func(r): return r == Items.VILLAGER_RECIPES[vid]), "%s 하트 4개: 전용 조합법을 배움" % vid)
+		GameState.add_aff(vid, int(Data.HEART_NEED[4]) - int(Data.HEART_NEED[3]))
+		var uid := str(Items.VILLAGER_ACC[vid])
+		check(bool(GameState.villager(vid)["acc"]), "%s 하트 5개: 전용 장신구 %s 를 받음" % [vid, uid])
+		check(Art.has(str(Items.UNIQUES[uid]["icon"])) and Art.has(str(Items.CONSUMABLES[str(Items.VILLAGER_RECIPES[vid][1])][1])), "%s 의 물건 그림이 있음" % vid)
+		check(Items.FOOD_FX.has(str(Items.VILLAGER_RECIPES[vid][1])), "%s 의 음식에 효과가 있음" % vid)
+
+	print("[친구의 길 기능]")
+	GameState.path_done = {}
+	GameState.friends = [{"sp": "slime", "lv": 1, "exp": 0, "stars": 0}, {"sp": "kongkong", "lv": 1, "exp": 0, "stars": 0}, {"sp": "vine", "lv": 1, "exp": 0, "stars": 0}]
+	GameState.companion = 0
+	f = await open_field("ch2_grove")
+	var tg := spot_of(f, "target")
+	check(tg != null and f.get_node_or_null("Ch2Paths") != null, "도토리 숲 큰 나무에 종이 과녁")
+	var coins0 := GameState.coins
+	await talk_to(f, tg)
+	await frames(10)
+	check(not bool(GameState.path_done.get("target", false)), "콩콩이가 없으면 과녁을 못 맞힘")
+	GameState.companion = 1
+	await talk_to(f, tg)
+	check(await until(func(): return bool(GameState.path_done.get("target", false)) and GameState.coins > coins0, 300), "콩콩이와 함께면 과녁을 맞히고 바구니를 얻음")
+	await shot("ch2_8_target.png")
+	await close(f)
+	GameState.companion = 1
+	f = await open_field("ch2_cliff")
+	var vn := spot_of(f, "vine")
+	check(vn != null, "절벽에 끊긴 덩굴")
+	await talk_to(f, vn)
+	await frames(10)
+	check(not bool(GameState.path_done.get("vine", false)), "덩굴이가 없으면 덩굴을 못 이음")
+	GameState.companion = 2
+	coins0 = GameState.coins
+	await talk_to(f, vn)
+	check(await until(func(): return bool(GameState.path_done.get("vine", false)) and GameState.coins > coins0, 300), "덩굴이와 함께면 덩굴을 잇고 절벽 위 둥지에 다녀옴")
+	check(not GameState.cutscene, "장면이 끝나면 다시 움직일 수 있음")
+	await shot("ch2_9_vine.png")
+	await close(f)
+
 	print("[저장]")
 	GameState.save_game()
 	GameState.ch2_step = 0
 	GameState.stickers = 0
 	GameState.load_game()
 	check(GameState.ch2_step == 6 and GameState.stickers == 1 and GameState.ch2_echo == 3, "2장 이야기 진행이 저장됨")
+	check(bool(GameState.path_done.get("target", false)) and bool(GameState.path_done.get("vine", false)), "친구의 길 기능으로 한 일이 저장됨")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.save_path))
 	print("\n결과: %d 통과 / %d 실패" % [passed, failed])

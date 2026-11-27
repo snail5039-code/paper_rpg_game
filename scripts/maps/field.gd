@@ -15,6 +15,7 @@ const SpotScript := preload("res://scripts/actors/pickup_spot.gd")
 const BugScript := preload("res://scripts/actors/bug.gd")
 const TreeScript := preload("res://scripts/actors/tree.gd")
 const Ch1Story := preload("res://scripts/maps/ch1_story.gd")
+const Ch2Paths := preload("res://scripts/maps/ch2_paths.gd")
 const FORAGE_SPOTS := 4
 const TREE_SPOTS := 3           # 흔들거나 벨 수 있는 나무 (대장 방에는 없다)
 const BUG_SLOTS := 3            # 화면에 들어올 때마다 곤충 자리 셋 (자리마다 70%)
@@ -125,6 +126,11 @@ func _ready() -> void:
 		add_child(story)
 		if DRAIN_MAPS.has(field_id):
 			_color_drain()
+	# 2장 친구의 길 기능 (콩콩이의 과녁, 덩굴이의 덩굴)
+	if Ch2Paths.here(field_id):
+		var paths: Node = Ch2Paths.new()
+		paths.name = "Ch2Paths"
+		add_child(paths)
 
 
 # ---------- 2장: 색이 빠지는 경계 ----------
@@ -308,6 +314,9 @@ func tree_spots() -> Array:
 				ok = false
 		for sp in (Ch1Story.SPOTS.get(field_id, {}) as Dictionary).values():
 			if (sp as Vector2).distance_to(at) < 150.0:
+				ok = false
+		for sp in (Ch2Paths.SPOTS.get(field_id, {}) as Dictionary).values():
+			if (sp[0] as Vector2).distance_to(at) < 150.0:
 				ok = false
 		if ok:
 			out.append(at)
