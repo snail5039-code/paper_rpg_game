@@ -11,6 +11,7 @@ const DrawingScript := preload("res://scripts/drawing/drawing_manager.gd")
 const HudScript := preload("res://scripts/ui/hud.gd")
 const PortalScript := preload("res://scripts/actors/portal.gd")
 const PlayerScene := preload("res://scenes/player.tscn")
+const PlayerFall := preload("res://scripts/actors/player_fall.gd")
 const Companion := preload("res://scripts/actors/companion.gd")
 
 const CELL := 16.0
@@ -107,7 +108,14 @@ func _ready() -> void:
 
 	player = PlayerScene.instantiate()
 	player.set("spawn_point", SPAWN)
-	if GameState.spawn_tag == "from_room":
+	var from_death: bool = GameState.spawn_tag == "from_death"
+	if from_death:
+		# 쓰러져서 돌아왔다: 내 집 앞 침대에서 일어난다
+		player.position = SPAWN
+		for o in GameState.home_objects:
+			if str(o["id"]) == "bld_house":
+				player.position = Vector2(float(o["x"]) + 26.0, float(o["y"]) + 26.0)
+	elif GameState.spawn_tag == "from_room":
 		# 건물에서 나왔다: 그 건물 앞에 선다
 		player.position = SPAWN
 		var came := GameState.object_at(str(GameState.room_ctx.get("key", "")))
@@ -125,6 +133,8 @@ func _ready() -> void:
 		player.position = SPAWN
 	GameState.spawn_tag = ""
 	actors.add_child(player)
+	if from_death:
+		PlayerFall.wake(player, true)
 	companion = Companion.attach(actors, player)
 
 	var cam := Camera2D.new()

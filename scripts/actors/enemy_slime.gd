@@ -9,6 +9,7 @@ signal died(home: Vector2)
 
 const PickupScript := preload("res://scripts/actors/pickup.gd")
 const Fx := preload("res://scripts/actors/fx_frames.gd")
+const MonsterDeath := preload("res://scripts/actors/monster_death.gd")
 const Data := preload("res://scripts/data/game_data.gd")
 const Items := preload("res://scripts/data/items.gd")
 const FallenScript := preload("res://scripts/actors/fallen.gd")
@@ -569,12 +570,16 @@ func _die() -> void:
 		get_parent().add_child(fallen)
 	if boss != "" and _sprite and _sprite.texture:
 		# 보스: 그림이 조각나 터지며 흩어지고, 전리품이 사방으로 튀어 오른다
+		MonsterDeath.boss_beat(self)
 		BossBurst.spawn(get_parent(), _sprite, str(Data.MONSTERS.get(kind, {}).get("sprite", "")))
 		_pop_loot(get_parent(), first_loot)
 	else:
-		var vanish := Art.tex("slime_vanish")
-		if vanish:
-			Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
+		if _sprite and _sprite.texture:
+			MonsterDeath.spawn(get_parent(), _sprite, kind)
+		else:
+			var vanish := Art.tex("slime_vanish")
+			if vanish:
+				Fx.spawn(get_parent(), vanish, global_position + FOOT, 4, 11.0)
 	died.emit(home)
 	queue_free()
 

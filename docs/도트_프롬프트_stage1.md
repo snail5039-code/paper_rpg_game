@@ -272,3 +272,10 @@ SCENE - 'Roots of the Great Tree': a large round clearing completely ringed by e
   셋째 줄 회색·보라 포자 독구름 / 흙 둔덕 / 무지개 물감 방울 탄(머리 왼쪽, 꼬리 오른쪽) / 무지개 물감 웅덩이(납작)
   넷째 줄 찢어진 공책 종이 이름표 띠(양 끝 리본, 가운데 비움) / 쩍 갈라진 바닥 금 / 빨간 포효 선(가운데 비움) / 노란 크레용 집중 고리
 - 결과: `fx_boss_slash` `fx_boss_check` `fx_boss_crumb` `fx_boss_paper` `fx_boss_scrib` `fx_boss_cloud` `fx_boss_root` `fx_boss_acorn` `fx_boss_spore` `fx_boss_mound` `fx_boss_paint` `fx_boss_puddle` `ui_boss_banner` `fx_boss_crack` `fx_boss_roar` `fx_boss_ring`
+
+## 106. 주인공 쓰러짐·일어남, 몬스터 죽음 효과
+- 참고: 주인공 걷기 시트의 정면 서 있는 칸을 자홍 바탕에 키워 붙인다. 같은 그림체·옷·머리·크기, 자홍 바탕, 칸 선·글자·그림자·침대·바닥 없이 6칸 균등, 몸 아래를 같은 높이로.
+- `106_player_down` (6×1): 맞아서 눈 질끈 감고 휘청 / 무릎 꿇음 / 앞으로 엎어지는 중 / 대자로 누움(눈 X) / 몸이 반쯤 흐려져 연필 윤곽만(지우개로 문지른 줄무늬) / 거의 다 지워져 아주 흐린 윤곽
+- `106_player_wake` (6×1): 반듯이 누워 잠 / 뒤척이며 팔을 올림 / 앉아서 눈을 비빔 / 기지개와 하품 / 일어서는 중 / 서서 활짝 웃으며 주먹
+- `106_die_fx` (4×3, 마젠타, 얼굴 없음): 첫 줄 지우개 가루 펑 터짐 네 단계(작게 → 퍼짐 → 흩어짐 → 거의 사라짐) / 둘째 줄 납작한 잉크 얼룩 · 구겨진 공책 종이 조각 · 노란 별 반짝임 · 연필 낙서 연기 / 셋째 줄 지우개로 문지른 흰 줄무늬 · 이불 먼지 구름 · 금빛 반짝 가루 · 노란 크레용 고리(가운데 비움)
+- 가져오기: `python tools/import_player_fall.py` → `player_down` `player_wake` (걷기 시트의 서 있는 키에 맞춤). `python tools/import_ui_v7.py 106_die_fx` → `fx_die_0~3` `fx_die_ink` `fx_die_paper` `fx_die_star` `fx_die_smoke` `fx_die_rub` `fx_die_dust` `fx_die_glint` `fx_die_ring`

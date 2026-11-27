@@ -742,6 +742,59 @@ func _run() -> void:
 		b.queue_free()
 	await frames(2)
 
+	print("[주인공 쓰러짐과 일어남]")
+	GameState.visited = []
+	GameState.current_map = "tut_1"          # 연습 페이지: 연필심을 잃지 않고 그 자리에서 다시 일어난다
+	player.set("_invuln", 0.0)
+	player.set("hp", 1)
+	player.call("take_damage", 99, Vector2.RIGHT)
+	await frames(30)
+	var fall: Node = null
+	for c in player.get_parent().get_children():
+		if str(c.get("mode")) == "down":
+			fall = c
+	check(fall != null and GameState.cutscene and not player.visible, "쓰러지면 장면이 나오고 게임이 멈춤")
+	check(int(fall.get("_spr").frame) >= 2, "쓰러지는 그림이 한 칸씩 넘어감")
+	var fall_n := 0
+	var woke: Node = null
+	while woke == null and fall_n < 400:
+		await frames(1)
+		fall_n += 1
+		for c in player.get_parent().get_children():
+			if str(c.get("mode")) == "wake":
+				woke = c
+	check(woke != null and GameState.cutscene and not player.visible, "쓰러짐이 끝나면 같은 자리에서 일어나는 장면이 이어짐")
+	await frames(60)
+	check(int(woke.get("_spr").frame) >= 1, "일어나는 그림이 넘어감")
+	fall_n = 0
+	while GameState.cutscene and fall_n < 600:
+		await frames(1)
+		fall_n += 1
+	await frames(3)
+	check(not GameState.cutscene and player.visible and int(player.get("hp")) == int(player.get("max_hp")), "다 일어나면 몸이 보이고 HP 가 가득 참")
+	check(float(player.get("_invuln")) > 0.0, "일어난 뒤에는 잠깐 무적")
+	player.set("_invuln", 0.0)
+
+	print("[몬스터 죽음 모션]")
+	var seen_styles := {}
+	for k in ["slime", "slime_erased", "mon_bug", "mon_dots", "mon_grass", "slime_faded", "dots_erased", "bug_faded"]:
+		seen_styles[preload("res://scripts/actors/monster_death.gd").style_of(k)] = true
+	check(seen_styles.size() >= 2, "몬스터 종류마다 다른 쓰러짐 모션이 골라짐")
+	var dm: Node2D = preload("res://scenes/enemy.tscn").instantiate()
+	dm.set("kind", "slime")
+	dm.position = player.global_position + Vector2(200, 0)
+	world.get("actors").add_child(dm)
+	await frames(3)
+	dm.call("take_damage", 9999, Vector2.RIGHT, false)
+	await frames(10)
+	var dying: Node = null
+	for c in world.get("actors").get_children():
+		if c.get_script() != null and str(c.get_script().resource_path).ends_with("monster_death.gd"):
+			dying = c
+	check(dying != null and not is_instance_valid(dm), "몬스터가 쓰러지면 죽음 모션이 대신 남아 재생됨")
+	await frames(90)
+	check(not is_instance_valid(dying), "죽음 모션은 끝나면 스스로 사라짐")
+
 	print("[저장/불러오기]")
 	var inv_n := GameState.inventory.size()
 	var rank := GameState.skill_rank("slash")

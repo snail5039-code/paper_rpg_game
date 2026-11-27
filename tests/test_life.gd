@@ -40,6 +40,14 @@ func frames(n: int) -> void:
 		await get_tree().physics_frame
 
 
+func until(cond: Callable, limit: int = 600) -> bool:
+	for i in limit:
+		if cond.call():
+			return true
+		await frames(1)
+	return cond.call()
+
+
 func shot(file: String) -> void:
 	if _dir == "":
 		return
@@ -231,7 +239,9 @@ func _run() -> void:
 	player.set("hp", 1)
 	player.call("take_damage", 9999, Vector2.RIGHT)
 	await frames(2)
-	check(GameState.pencil_lead == 45, "쓰러지면 연필심의 10%를 잃음")
+	check(GameState.cutscene and not player.visible, "쓰러지는 장면이 나오는 동안 게임이 멈추고 주인공 몸이 가려짐")
+	check(await until(func(): return GameState.pencil_lead == 45, 600), "쓰러지면 연필심의 10%를 잃음")
+	check(await until(func(): return not GameState.cutscene, 900), "쓰러짐과 일어남 장면이 모두 끝나면 게임이 다시 움직임")
 	check(int(player.get("hp")) == int(player.get("max_hp")), "HP 가 가득 찬 채로 다시 일어남")
 	field.queue_free()
 	await frames(3)

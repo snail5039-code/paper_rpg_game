@@ -32,6 +32,7 @@ var _swing_dir := Vector2.DOWN
 var _invuln := 0.0
 var _knock := Vector2.ZERO
 var _anim_t := 0.0
+var _falling := false          # 쓰러지는 장면 중
 var combo := 0                  # 기본 공격 연타 (0, 1, 2 → 세 번째가 강하다)
 var _combo_timer := 0.0
 var skill_cd: Dictionary = {}   # 스킬 id → 남은 재사용 시간
@@ -68,6 +69,7 @@ var ult := 0.0                  # 필살기 게이지 (0 ~ 100)
 
 
 const Art := preload("res://scripts/core/art.gd")
+const PlayerFall := preload("res://scripts/actors/player_fall.gd")
 const Items := preload("res://scripts/data/items.gd")
 const FOOT := Vector2(0, 6)
 const WALK_FPS := 8.0
@@ -696,15 +698,27 @@ func take_damage(amount: int, from_dir: Vector2) -> void:
 
 
 ## 쓰러지면 연필심의 10%를 잃고 내 마을로 돌아간다 (내 마을이 아직 없으면 이 맵의 입구로)
+## 먼저 쓰러져 지워지는 장면(PlayerFall.down)이 나온 뒤에 옮겨 가고, 새 자리에서 일어나는 장면이 이어진다.
 func _die() -> void:
+	if _falling:
+		return
+	_falling = true
+	hp = 1          # 장면 동안 또 맞아 죽지 않게 (끝나면 가득 채운다)
+	_invuln = 99.0
+	stop_act()
+	PlayerFall.down(self, _after_fall)
+
+
+func _after_fall() -> void:
+	_falling = false
 	hp = max_hp
 	if GameState.on_player_death():
-		return
+		return          # 다른 맵으로 옮겨 갔다: 새 맵이 일어나는 장면을 맡는다
 	mp = max_mp
 	_knock = Vector2.ZERO
 	global_position = spawn_point
-	_invuln = 1.5
 	hp_changed.emit(hp, max_hp)
+	PlayerFall.wake(self, false)
 
 
 func _draw() -> void:
