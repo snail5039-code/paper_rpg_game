@@ -683,7 +683,7 @@ func is_dodging() -> bool:
 
 
 func take_damage(amount: int, from_dir: Vector2) -> void:
-	if _invuln > 0.0 or is_dodging():
+	if _invuln > 0.0 or is_dodging() or GameState.god_mode:
 		return
 	hp -= maxi(1, roundi((amount - GameState.defense()) * (0.9 if GameState.has_fx("brim") else 1.0) * (0.85 if GameState.has_fx("set_eraser") else 1.0) * (0.92 if GameState.has_fx("v_shawl") else 1.0)))
 	stop_act()          # 맞으면 하던 생활 동작이 끊긴다

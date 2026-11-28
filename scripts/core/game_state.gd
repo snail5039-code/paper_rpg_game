@@ -143,6 +143,8 @@ var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 var ch2_step: int = 0
 ## 2장 색이 빠지는 경계가 얼마나 다가왔는지 (0 처음 ~ 1 가장 가까이). 걸을 때마다 늘고, 마을에서 쉬면 조금 물러난다
 var ch2_drain: float = 0.0
+## 관리자 창(F10)에서 켜는 무적. 저장하지 않는다
+var god_mode: bool = false
 var ch1_step: int = 0           # 1장 뒷이야기 "흰 집" (scripts/maps/ch1_story.gd)
 var ch1_scraps: Array = []      # 들판에서 주운 편지 조각 (자리 이름)
 var bosses_met: Dictionary = {}  # 등장 장면을 본 보스 (보스 종류 → true). 두 번째부터는 이름표만 짧게
@@ -299,7 +301,10 @@ func _notification(what: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("save_game"):
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F10:
+		load("res://scripts/ui/admin_panel.gd").toggle(get_tree())
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("save_game"):
 		if save_game():
 			notify("저장했어요.")
 		get_viewport().set_input_as_handled()
