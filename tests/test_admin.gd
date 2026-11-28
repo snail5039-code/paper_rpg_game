@@ -72,8 +72,8 @@ func _run() -> void:
 		get_viewport().get_texture().get_image().save_png(_dir.path_join("admin.png"))
 	var maps := []
 	buttons(p, maps)
-	check(maps.filter(func(b): return (b as Button).text.contains("(ch2_bossroom)")).size() == 1, "맵 목록에 2장 대장 방이 있음")
-	check(maps.filter(func(b): return (b as Button).text.contains("(tut_13)")).size() == 1, "맵 목록에 연습 페이지가 있음")
+	check(maps.filter(func(b): return (b as Button).text.contains("큰나무 뿌리")).size() == 1, "맵 목록에 2장 대장 방이 있음")
+	check(maps.filter(func(b): return (b as Button).text.contains("연습 13장")).size() == 1, "맵 목록에 연습 페이지가 있음")
 	var lv := GameState.level
 	check(press("레벨 +5"), "레벨 단추가 있음")
 	check(GameState.level == lv + 5, "레벨 +5")

@@ -4,6 +4,7 @@ extends CanvasLayer
 
 const UIKit := preload("res://scripts/ui/ui_kit.gd")
 const Data := preload("res://scripts/data/game_data.gd")
+const TutData := preload("res://scripts/data/tut_data.gd")
 
 const GROUPS := [
 	["2장 색연필 숲", ["ch2", "ch2_path", "ch2_grove", "ch2_cliff", "ch2_gray", "ch2_mushroom", "ch2_bigtree", "ch2_bossroom"]],
@@ -53,7 +54,7 @@ func _ready() -> void:
 		list.add_child(h)
 		for id in g[1]:
 			var b := Button.new()
-			b.text = "%s   (%s)" % [str(Data.MAP_NAMES.get(id, id)), id]
+			b.text = _label(id)
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			b.add_theme_font_size_override("font_size", 9)
 			b.custom_minimum_size = Vector2(280, 16)
@@ -77,8 +78,26 @@ func _ready() -> void:
 	_stepper(bg, "2장 단계", Vector2(x, y + 22), "ch2_step", 0, 6)
 	UIKit.button(bg, "2장 경계 처음으로", Vector2(x, y + 44), Vector2(154, 17), _act.bind(func(): GameState.ch2_drain = 0.0))
 	UIKit.button(bg, "스티커 +1", Vector2(x + 158, y + 44), Vector2(154, 17), _act.bind(func(): GameState.stickers = mini(6, GameState.stickers + 1)))
-	UIKit.label(bg, "맵 이름을 누르면 피로도와 상관없이 바로 간다.\n단계를 바꾼 뒤에는 그 맵에 다시 들어가야 적용된다.", Vector2(x, y + 70), Vector2(312, 40), 8).add_theme_color_override("font_color", Color(0.7, 0.75, 0.8))
+	UIKit.label(bg, "맵을 누르면 피로도와 상관없이 바로 간다.\n단계를 바꾼 뒤에는 그 맵에 다시 들어가야 적용된다.", Vector2(x, y + 70), Vector2(312, 40), 8).add_theme_color_override("font_color", Color(0.7, 0.75, 0.8))
 	_refresh()
+
+
+## 목록에 보이는 이름: 어디인지 한눈에 알 수 있게 (연습 페이지는 번호·이름·선생)
+func _label(id: String) -> String:
+	if id.begins_with("tut_"):
+		var n := int(id.substr(4))
+		var m: Dictionary = TutData.MAPS[n - 1]
+		return "연습 %d장 · %s  (선생: %s)" % [n, m["name"], (m["npc"] as Array)[0]]
+	match id:
+		"home": return "내 마을 (집·건물 짓는 곳)"
+		"home_room": return "내 집 안 (방)"
+		"museum": return "박물관"
+		"tower": return "끝없는 탑 (1층)"
+		"ch1": return "1장 · 공책 마을 (마을)"
+		"ch2": return "2장 · 숲 입구 마을 (마을)"
+		"ch1_bossroom", "ch2_bossroom":
+			return "%s · %s (대장 방)" % [id.substr(2, 1) + "장", str(Data.MAP_NAMES.get(id, id))]
+	return "%s장 · %s (사냥터)" % [id.substr(2, 1), str(Data.MAP_NAMES.get(id, id))]
 
 
 func _stepper(parent: Control, title: String, pos: Vector2, key: String, lo: int, hi: int) -> void:
