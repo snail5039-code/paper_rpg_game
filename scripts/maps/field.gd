@@ -126,6 +126,8 @@ func _ready() -> void:
 		add_child(story)
 		if DRAIN_MAPS.has(field_id):
 			_color_drain()
+		elif bool(cfg.get("town", false)) and field_id == "ch2":
+			GameState.ch2_drain = maxf(0.0, GameState.ch2_drain - DRAIN_TOWN_BACK)
 	# 2장 친구의 길 기능 (콩콩이의 과녁, 덩굴이의 덩굴)
 	if Ch2Paths.here(field_id):
 		var paths: Node = Ch2Paths.new()
@@ -134,11 +136,15 @@ func _ready() -> void:
 
 
 # ---------- 2장: 색이 빠지는 경계 ----------
-## 화면 오른쪽부터 색이 빠진다. 이 화면에 머무는 동안 경계가 천천히 다가온다 (나갔다 오면 처음 자리).
+## 화면 오른쪽부터 색이 빠진다. 걸을 때마다 경계가 조금씩 다가오고 (GameState.ch2_drain, 화면을 옮겨도 이어진다),
+## 숲 입구 마을에 들어서면 조금 물러난다. 서 있으면 아주 느리게만 다가온다.
 const DRAIN_MAPS := ["ch2_path", "ch2_grove", "ch2_cliff", "ch2_mushroom", "ch2_bigtree"]
 const DRAIN_START := 0.9        # 처음 경계 (화면 가로의 비율)
 const DRAIN_END := 0.55         # 가장 가까이 오는 곳
-const DRAIN_SPEED := 0.0016     # 1초에 다가오는 비율
+const DRAIN_SPEED := 0.0004     # 서 있을 때 1초에 늘어나는 정도 (0~1)
+const DRAIN_WALK := 0.00012     # 한 걸음(1px)마다 늘어나는 정도
+const DRAIN_TOWN_BACK := 0.35   # 마을에 들어서면 물러나는 정도
+var _drain_last := Vector2.ZERO
 var drain: ColorRect
 var _drain_x := DRAIN_START
 
@@ -170,7 +176,8 @@ func _color_drain() -> void:
 	mat.shader = sh
 	drain.material = mat
 	add_child(drain)
-	_set_drain(DRAIN_START)
+	_set_drain(lerpf(DRAIN_START, DRAIN_END, GameState.ch2_drain))
+	_drain_last = player.global_position if player else Vector2.ZERO
 
 
 func _set_drain(ratio: float) -> void:
@@ -180,8 +187,16 @@ func _set_drain(ratio: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if drain and not GameState.menu_open and not GameState.dialogue_open and _drain_x > DRAIN_END:
-		_set_drain(maxf(DRAIN_END, _drain_x - DRAIN_SPEED * delta))
+	if drain == null or player == null:
+		return
+	var moved := player.global_position.distance_to(_drain_last)
+	_drain_last = player.global_position
+	if GameState.menu_open or GameState.dialogue_open or GameState.cutscene or GameState.ch2_drain >= 1.0:
+		return
+	# 걸은 만큼 (순간이동 같은 큰 움직임은 세지 않는다) + 서 있어도 아주 조금
+	var walked := moved if moved < 40.0 else 0.0
+	GameState.ch2_drain = minf(1.0, GameState.ch2_drain + walked * DRAIN_WALK + delta * DRAIN_SPEED)
+	_set_drain(lerpf(DRAIN_START, DRAIN_END, GameState.ch2_drain))
 
 
 ## 이 화면의 내용 (FIELDS 표). 끝없는 탑(scripts/maps/tower.gd)은 층마다 만들어 쓴다.

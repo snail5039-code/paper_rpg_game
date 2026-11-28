@@ -246,6 +246,12 @@ func _run() -> void:
 	var x0: float = f.get("_drain_x")
 	await frames(30)
 	check(float(f.get("_drain_x")) < x0, "경계가 조금씩 다가옴")
+	var d0 := GameState.ch2_drain
+	var pp: Node2D = f.get("player")
+	for i in 20:
+		pp.global_position += Vector2(8, 0)
+		await frames(1)
+	check(GameState.ch2_drain > d0 + 0.01, "걸을 때마다 경계가 더 다가옴 (%.3f → %.3f)" % [d0, GameState.ch2_drain])
 	await close(f)
 	f = await open_field("ch2_bigtree")
 	p = f.get("player")

@@ -141,6 +141,8 @@ var field_boss: Dictionary = {"day": 0, "map": "", "dead": false}
 var bosses_beaten: Dictionary = {}   # 물리친 보스 (종류 → 횟수)
 ## 2장 색연필 숲 이야기 (scripts/data/ch2_story.gd 의 STEP). race: 귀퉁이와의 사냥 시합, echo: 되풀이 주민에게 말 건 횟수
 var ch2_step: int = 0
+## 2장 색이 빠지는 경계가 얼마나 다가왔는지 (0 처음 ~ 1 가장 가까이). 걸을 때마다 늘고, 마을에서 쉬면 조금 물러난다
+var ch2_drain: float = 0.0
 var ch1_step: int = 0           # 1장 뒷이야기 "흰 집" (scripts/maps/ch1_story.gd)
 var ch1_scraps: Array = []      # 들판에서 주운 편지 조각 (자리 이름)
 var bosses_met: Dictionary = {}  # 등장 장면을 본 보스 (보스 종류 → true). 두 번째부터는 이름표만 짧게
@@ -2505,7 +2507,7 @@ func save_game() -> bool:
 		"max_difficulty": max_difficulty,
 		"field_boss": field_boss,
 		"bosses_beaten": bosses_beaten,
-		"ch1_step": ch1_step, "ch1_scraps": ch1_scraps, "path_done": path_done, "bosses_met": bosses_met, "ch2_step": ch2_step, "ch2_race": ch2_race, "life_given": true, "axe_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
+		"ch1_step": ch1_step, "ch1_scraps": ch1_scraps, "path_done": path_done, "bosses_met": bosses_met, "ch2_step": ch2_step, "ch2_drain": ch2_drain, "ch2_race": ch2_race, "life_given": true, "axe_given": true, "ch2_echo": ch2_echo, "stickers": stickers,
 		"boss_bonus": boss_bonus,
 		"tower_best": tower_best,
 		"quick_slots": quick_slots,
@@ -2679,6 +2681,7 @@ func load_game() -> bool:
 	path_done = data["path_done"] if typeof(data.get("path_done")) == TYPE_DICTIONARY else {}
 	bosses_met = data["bosses_met"] if typeof(data.get("bosses_met")) == TYPE_DICTIONARY else {}
 	ch2_step = int(data.get("ch2_step", 0))
+	ch2_drain = clampf(float(data.get("ch2_drain", 0.0)), 0.0, 1.0)
 	var race: Variant = data.get("ch2_race")
 	ch2_race = {"kills": int(race.get("kills", 0)), "rival": float(race.get("rival", 0.0)), "result": str(race.get("result", ""))} if typeof(race) == TYPE_DICTIONARY else {"kills": 0, "rival": 0.0, "result": ""}
 	ch2_echo = int(data.get("ch2_echo", 0))
@@ -2801,6 +2804,7 @@ func _reset_state() -> void:
 	path_done = {}
 	bosses_met = {}
 	ch2_step = 0
+	ch2_drain = 0.0
 	ch2_race = {"kills": 0, "rival": 0.0, "result": ""}
 	ch2_echo = 0
 	stickers = 0
